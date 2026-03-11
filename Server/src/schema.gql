@@ -1,0 +1,19 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AuthPayload {
+  accessToken: String!
+}
+
+type Mutation {
+  signIn(signInInput: SignInInput!): AuthPayload!
+}
+
+type Query {
+  hello: String!
+}
+
+input SignInInput {
+  googleToken: String!
+}

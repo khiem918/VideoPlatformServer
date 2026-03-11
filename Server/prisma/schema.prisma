@@ -1,0 +1,98 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["core"]
+}
+
+model User {
+  id             String         @id @default(cuid())
+  userName       String?        @map("user_name") @db.VarChar(30)
+  userPassword   String         @map("user_password") @db.VarChar(100)
+  userPhone      String?        @map("user_phone") @db.VarChar(12)
+  userEmail      String        @unique @map("user_email") @db.VarChar(320)
+  channelIntro   String?        @map("channel_intro") @db.VarChar(1000)
+  subscribeCount Int            @default(0) @map("subscribe_conut")
+  
+  videos         Video[]
+  subscriptions  Subscribe[]    @relation("UserSubscriptions")
+  channels       Subscribe[]    @relation("ChannelSubscriptions")
+  watchHistory   WatchHistory[]
+
+  @@map("user")
+  @@schema("core")
+}
+
+model Video {
+  id                String         @id @default(cuid())
+  videoName         String         @map("video_name") @db.VarChar(1000)
+  videoReleasedDate DateTime?      @map("video_released_date") @db.Timestamp
+  videoView         Int            @default(0) @map("video_view")
+  videoLike         Int            @default(0) @map("video_like")
+  videoDislike      Int            @default(0) @map("video_dislike")
+  userOwner         String         @map("user_owner")
+  videoUrlStorage   String         @map("video_url_storage") @db.VarChar(1000)
+  
+  owner             User           @relation(fields: [userOwner], references: [id], onDelete: Cascade)
+  videoHashtags     VideoHashtag[]
+  watchHistory      WatchHistory[]
+
+  @@map("video")
+  @@schema("core")
+}
+
+model Hashtag {
+  id            String        @id @default(cuid())
+  tagName       String         @map("hagtag_name") @db.VarChar(1000)
+  videoHashtags VideoHashtag[]
+
+  @@map("hagtag")
+  @@schema("core")
+}
+
+model VideoHashtag {
+  videoId   String @map("video_id")
+  hashtagId String @map("hagtag_id")
+
+  video   Video   @relation(fields: [videoId], references: [id])
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id])
+
+  @@id([videoId, hashtagId])
+  @@map("video_hagtag")
+  @@schema("core")
+}
+
+model Subscribe {
+  userId          String
+  channelId       String   @map("channel_id")
+  notifySubscribe Boolean @default(false) @map("nofify_subscribe")
+
+  user    User @relation("UserSubscriptions", fields: [userId], references: [id])
+  channel User @relation("ChannelSubscriptions", fields: [channelId], references: [id])
+
+  @@id([userId, channelId])
+  @@map("subscribe")
+  @@schema("core")
+}
+
+model WatchHistory {
+  userId   String     @map("user_id")
+  videoId  String     @map("video_id")
+  pausedAt String? @map("paused_at") @db.VarChar(8)
+
+  user  User  @relation(fields: [userId], references: [id])
+  video Video @relation(fields: [videoId], references: [id])
+
+  @@id([userId, videoId])
+  @@map("watch_history")
+  @@schema("core")
+}

@@ -1,0 +1,153 @@
+{
+  "version": "1.0.0",
+  "darkMode": true,
+  "gridEnabling": false,
+  "detailLevel": "All",
+  "tablePositions": [
+    {
+      "name": "user",
+      "schemaName": "core",
+      "x": 626.1198682081401,
+      "y": -298.8643986508684
+    },
+    {
+      "name": "video",
+      "schemaName": "core",
+      "x": 65.84227347461223,
+      "y": -33.42588137432057
+    },
+    {
+      "name": "hagtag",
+      "schemaName": "core",
+      "x": 602.4100988438951,
+      "y": 430.0820098908922
+    },
+    {
+      "name": "video_hagtag",
+      "schemaName": "core",
+      "x": 408,
+      "y": 48
+    },
+    {
+      "name": "subscribe",
+      "schemaName": "public",
+      "x": 408,
+      "y": 280
+    },
+    {
+      "name": "watch_history",
+      "schemaName": "core",
+      "x": 84.22710051405272,
+      "y": -189.65308066724126
+    }
+  ],
+  "tableGroupCollapseStates": [],
+  "stickyNoteLayouts": [],
+  "referencePaths": [
+    {
+      "firstFieldNames": [
+        "user_owner"
+      ],
+      "firstTableName": "video",
+      "firstSchemaName": "core",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "user",
+      "secondSchemaName": "core",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "video_id"
+      ],
+      "firstTableName": "video_hagtag",
+      "firstSchemaName": "core",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "video",
+      "secondSchemaName": "core",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "hagtag_id"
+      ],
+      "firstTableName": "video_hagtag",
+      "firstSchemaName": "core",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "hagtag",
+      "secondSchemaName": "core",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "id"
+      ],
+      "firstTableName": "user",
+      "firstSchemaName": "core",
+      "firstRelation": "1",
+      "secondFieldNames": [
+        "user_id"
+      ],
+      "secondTableName": "subscribe",
+      "secondSchemaName": "public",
+      "secondRelation": "*",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "id"
+      ],
+      "firstTableName": "user",
+      "firstSchemaName": "core",
+      "firstRelation": "1",
+      "secondFieldNames": [
+        "channel_id"
+      ],
+      "secondTableName": "subscribe",
+      "secondSchemaName": "public",
+      "secondRelation": "*",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "user_id"
+      ],
+      "firstTableName": "watch_history",
+      "firstSchemaName": "core",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "user",
+      "secondSchemaName": "core",
+      "secondRelation": "1",
+      "checkPoints": []
+    },
+    {
+      "firstFieldNames": [
+        "video_id"
+      ],
+      "firstTableName": "watch_history",
+      "firstSchemaName": "core",
+      "firstRelation": "*",
+      "secondFieldNames": [
+        "id"
+      ],
+      "secondTableName": "video",
+      "secondSchemaName": "core",
+      "secondRelation": "1",
+      "checkPoints": []
+    }
+  ]
+}

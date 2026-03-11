@@ -1,0 +1,62 @@
+Project VideoStreaming {
+  database_type: 'PostgreSQL'
+  Note: 'Video streaming - live streaming flatform'
+}
+
+table core.user as U { 
+    id integer [primary key]
+    user_name varchar(30) 
+    user_id varchar(20) [unique]
+    user_password varchar(100) [not null]
+    user_phone varchar(12) 
+    user_email varchar(320) [unique]
+    channel_intro varchar(1000)
+    subscribe_conut integer [default : 0]
+}
+
+
+table core.video  as V { 
+    id integer [primary key] 
+    video_name varchar(1000) [not null] 
+    video_released_date timestamp
+    video_view integer [default : 0]
+    video_like integer [default : 0] 
+    video_dislike  integer [default: 0] 
+    user_owner integer [not null]
+    video_url_storage varchar(1000) [not null]
+}
+
+ref { 
+    core.video.user_owner > core.user.id [delete : cascade]
+}
+
+table core.hagtag as H { 
+    id integer [primary key] 
+    hagtag_name varchar(1000) [not null]    
+}
+
+table core.video_hagtag { 
+    video_id integer [primary key]
+    hagtag_id integer [primary key]
+}
+
+ref : core.video_hagtag.video_id > core.video.id 
+ref : core.video_hagtag.hagtag_id > core.hagtag.id 
+
+
+table subscribe { 
+    user_id integer [primary key, ref: > core.user.id] 
+    channel_id integer [primary key, ref : > core.user.id]
+    nofify_subscribe  bool [default : false]
+}
+
+table core.watch_history { 
+    user_id  integer [primary key ]
+    video_id  integer [primary key]
+    paused_at varchar(8)
+}
+
+ref : core.watch_history.user_id > core.user.id
+ref : core.watch_history.video_id > core.video.id
+
+
