@@ -1,0 +1,105 @@
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import Redis from 'ioredis';
+
+@Injectable()
+export class RedisService implements OnModuleInit, OnModuleDestroy {
+  private readonly redisClient: Redis;
+  private readonly logger = new Logger(RedisService.name);
+
+  constructor() {
+    const redisPort = Number.parseInt(process.env.REDIS_PORT ?? '6379', 10);
+
+    this.redisClient = new Redis({
+      host: process.env.REDIS_HOST ?? '127.0.0.1',
+      port: Number.isNaN(redisPort) ? 6379 : redisPort,
+      password: process.env.REDIS_PASSWORD,
+    });
+
+    this.redisClient.on('connect', () =>
+      this.logger.log('Redis connecting...'),
+    );
+    this.redisClient.on('ready', () =>
+      this.logger.log('Redis connected and ready'),
+    );
+    this.redisClient.on('error', (error: Error) =>
+      this.logger.error(`Redis error: ${error.message}`),
+    );
+    this.redisClient.on('close', () =>
+      this.logger.warn('Redis connection closed'),
+    );
+  }
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.redisClient.ping();
+      this.logger.log('Redis ping success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Redis connection failed: ${message}`);
+      throw new InternalServerErrorException('Redis connection failed');
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    try {
+      await this.redisClient.quit();
+      this.logger.log('Redis disconnected');
+    } catch (error) {
+      this.logger.error('Error disconnecting from Redis');
+    }
+  }
+
+  async set(key: string, value: any, expireSeconds: number): Promise<void> {
+    try {
+      if (!key || key.trim() === '') {
+        throw new Error('Key cannot be empty');
+      }
+      await this.redisClient.setex(key, expireSeconds, JSON.stringify(value));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Redis set failed: ${message}`);
+      throw new InternalServerErrorException(`Redis set failed: ${message}`);
+    }
+  }
+
+  async get(key: string): Promise<any | null> {
+    try {
+      if (!key || key.trim() === '') {
+        throw new Error('Key cannot be empty');
+      }
+      const value = await this.redisClient.get(key);
+      if (!value) {
+        return null;
+      }
+      try {
+        return JSON.parse(value);
+      } catch {
+        this.logger.warn(`Failed to parse Redis value for key: ${key}`);
+        return null;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Redis get failed: ${message}`);
+      throw new InternalServerErrorException(`Redis get failed: ${message}`);
+    }
+  }
+
+  async del(key: string): Promise<void> {
+    try {
+      if (!key || key.trim() === '') {
+        throw new Error('Key cannot be empty');
+      }
+      await this.redisClient.del(key);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Redis del failed: ${message}`);
+      throw new InternalServerErrorException(`Redis del failed: ${message}`);
+    }
+  }
+}
