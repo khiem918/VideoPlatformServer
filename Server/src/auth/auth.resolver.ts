@@ -10,23 +10,19 @@ import type { Request, Response } from 'express';
 import { AuthPayload } from './type/auth-payload.type';
 import { GqlAuthGuard } from './guard/gql-auth.guard';
 import { CurrentUser } from './decorator/current-user.decorator';
+import { ConfigService } from '@nestjs/config';
+import { SignInInput } from './dto/auth.dto';
 
 @Resolver()
 export class AuthResolver {
-  constructor(private readonly authService: AuthService) {}
 
-  private client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  private client: OAuth2Client;
 
-  private getTokenMaxAge(): number {
-    const refreshTokenExpiry = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
-    // Parse expiry time to milliseconds
-    let expiryMs = 7 * 24 * 60 * 60 * 1000; // default 7 days
-    if (refreshTokenExpiry.includes('d')) {
-      expiryMs = parseInt(refreshTokenExpiry) * 24 * 60 * 60 * 1000;
-    } else if (refreshTokenExpiry.includes('h')) {
-      expiryMs = parseInt(refreshTokenExpiry) * 60 * 60 * 1000;
-    }
-    return expiryMs;
+  constructor(
+    private readonly authService: AuthService, 
+    private readonly config: ConfigService,
+  ) {
+    this.client = new OAuth2Client(this.config.get('GOOGLE_CLIENT_ID'));
   }
 
   async verifyGoogleToken(idToken: string): Promise<any> {
@@ -37,7 +33,7 @@ export class AuthResolver {
 
       const ticket = await this.client.verifyIdToken({
         idToken: idToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: this.config.get('GOOGLE_CLIENT_ID'),
       });
 
       return ticket.getPayload();
@@ -57,10 +53,10 @@ export class AuthResolver {
 
   @Mutation(() => AuthPayload)
   async signIn(
-    @Args('ClientToken') clientToken: string,
+    @Args('ClientToken') clientToken: SignInInput,
     @Context('res') res: Response,
   ): Promise<AuthPayload> {
-    const googlePayload = await this.verifyGoogleToken(clientToken);
+    const googlePayload = await this.verifyGoogleToken(clientToken.clientId);
 
     if (!googlePayload?.email) {
       throw new UnauthorizedException('No email in Google token');
@@ -69,22 +65,20 @@ export class AuthResolver {
     const { userId, refreshToken, accessToken, sessionId } =
       await this.authService.signIn(googlePayload.email);
 
-    const maxAge = this.getTokenMaxAge();
-
     res.cookie('SSID', sessionId, {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       signed: true,
-      maxAge,
+      maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
     });
 
     res.cookie('FTK', refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       signed: true,
-      maxAge,
+      maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
     });
 
     return {
@@ -114,22 +108,20 @@ export class AuthResolver {
     const { newAccessToken, newFreshToken, newSessionId } =
       await this.authService.rotateToken(user.userId, sessionId, refreshToken);
 
-    const maxAge = this.getTokenMaxAge();
-
     if (newFreshToken && newSessionId) {
       res.cookie('FTK', newFreshToken, {
         httpOnly: true,
         secure: true,
-        sameSite: 'strict',
+        sameSite: 'lax',
         signed: true,
-        maxAge,
+        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
       });
       res.cookie('SSID', newSessionId, {
         httpOnly: true,
         secure: true,
-        sameSite: 'strict',
+        sameSite: 'lax',
         signed: true,
-        maxAge,
+        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
       });
     }
     return { user_id: user.userId, accessToken: newAccessToken };
@@ -150,22 +142,20 @@ export class AuthResolver {
     const { newAccessToken, newFreshToken, newSessionId, userId } =
       await this.authService.rotateToken('', sessionId, refreshToken);
 
-    const maxAge = this.getTokenMaxAge();
-
     if (newFreshToken && newSessionId) {
       res.cookie('FTK', newFreshToken, {
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
         signed: true,
-        maxAge,
+        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
       });
       res.cookie('SSID', newSessionId, {
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
         signed: true,
-        maxAge,
+        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
       });
     }
 

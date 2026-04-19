@@ -416,3 +416,12 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+
+.agents/
+node_modules/
+dist/
+
+*.env    
+
+*/claude

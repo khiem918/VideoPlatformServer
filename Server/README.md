@@ -43,7 +43,6 @@ A high-performance video streaming platform backend built with **NestJS 11**, fe
 
 - **NestJS 11.0.1** - Scalable Node.js framework
 - **TypeScript 5.7.3** - Type-safe JavaScript
-- **Express 5.0.0** - Web framework integration
 
 ### GraphQL & APIs
 
@@ -397,6 +396,7 @@ Generate new access token using valid refresh token.
 1. Validates refresh token from cookies
 2. Verifies token matches Redis session
 3. Generates new access token
+4. If refresh token expired (cookie is empty) return res.UnauthorizedException; CLient must resign in
 
 ---
 
@@ -426,427 +426,36 @@ End user session and clear authentication.
 
 ---
 
-### REST Endpoints
 
-#### **GET** `/` - Health Check
 
-Returns a simple "Hello" message to verify server is running.
 
-```bash
-curl http://localhost:8080/
-```
 
----
-
-## 🔐 Authentication
-
-### Authentication Flow Diagram
-
-```
-┌─────────────────┐
-│  User Browser   │
-└────────┬────────┘
-         │
-         │ 1. Click "Sign in with Google"
-         ▼
-    ┌────────────┐
-    │ Google    │
-    │ OAuth     │
-    └────┬───────┘
-         │
-         │ 2. Returns Google ID Token
-         ▼
-┌──────────────────────────────┐
-│  Application Backend         │
-│                              │
-│  signIn(googleToken)         │
-│  ├─ Verify token with Google │
-│  ├─ Extract user email       │
-│  ├─ Create/fetch user        │
-│  ├─ Generate JWT access token│
-│  ├─ Generate refresh token   │
-│  ├─ Store session in Redis   │
-│  └─ Set HTTP-only cookies    │
-│                              │
-└──────────────────────────────┘
-         │
-         │ 3. Returns JWT + Sets Cookies
-         ▼
-    ┌─────────────────┐
-    │ Browser Storage │
-    │ JWT: localStorage│
-    │ SSID: cookie    │
-    │ FTK: cookie     │
-    └─────────────────┘
-         │
-         │ 4. Include JWT in requests
-         ▼
-    ┌──────────────────┐
-    │ API Requests     │
-    │ Authorization:   │
-    │ Bearer {JWT}     │
-    └──────────────────┘
-```
-
-### Security Features
-
-- ✅ **Google OAuth 2.0** - Verified token from Google Auth Library
-- ✅ **JWT Authentication** - Industry-standard token-based auth
-- ✅ **HTTP-Only Cookies** - Prevents XSS attacks
-- ✅ **Signed Cookies** - Prevents cookie tampering
-- ✅ **Secure HTTPS** - Transport layer security
-- ✅ **SameSite=Strict** - CSRF protection
-- ✅ **Bcrypt Hashing** - Secure token storage (10 rounds)
-- ✅ **Timing-Safe Comparison** - Prevents timing attacks
-- ✅ **Token Rotation** - Automatic refresh token rotation
-- ✅ **Session Validation** - Redis session verification
-
----
-
-## 💾 Installation
-
-### Prerequisites
-
-- **Node.js** v20+
-- **npm** v11+
-- **PostgreSQL** v14+
-- **Redis** v7+
-- **Git**
-
-### Step 1: Clone Repository
-
-```bash
-git clone <repository-url>
-cd VideoPlatform/Server
-```
-
-### Step 2: Install Dependencies
-
-```bash
-npm install
-```
-
-### Step 3: Set Up Environment Variables
-
-```bash
-# Copy example file
-cp .env.example .env
-
-# Edit .env with your configuration
-nano .env
-```
-
-### Step 4: Set Up Database
-
-```bash
-# Create PostgreSQL database
-createdb video_platform
-
-# Run migrations
-npm run prisma:migrate
-
-# Generate Prisma client
-npm run prisma:generate
-```
-
-### Step 5: Verify Installation
-
-```bash
-# Build the project
-npm run build
-
-# Run tests (if available)
-npm run test
-```
-
----
-
-## ⚙️ Configuration
-
-### Environment Variables
-
-Create a `.env` file with these variables:
-
-```bash
+# Server Configuration
 SERVER_PORT=8080
 NODE_ENV=development
+
+# Database
 DATABASE_URL=postgresql://user:password@localhost:5432/video_platform
+
+# Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
+
+# JWT Configuration
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
 ACCESS_TOKEN_EXPIRES_IN=1h
 REFRESH_TOKEN_EXPIRES_IN=7d
+
+# Google OAuth
 GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+
+# Cookie Configuration
 COOKIE_SECRET=your_long_random_cookie_secret_change_this
+
+# Client URL
 CLIENT_URL=http://localhost:5173
+
+# HTTPS (optional)
 SSL_KEY_PATH=
 SSL_CERT_PATH=
-```
-
-### Getting Google OAuth Credentials
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project
-3. Enable Google+ API
-4. Go to Credentials → Create OAuth 2.0 Client ID
-5. Choose "Web application"
-6. Copy the Client ID to `GOOGLE_CLIENT_ID` in `.env`
-
----
-
-## 🚀 Running the Application
-
-### Development Mode
-
-```bash
-npm run start:dev
-```
-
-Server starts at: `http://localhost:8080`
-
-GraphQL Playground: `http://localhost:8080/graphql`
-
-### Production Mode
-
-```bash
-npm run build
-npm run start:prod
-```
-
-### Other Commands
-
-```bash
-npm run lint              # Code linting and auto-fix
-npm run format            # Code formatting
-npm run test              # Run tests
-npm run test:cov          # Test with coverage
-npm run test:e2e          # E2E tests
-npm run prisma:generate   # Generate Prisma client
-npm run prisma:migrate    # Run migrations
-```
-
----
-
-## ✨ Features
-
-### Implemented ✅
-
-- [x] Google OAuth 2.0 authentication
-- [x] JWT token-based authorization
-- [x] Session management with Redis
-- [x] Refresh token rotation
-- [x] Secure token hashing (bcrypt)
-- [x] GraphQL API
-- [x] Global error handling
-- [x] Input validation
-- [x] Type-safe ORM (Prisma)
-- [x] Modular architecture
-
-### In Progress 🔄
-
-- [ ] Video upload and management
-- [ ] Video streaming
-- [ ] Search and filtering
-- [ ] User subscriptions system
-- [ ] Watch history tracking
-- [ ] Pagination
-- [ ] Rate limiting
-
-### Planned 📋
-
-- [ ] Comments and reactions
-- [ ] Recommendations engine
-- [ ] Live streaming
-- [ ] Notification system
-- [ ] Analytics dashboard
-- [ ] Admin panel
-- [ ] Content moderation
-
----
-
-## 👨‍💻 Development Guide
-
-### Adding a New Feature
-
-1. **Create Module**
-
-   ```bash
-   nest g module features/video
-   ```
-
-2. **Create Service**
-
-   ```bash
-   nest g service features/video
-   ```
-
-3. **Create Resolver**
-
-   ```bash
-   nest g resolver features/video
-   ```
-
-4. **Define GraphQL Types**
-
-   ```typescript
-   @ObjectType()
-   export class Video {
-     @Field(() => ID)
-     id: string;
-   }
-   ```
-
-5. **Add Routes/Mutations**
-   ```typescript
-   @Mutation(() => Video)
-   async createVideo(@Args('input') input: CreateVideoInput): Promise<Video> {
-     return this.videoService.create(input);
-   }
-   ```
-
-### Testing
-
-```bash
-npm run test              # Run all tests
-npm run test:watch       # Run in watch mode
-npm run test:cov         # With coverage report
-```
-
-### Code Style
-
-```bash
-npm run lint              # Check for style issues
-npm run format            # Auto-format code
-```
-
----
-
-## 🐳 Deployment
-
-### Docker Deployment
-
-```bash
-# Start all services
-docker-compose up -d
-
-# Stop services
-docker-compose down
-
-# View logs
-docker-compose logs -f
-```
-
-### Production Build
-
-```bash
-npm run build
-npm run start:prod
-```
-
----
-
-## 🆘 Troubleshooting
-
-### PostgreSQL Connection Error
-
-```bash
-# Check PostgreSQL is running
-psql -U postgres -h localhost
-
-# Or start PostgreSQL service
-sudo systemctl start postgresql
-```
-
-### Redis Connection Error
-
-```bash
-# Start Redis
-redis-server
-
-# Or check Redis is running
-redis-cli ping
-```
-
-### Port Already in Use
-
-```bash
-# Kill process on port 8080
-lsof -ti:8080 | xargs kill -9
-
-# Or use different port
-SERVER_PORT=3000 npm run start
-```
-
-### Environment Variables Not Loading
-
-```bash
-# Check .env file exists
-ls -la .env
-
-# Verify variables are set
-echo $DATABASE_URL
-```
-
----
-
-## 📚 Additional Resources
-
-### Official Documentation
-
-- [NestJS Docs](https://docs.nestjs.com)
-- [GraphQL Docs](https://graphql.org)
-- [Prisma Docs](https://www.prisma.io/docs)
-- [Google OAuth Docs](https://developers.google.com/identity/protocols/oauth2)
-
-### Tools
-
-- [GraphQL Playground](https://www.apollographql.com/docs/apollo-server/testing/graphql-playground)
-- [Postman](https://www.postman.com) - API testing
-- [pgAdmin](https://www.pgadmin.org) - PostgreSQL management
-- [Redis Desktop Manager](https://redisdesktop.com) - Redis GUI
-
----
-
-## 📝 License
-
-This project is part of the Video Streaming Platform series.
-
----
-
-## 📊 Project Status
-
-**Current Version**: 1.0.0-alpha  
-**Last Updated**: March 29, 2026  
-**Stability**: Production-ready (Authentication)  
-**Test Coverage**: 0% (To be implemented)
-
----
-
-## 🎯 Quick Reference
-
-### Key Ports
-
-- **Server**: 8080
-- **PostgreSQL**: 5432
-- **Redis**: 6379
-
-### Key Files
-
-- **Config**: `src/config/env.validation.ts`
-- **Auth**: `src/auth/auth.service.ts`
-- **Database**: `prisma/schema.prisma`
-
-### Key Commands
-
-```bash
-npm run start:dev       # Development
-npm run build          # Build
-npm run lint          # Lint
-npm run test          # Tests
-npm run prisma:migrate # Database
-```
-
----
-
-**Made with ❤️ by the Video Streaming Platform Team**

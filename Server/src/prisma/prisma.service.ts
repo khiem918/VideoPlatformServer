@@ -4,20 +4,27 @@ import { PrismaClient } from '@prisma/client';
 
 @Injectable()
 export class PrismaService
-    extends PrismaClient
-    implements OnModuleInit, OnModuleDestroy
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
 {
-    constructor() {
-        const adapter = new PrismaPg({ url: process.env.DATABASE_URL });
-        super({ adapter });
-    }
+  constructor() {
+    const DB_URL = process.env.DATABASE_URL;
+    const adapter = new PrismaPg({ connectionString: DB_URL });
+    super({ adapter });
+  }
 
-    async onModuleInit() {
-        await this.$connect();
-        console.log('Connected to the database');
+  async onModuleInit() {
+    try {
+      await this.$connect();
+      await this.$queryRaw`SELECT 1`;
+      console.log('Connected to database successfully');
+    } catch (error) {
+      console.error('Prisma database connection failed', error as Error);
+      throw error;
     }
+  }
 
-    async onModuleDestroy() {
-        await this.$disconnect();
-    }
+  async onModuleDestroy() {
+    await this.$disconnect();
+  }
 }

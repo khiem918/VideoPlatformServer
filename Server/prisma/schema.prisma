@@ -15,64 +15,61 @@ datasource db {
 }
 
 model User {
-  id             String         @id @default(cuid())
+  id             String         @id 
   userName       String?        @map("user_name") @db.VarChar(30)
   userPassword   String         @map("user_password") @db.VarChar(100)
-  userPhone      String?        @map("user_phone") @db.VarChar(12)
   userEmail      String        @unique @map("user_email") @db.VarChar(320)
   channelIntro   String?        @map("channel_intro") @db.VarChar(1000)
-  subscribeCount Int            @default(0) @map("subscribe_conut")
+  subscribeCount Int            @default(0) @map("subscribe_count")
   
   videos         Video[]
   subscriptions  Subscribe[]    @relation("UserSubscriptions")
   channels       Subscribe[]    @relation("ChannelSubscriptions")
   watchHistory   WatchHistory[]
+  videoUploads   VideoUpload[]
 
+  @@index([userName])
   @@map("user")
   @@schema("core")
 }
 
-model Video {
-  id                String         @id @default(cuid())
-  videoName         String         @map("video_name") @db.VarChar(1000)
-  videoReleasedDate DateTime?      @map("video_released_date") @db.Timestamp
-  videoView         Int            @default(0) @map("video_view")
-  videoLike         Int            @default(0) @map("video_like")
-  videoDislike      Int            @default(0) @map("video_dislike")
-  userOwner         String         @map("user_owner")
-  videoUrlStorage   String         @map("video_url_storage") @db.VarChar(1000)
-  
-  owner             User           @relation(fields: [userOwner], references: [id], onDelete: Cascade)
-  videoHashtags     VideoHashtag[]
-  watchHistory      WatchHistory[]
-
-  @@map("video")
-  @@schema("core")
-}
-
 model Hashtag {
-  id            String        @id @default(cuid())
-  tagName       String         @map("hagtag_name") @db.VarChar(1000)
+  id            String        @id @default(uuid())
+  
+  normalized    String        @unique  @map("normalized_tag") 
+  
+  count         BigInt        @default(0)
+  
+  isCanoncial   Boolean       @default(false)
+  
+  createdAt     DateTime      @default(now())
+
   videoHashtags VideoHashtag[]
 
-  @@map("hagtag")
+  @@index([count(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("hashtag")
   @@schema("core")
 }
+
 
 model VideoHashtag {
   videoId   String @map("video_id")
-  hashtagId String @map("hagtag_id")
+  hashtagId String @map("hashtag_id")
+
+  displayTag String @map("display_tag")
 
   video   Video   @relation(fields: [videoId], references: [id])
   hashtag Hashtag @relation(fields: [hashtagId], references: [id])
 
   @@id([videoId, hashtagId])
-  @@map("video_hagtag")
+  @@index([hashtagId])
+  @@map("video_hashtag")
   @@schema("core")
 }
 
 model Subscribe {
-  userId          String
+  userId          String   @map("user_id")
   channelId       String   @map("channel_id")
   notifySubscribe Boolean @default(false) @map("nofify_subscribe")
 
@@ -80,6 +77,7 @@ model Subscribe {
   channel User @relation("ChannelSubscriptions", fields: [channelId], references: [id])
 
   @@id([userId, channelId])
+  @@index([channelId])
   @@map("subscribe")
   @@schema("core")
 }
@@ -87,12 +85,151 @@ model Subscribe {
 model WatchHistory {
   userId   String     @map("user_id")
   videoId  String     @map("video_id")
-  pausedAt String? @map("paused_at") @db.VarChar(8)
+  pausedAt String?    @map("paused_at") @db.VarChar(8)
 
-  user  User  @relation(fields: [userId], references: [id])
-  video Video @relation(fields: [videoId], references: [id])
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@id([userId, videoId])
+  @@index([videoId])
   @@map("watch_history")
   @@schema("core")
 }
+
+model Video {
+  id                String         @id @default(cuid())
+  videoName         String         @map("video_name") @db.VarChar(1000) @default("draft")
+  videoReleasedDate DateTime?      @map("video_released_date") @db.Timestamp
+  videoView         Int            @default(0) @map("video_view")
+  videoLike         Int            @default(0) @map("video_like")
+  videoDislike      Int            @default(0) @map("video_dislike")
+  userOwner         String         @map("user_owner")
+  videoUrl          String?        @map("video_url_storage") @db.VarChar(1000)
+  thumbnailUrl      String?        @map("thumbnail_url")
+  owner             User           @relation(fields: [userOwner], references: [id], onDelete: Cascade)
+  uploadId          String         @unique @map("upload_id")
+  upload            VideoUpload?   @relation(fields: [uploadId], references: [id], onDelete: Cascade)   
+  videoHashtags     VideoHashtag[]
+  watchHistory      WatchHistory[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  visibility        VideoVisibility @map("video_visibility") @default(DRAFT)
+  duration          Int             @default(0)
+  videoDesc         String?         @db.Text     
+  rawDesc           String?          @db.Text
+
+  @@index([userOwner])
+  @@index([visibility])
+  @@index([createdAt(sort: Desc)])
+  @@map("video")
+  @@schema("core")
+}
+
+
+model VideoProcessing {
+  id                String    @id @default(cuid())
+  videoUploadId     String    @unique
+  videoUpload       VideoUpload @relation(fields: [videoUploadId], references: [id], onDelete: Cascade)
+  
+  status            ProcessingStatus  @default(PENDING)  
+  
+  hlsPlaylistPath   String?
+  thumbnailPath     String?
+  errorMessage      String?  
+  startedAt         DateTime?
+  completedAt       DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  variants          VideoVariant[]
+
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("video_processing")
+  @@schema("core")
+}
+
+enum UploadStatus {
+  PENDING
+  UPLOADED
+  PROCESSING
+  COMPLETED
+  FAILED
+
+  @@schema("core")
+}
+enum ProcessingStatus {
+  PENDING
+  TRANSCODING
+  THUMBNAIL
+  HLS_GENERATION
+  COMPLETED
+  FAILED
+
+  @@schema("core")
+}
+
+enum VideoVisibility { 
+  DRAFT
+  PUBLISHED
+  PRIVATE
+
+  @@schema("core")
+}
+
+model VideoUpload {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fileName          String
+  mimeType          String
+  fileSize          BigInt
+  r2Path            String    @unique
+  
+  status            UploadStatus  @default(PENDING) 
+  uploadedAt        DateTime  @default(now())
+  completedAt       DateTime?
+  
+  processingJobId   String?
+  thumbnail         String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  video             Video?
+  processing        VideoProcessing?
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("video_upload")
+  @@schema("core")
+}
+
+enum Resolution { 
+  x144p
+  x360p 
+  x480p 
+  x720p 
+  x1080p 
+  x1440p
+  x2160p 
+
+  @@schema("core")
+}
+
+model VideoVariant {
+  processingId      String    @map("processing_id")
+  resolution        Resolution
+  bitrate           Int
+  path              String
+
+  processing VideoProcessing @relation(fields: [processingId], references: [id], onDelete: Cascade)
+
+  @@id([processingId, resolution])
+  @@map("video_variant")
+  @@schema("core")
+}
+

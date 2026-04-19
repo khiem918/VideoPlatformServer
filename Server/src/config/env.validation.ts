@@ -1,14 +1,10 @@
 import { IsNotEmpty, IsNumber, IsString, IsOptional } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
+import { validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
   @IsNumber()
   SERVER_PORT: number;
-
-  @IsNotEmpty()
-  @IsString()
-  NODE_ENV: string;
 
   @IsNotEmpty()
   @IsString()
@@ -30,12 +26,12 @@ export class EnvironmentVariables {
   JWT_SECRET: string;
 
   @IsNotEmpty()
-  @IsString()
-  ACCESS_TOKEN_EXPIRES_IN: string;
+  @IsNumber()
+  ACCESS_TOKEN_EXPIRES_IN: number;
 
   @IsNotEmpty()
-  @IsString()
-  REFRESH_TOKEN_EXPIRES_IN: string;
+  @IsNumber()
+  REFRESH_TOKEN_EXPIRES_IN: number;
 
   @IsNotEmpty()
   @IsString()
@@ -45,27 +41,68 @@ export class EnvironmentVariables {
   @IsString()
   COOKIE_SECRET: string;
 
+  // @IsNotEmpty()
+  // @IsString()
+  // CLIENT_URL: string;
+
+  // @IsOptional()
+  // @IsString()
+  // SSL_KEY_PATH?: string;
+
+  // @IsOptional()
+  // @IsString()
+  // SSL_CERT_PATH?: string;
+
+  @IsNotEmpty()
+  CLOUDFLARE_R2_REGION: string;
+
+  @IsNotEmpty()
+  CLOUDFLARE_R2_ACCESS_KEY_ID: string;
+
+  @IsNotEmpty()
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY: string;
+
+  @IsNotEmpty()
+  CLOUDFLARE_R2_BUCKET_NAME: string;
+
+  @IsOptional()
+  CLOUDFLARE_R2_ENDPOINT?: string;
+
+  @IsOptional()
+  CLOUDFLARE_R2_FORCE_PATH_STYLE?: boolean;
+
+  @IsNotEmpty()
+  MAX_FILE_SIZE: number;
+
+  @IsNotEmpty()  
+  @IsString()
+  QUEUE_NAME: string;
+
   @IsNotEmpty()
   @IsString()
-  CLIENT_URL: string;
+  QUEUE_HOST: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  SSL_KEY_PATH?: string;
+  QUEUE_PORT: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  SSL_CERT_PATH?: string;
+  EMBED_API_URL: string;
+
+  @IsNotEmpty()
+  @IsString()
+  EMBED_API_KEY :string;
 }
 
-export async function validateEnv(
+export function validateEnv(
   config: Record<string, unknown>,
-): Promise<EnvironmentVariables> {
+): EnvironmentVariables {
   const validatedConfig = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
   });
 
-  const errors = await validate(validatedConfig);
+  const errors = validateSync(validatedConfig);
 
   if (errors.length > 0) {
     const errorMessages = errors

@@ -4,16 +4,62 @@
 
 type AuthPayload {
   accessToken: String!
+  user_id: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type InitUploadResponse {
+  presignedUrl: String!
+  uploadId: String!
+  videoId: String!
 }
 
 type Mutation {
-  signIn(signInInput: SignInInput!): AuthPayload!
+  completeUploadVideo(uploadId: String!): Boolean!
+  deleteVideo(videoId: String!): Boolean!
+  deleteVideoUpload(uploadId: String!): Boolean!
+  initUploadVideo(fileName: String!, fileSize: Float!, mimeType: String!): InitUploadResponse!
+  refresh: AuthPayload!
+  rotateToken: AuthPayload!
+  signIn(ClientToken: SignInInput!): AuthPayload!
+  signOut: Boolean!
+  updateVideo(description: String!, tags: [String!]!, title: String!, videoId: String!, visibility: String!): Boolean!
 }
 
 type Query {
+  getUserVideos: UserVideosListResponse!
   hello: String!
+  me: String!
+  watchVideo(userId: String, videoId: String!): UserVideoResponse!
 }
 
 input SignInInput {
-  googleToken: String!
+  clientId: String!
+}
+
+type UserVideoResponse {
+  createdAt: DateTime!
+  duration: Int!
+  id: String!
+  rawDesc: String
+  tags: [String!]
+  thumbnailUrl: String
+  updatedAt: DateTime!
+  uploadStatus: String
+  uploadedAt: DateTime
+  videoDislike: Int!
+  videoLike: Int!
+  videoName: String
+  videoUrl: String
+  videoView: Int!
+  visibility: String!
+}
+
+type UserVideosListResponse {
+  total: Int!
+  videos: [UserVideoResponse!]!
 }

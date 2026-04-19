@@ -3,20 +3,22 @@ import {
   UnauthorizedException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { UserService } from 'src/user/user.service';
+import { AuthRepository } from './repository/auth.repository';
 import { v4 as uuidv4 } from 'uuid';
 import { compare, hash } from 'bcryptjs';
-import { randomBytes, timingSafeEqual } from 'crypto';
-import { RedisService } from 'src/redis/redis.service';
+import { randomBytes } from 'crypto';
+import { RedisService } from 'src/session/session.service';
 import { Session } from './type/session.type';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userService: UserService,
+    private readonly AuthRepository: AuthRepository,
     private readonly redisService: RedisService,
     private readonly jwtService: JwtService,
+    private readonly config : ConfigService,
   ) {}
 
   private async hashToken(token: string): Promise<string> {
@@ -30,7 +32,7 @@ export class AuthService {
     sessionId: string;
   }> {
     try {
-      const user = await this.userService.findByEmail(userEmail);
+      const user = await this.AuthRepository.findByEmail(userEmail);
       const sessionId: string = uuidv4();
       const refreshToken = randomBytes(64).toString('hex');
       const userId: string = user.id;
@@ -38,8 +40,8 @@ export class AuthService {
       const accessToken = this.jwtService.sign(
         { userId } as Record<string, any>,
         {
-          secret: process.env.JWT_SECRET || 'default-secret',
-          expiresIn: (process.env.ACCESS_TOKEN_EXPIRES_IN || '1h') as any,
+          secret: this.config.get('JWT_SECRET'),
+          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
         },
       );
 
@@ -50,14 +52,10 @@ export class AuthService {
         createdAt: new Date().toISOString(),
       };
 
-      const refreshTokenExpiry = this.parseExpiryToDays(
-        process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
-      );
-
       await this.redisService.set(
         `s:${sessionId}`,
         session_data,
-        refreshTokenExpiry * 24 * 60 * 60, // Convert days to seconds
+        parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
       );
 
       return {
@@ -102,22 +100,18 @@ export class AuthService {
           createdAt: new Date().toISOString(),
         };
 
-        const refreshTokenExpiry = this.parseExpiryToDays(
-          process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
-        );
-
         await this.redisService.set(
           `s:${newSessionId}`,
           new_sesssion_data,
-          refreshTokenExpiry * 24 * 60 * 60,
+          parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
         );
 
         return {
           newAccessToken: this.jwtService.sign(
             { userId } as Record<string, any>,
             {
-              secret: process.env.JWT_SECRET || 'default-secret',
-              expiresIn: (process.env.ACCESS_TOKEN_EXPIRES_IN || '1h') as any,
+              secret: this.config.get('JWT_SECRET'),
+              expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
             },
           ),
           newFreshToken: newRefreshToken,
@@ -140,8 +134,8 @@ export class AuthService {
       const newAccessToken = this.jwtService.sign(
         { userId: finalUserId } as Record<string, any>,
         {
-          secret: process.env.JWT_SECRET || 'default-secret',
-          expiresIn: (process.env.ACCESS_TOKEN_EXPIRES_IN || '1h') as any,
+          secret: this.config.get('JWT_SECRET'),
+          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
         },
       );
 
@@ -180,15 +174,5 @@ export class AuthService {
       }
       throw new InternalServerErrorException('Sign out failed');
     }
-  }
-
-  private parseExpiryToDays(expiry: string): number {
-    if (expiry.endsWith('d')) {
-      return parseInt(expiry, 10);
-    }
-    if (expiry.endsWith('h')) {
-      return Math.ceil(parseInt(expiry, 10) / 24);
-    }
-    return 7; // default 7 days
   }
 }
