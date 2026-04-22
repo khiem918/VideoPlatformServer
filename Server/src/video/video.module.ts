@@ -10,11 +10,13 @@ import { EmbedModule } from "src/embed/embed.module";
 import { VideoProcessingModule } from "src/video-processing/video-processing.module";
 import { SemanticProcessingService } from "src/semantic-processing/semantic-processing.service";
 import { TagService } from "src/tag/tag.service";
+import { QdrantModule } from "src/qdrant/qdrant.module";
 
 @Module({
     imports: [
         EmbedModule,
         VideoProcessingModule,
+        QdrantModule,
         BullModule.registerQueue({
             name: process.env.QUEUE_NAME || 'video-processing',
         }),

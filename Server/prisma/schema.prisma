@@ -11,7 +11,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["core"]
+  schemas  = ["core", "test"]
 }
 
 model User {
@@ -27,6 +27,7 @@ model User {
   channels       Subscribe[]    @relation("ChannelSubscriptions")
   watchHistory   WatchHistory[]
   videoUploads   VideoUpload[]
+  comments       Comment[]
 
   @@index([userName])
   @@map("user")
@@ -59,8 +60,8 @@ model VideoHashtag {
 
   displayTag String @map("display_tag")
 
-  video   Video   @relation(fields: [videoId], references: [id])
-  hashtag Hashtag @relation(fields: [hashtagId], references: [id])
+  video   Video   @relation(fields: [videoId], references: [id], onDelete : Cascade)
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id], onDelete : Cascade)
 
   @@id([videoId, hashtagId])
   @@index([hashtagId])
@@ -117,6 +118,7 @@ model Video {
   duration          Int             @default(0)
   videoDesc         String?         @db.Text     
   rawDesc           String?          @db.Text
+  comments          Comment[]
 
   @@index([userOwner])
   @@index([visibility])
@@ -191,6 +193,8 @@ model VideoUpload {
   status            UploadStatus  @default(PENDING) 
   uploadedAt        DateTime  @default(now())
   completedAt       DateTime?
+
+  failIn            VideoFail?       @map("fail_in")
   
   processingJobId   String?
   thumbnail         String?
@@ -205,6 +209,13 @@ model VideoUpload {
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@map("video_upload")
+  @@schema("core")
+}
+
+enum VideoFail { 
+  Vectorlize 
+  Process
+
   @@schema("core")
 }
 
@@ -233,3 +244,50 @@ model VideoVariant {
   @@schema("core")
 }
 
+model Comment {
+  id         BigInt   @id
+  
+  videoId    String   
+  video      Video    @relation(fields: [videoId], references: [id], onDelete : Cascade)
+
+
+  userId     String         
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  
+  parentId   BigInt?  
+
+  content    String   @db.Text
+  
+  likeCount  Int      @default(0)
+  replyCount Int      @default(0)
+  
+  status     Int      @default(0)
+  
+  createdAt  DateTime @default(now())
+
+  @@index([videoId, parentId, createdAt(sort: Desc)])
+  @@schema("core")
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+model VideoTest { 
+  id    String      @id @default(cuid())
+  name  String      
+  desc  String      
+
+  @@schema("test")
+}

@@ -425,3 +425,16 @@ dist/
 *.env    
 
 */claude
+
+./tool_venv
+
+
+.vscode/
+
+# Custom local files/folders
+tool-env/
+CLAUDE.md
+graphify-out/
+.agent/
+.claude/
+env/

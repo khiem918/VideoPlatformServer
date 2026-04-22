@@ -1,3 +1,5 @@
+import { Injectable } from '@nestjs/common';
+
 export interface TagProcessRequest {
   videoId: string;
   textToEmbed: string;
@@ -8,12 +10,13 @@ export interface EmbeddingResponse {
   vector: number[];
 }
 
+@Injectable()
 export class EmbedClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
 
   constructor() {
-    this.baseUrl = process.env.EMBED_API_URL || 'http://localhost:8000';
+    this.baseUrl = process.env.EMBED_API_URL || 'http://localhost:8090';
     this.apiKey = process.env.EMBED_API_KEY || 'default_api_key';
   }
 
@@ -35,5 +38,24 @@ export class EmbedClient {
     }
 
     return response.json();
+  }
+
+  async generateQueryVector(text: string): Promise<number[]> {
+    const response = await fetch(`${this.baseUrl}/api/vector/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey,
+      },
+      body: JSON.stringify([{ videoId: '__query__', textToEmbed: text }]),
+    });
+
+    if (!response.ok) {
+      const errorDetail = await response.text();
+      throw new Error(`Failed to generate query vector: ${response.status} - ${errorDetail}`);
+    }
+
+    const data: EmbeddingResponse[] = await response.json();
+    return data[0].vector;
   }
 }

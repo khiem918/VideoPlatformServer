@@ -1,6 +1,6 @@
 import logging
 import os
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Security
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from typing import Dict, List, Optional
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Video Platform AI Service")
 api_key_header  = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-async def get_api_key(api_key: Optional[str] = api_key_header):
+async def get_api_key(api_key: Optional[str] = Security(api_key_header)):
     expected_api_key = os.getenv("API_KEY") or "default_api_key"
     if expected_api_key is None:
         logger.warning("API_KEY environment variable is not set. Skipping API key validation.")
@@ -46,22 +46,23 @@ async def startup_event():
 def health_check():
     return {"status": "ok", "model_loaded": embedding_service.model is not None}
 
-@app.post("/api/vector/generate", response_model=EmbeddingResponse)
+@app.post("/api/vector/generate", response_model=Union[EmbeddingResponse, List[EmbeddingResponse]])
 async def generate_vector(request: Union[TagProcessRequest, List[TagProcessRequest]], api_key: Optional[str] = Depends(get_api_key)):
     try:
-        if not isinstance(request, list):
+        is_list = isinstance(request, list)
+        if not is_list:
             request = [request]
 
-        vectors = []
+        responses = []
         for req in request:
             passage_text = f"passage: {req.textToEmbed}"
             vector = embedding_service.generate_embedding(passage_text)
-            vectors.append(vector)
+            responses.append(EmbeddingResponse(
+                videoId=req.videoId,
+                vector=vector
+            ))
             
-        return EmbeddingResponse(
-            videoId=request.videoId,
-            vector=vector
-        )
+        return responses if is_list else responses[0]
     except Exception as e:
         logger.error(f"Error generating embedding: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")

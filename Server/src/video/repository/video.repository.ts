@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
-import { ProcessingStatus, UploadStatus, VideoVisibility } from "@prisma/client";
+import { ProcessingStatus, UploadStatus, VideoVisibility,  } from "@prisma/client";
 
 @Injectable()
 export class VideoRepository {
@@ -174,9 +174,12 @@ export class VideoRepository {
         });
     }
 
-    async findVideoById(userId: string, videoId: string) {
+    async findVideoById(videoId: string, userId?: string) {
         return await this.prisma.video.findUnique({
-            where: { id: videoId, userOwner: userId },
+            where: { 
+                id: videoId, 
+                ...(userId && { userOwner: userId })
+            },
         });
     }
 
@@ -191,8 +194,12 @@ export class VideoRepository {
         return await this.prisma.video.findUnique({
             where: { id: videoId },
             include: {
-                upload: true,
-                owner: true,
+                owner: {
+                    select: {
+                        userName: true,
+                        id: true,
+                    }
+                },
                 videoHashtags: {
                     include: {
                         hashtag: true
@@ -210,6 +217,88 @@ export class VideoRepository {
                     increment: 1
                 }
             }
+        });
+    }
+
+    async keywordSearch(query: string, limit: number): Promise<Array<{ id: string; rank: number }>> {
+        return await this.prisma.$queryRaw<Array<{ id: string; rank: number }>>`
+            SELECT id, ts_rank_cd(
+                to_tsvector('english', "video_name" || ' ' || COALESCE("videoDesc", '')),
+                plainto_tsquery('english', ${query})
+            ) AS rank
+            FROM core.video
+            WHERE video_visibility = 'PUBLISHED'
+                AND to_tsvector('english', "video_name" || ' ' || COALESCE("videoDesc", ''))
+                    @@ plainto_tsquery('english', ${query})
+            ORDER BY rank DESC
+            LIMIT ${limit}
+        `;
+    }
+
+    async findManyByIds(userId: string, ids: string[]) {
+        return await this.prisma.video.findMany({
+            where: { id: { in: ids } },
+            include: {
+                owner: {
+                    select: {
+                        userName: true,
+                        id: true,
+                    }
+                },
+                videoHashtags: {
+                    include: { hashtag: true }
+                }, 
+            }
+        });
+    }
+
+    // async markVideoAsFailed(videoId: string, reason: string) {
+    //     return await this.prisma.video.update({
+    //         where: { id: videoId },
+    //         data: {
+    //             fail_in: thi,
+    //         },
+    //     });
+    // }
+
+    async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: bigint }) {
+        return await this.prisma.comment.findMany({
+            where: { 
+                videoId: videoId, 
+                parentId: null, 
+                ...(cursor && { 
+                    OR: [
+                        { createdAt: { lt: cursor.createdAt } },
+                        { 
+                            createdAt: cursor.createdAt,
+                            id: { lt: cursor.id }
+                        }
+                    ]
+                })
+            },
+            include: {
+                user: {        
+                    select: {
+                        userName: true,
+                        id: true,
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'asc',
+            },
+            take: 20,
+        });
+    }   
+
+    async createComment(videoId: string, userId: string, content: string) {
+        return await this.prisma.comment.create({
+            data: {
+                id : BigInt(Date.now()), 
+                videoId: videoId,
+                userId: userId,
+                content: content,
+            },
         });
     }
 }

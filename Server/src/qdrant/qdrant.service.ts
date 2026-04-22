@@ -11,7 +11,10 @@ export class QdrantService implements OnModuleInit {
   private readonly VECTOR_SIZE = 768; 
 
   constructor() {
-    this.qdrantClient = new QdrantClient({ url: process.env.QDRANT_URL || 'http://localhost:6333' });
+    this.qdrantClient = new QdrantClient({ 
+      url: process.env.QDRANT_URL || 'http://localhost:6333',
+      checkCompatibility: false 
+    });
   }
 
   async onModuleInit() {
@@ -79,20 +82,33 @@ export class QdrantService implements OnModuleInit {
   }
 
 
-  async searchSimilarVideos(vector: number[], vectorName: 'title' | 'desc', limit: number = 10) {
+  async searchSimilarVideos(vector: number[], limit: number = 10) {
     try {
-      const results = await this.qdrantClient.search(this.COLLECTION_NAME, {
-        vector: {
-            name: vectorName,
-            vector: vector
-        },
-        limit: limit,
-        with_payload: true, 
+
+      const results = await this.qdrantClient.searchBatch(this.COLLECTION_NAME, {
+        searches: [
+          {
+            vector: {
+              name: 'title',
+              vector: vector
+            },
+            limit: limit,
+            with_payload: true, 
+          }, 
+          { 
+            vector: {
+              name: 'desc',
+              vector: vector
+            },
+            limit: limit,
+            with_payload: true, 
+          }
+        ]
       });
 
       return results;
     } catch (error) {
-      this.logger.error(`Error searching ${vectorName} vectors`, error);
+      this.logger.error(`Error searching video vectors`, error);
       throw error;
     }
   }

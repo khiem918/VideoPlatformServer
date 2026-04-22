@@ -19,6 +19,7 @@ type InitUploadResponse {
 }
 
 type Mutation {
+  commentOnVideo: Boolean!
   completeUploadVideo(uploadId: String!): Boolean!
   deleteVideo(videoId: String!): Boolean!
   deleteVideoUpload(uploadId: String!): Boolean!
@@ -34,7 +35,24 @@ type Query {
   getUserVideos: UserVideosListResponse!
   hello: String!
   me: String!
-  watchVideo(userId: String, videoId: String!): UserVideoResponse!
+  searchVideos(limit: Int! = 20, offset: Int! = 0, query: String!, userId: String): SearchVideosResponse!
+  watchVideo(userId: String, videoId: String!): WatchVideoResponse!
+}
+
+type SearchVideoItem {
+  duration: Int!
+  id: String!
+  ownerName: String!
+  rawDesc: String
+  thumbnailUrl: String
+  updatedAt: DateTime!
+  videoName: String!
+  videoView: Int!
+}
+
+type SearchVideosResponse {
+  results: [SearchVideoItem!]!
+  total: Int!
 }
 
 input SignInInput {
@@ -62,4 +80,19 @@ type UserVideoResponse {
 type UserVideosListResponse {
   total: Int!
   videos: [UserVideoResponse!]!
+}
+
+type WatchVideoResponse {
+  createdAt: DateTime!
+  desc: String
+  duration: Float!
+  id: String!
+  ownerId: String!
+  ownerName: String!
+  tags: [String!]
+  videoDislike: Float!
+  videoLike: Float!
+  videoName: String!
+  videoUrl: String!
+  videoView: Float!
 }

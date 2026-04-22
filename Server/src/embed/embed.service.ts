@@ -3,11 +3,12 @@ import { EmbedDataDto } from './dto/embedingdata';
 import { EmbedClient } from './embedservice/embed.client';
 import { QdrantService } from 'src/qdrant/qdrant.service';
 
+@Injectable()
 export class EmbedService {
     private readonly logger = new Logger(EmbedService.name);
 
     constructor(
-        private readonly EmbedClient: EmbedClient,
+        private readonly embedClient: EmbedClient,
         private readonly qdrantService: QdrantService,
     ) { }
 
@@ -15,7 +16,7 @@ export class EmbedService {
         const { videoId, title, description } = data;
 
         try {
-            const res = await this.EmbedClient.generateVector([
+            const res = await this.embedClient.generateVector([
                 {
                     videoId: videoId,
                     textToEmbed: title,
