@@ -8,13 +8,13 @@ import { join } from 'path';
 import { ApolloServerPluginLandingPageLocalDefault } from '@apollo/server/plugin/landingPage/default';
 import { AuthModule } from './auth/auth.module';
 import type { Request, Response } from 'express';
-import { RedisModule } from './session/session.module';
 import { S3Service } from './s3/s3.service';
 import { VideoProcessingModule } from './video-processing/video-processing.module';
 import { QueueModule } from './queue/queue.module';
 import { validateEnv } from './config/env.validation';
 import { VideoModule } from './video/video.module';
 import { EmbedModule } from './embed/embed.module';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -32,11 +32,11 @@ import { EmbedModule } from './embed/embed.module';
         res,
       }),
     }),
-    RedisModule,
     AuthModule,
     QueueModule,
     VideoModule,
     EmbedModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [AppService, S3Service],

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
-import { ProcessingStatus, UploadStatus, VideoVisibility,  } from "@prisma/client";
+import { ProcessingStatus, UploadStatus, VideoVisibility, } from "@prisma/client";
 
 @Injectable()
 export class VideoRepository {
@@ -160,7 +160,7 @@ export class VideoRepository {
     }
 
     async updateVideo(userId: string, videoId: string, title?: string, description?: string, rawDescription?: string, visibility?: VideoVisibility) {
-        return await this.prisma.video.updateMany({
+        return await this.prisma.video.update({
             where: {
                 id: videoId,
                 userOwner: userId,
@@ -176,8 +176,8 @@ export class VideoRepository {
 
     async findVideoById(videoId: string, userId?: string) {
         return await this.prisma.video.findUnique({
-            where: { 
-                id: videoId, 
+            where: {
+                id: videoId,
                 ...(userId && { userOwner: userId })
             },
         });
@@ -190,14 +190,15 @@ export class VideoRepository {
     }
 
 
-    async getVideoForWatching(videoId: string) {
-        return await this.prisma.video.findUnique({
+    async getVideoForWatching(userId: string, videoId: string) {
+        const res1 =  await this.prisma.video.findUnique({
             where: { id: videoId },
             include: {
                 owner: {
                     select: {
                         userName: true,
                         id: true,
+                        subscribeCount: true,
                     }
                 },
                 videoHashtags: {
@@ -207,6 +208,24 @@ export class VideoRepository {
                 }
             }
         });
+
+        const res2 = await this.prisma.likeVideo.findUnique({
+            where: { userId_videoId: { userId, videoId } },
+        });
+
+        const res3 = await this.prisma.subscribe.findUnique({
+            where: { userId_channelId: { userId, channelId: res1?.userOwner || '' } },
+        });
+
+        if (!res1) {
+            return null;
+        }
+
+        return {
+            res1, 
+            res2,
+            res3,        
+        }
     }
 
     async incrementViewCount(videoId: string) {
@@ -247,7 +266,7 @@ export class VideoRepository {
                 },
                 videoHashtags: {
                     include: { hashtag: true }
-                }, 
+                },
             }
         });
     }
@@ -263,13 +282,13 @@ export class VideoRepository {
 
     async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: bigint }) {
         return await this.prisma.comment.findMany({
-            where: { 
-                videoId: videoId, 
-                parentId: null, 
-                ...(cursor && { 
+            where: {
+                videoId: videoId,
+                parentId: null,
+                ...(cursor && {
                     OR: [
                         { createdAt: { lt: cursor.createdAt } },
-                        { 
+                        {
                             createdAt: cursor.createdAt,
                             id: { lt: cursor.id }
                         }
@@ -277,7 +296,7 @@ export class VideoRepository {
                 })
             },
             include: {
-                user: {        
+                user: {
                     select: {
                         userName: true,
                         id: true,
@@ -289,16 +308,161 @@ export class VideoRepository {
             },
             take: 20,
         });
-    }   
+    }
 
     async createComment(videoId: string, userId: string, content: string) {
         return await this.prisma.comment.create({
             data: {
-                id : BigInt(Date.now()), 
+                id: BigInt(Date.now()),
                 videoId: videoId,
                 userId: userId,
                 content: content,
             },
+            select: {
+                id: true,
+                content: true,
+                createdAt: true,
+                user: {
+                    select: {
+                        userName: true,
+                        id: true,
+                    }
+                },
+            }   
         });
     }
+
+    async updateHistory(userId: string, videoId: string, pauseAt?: number) {
+        return await this.prisma.watchHistory.upsert({
+            where: { userId_videoId: { userId, videoId } },
+            update: { pausedAt: (pauseAt ? pauseAt : 0) },
+            create: {
+                userId,
+                videoId,
+                ...(pauseAt ? { pausedAt: pauseAt } : {}),
+            },
+        });
+    }
+
+    async getVideoStatus(userId: string, videoId: string) {
+        return this.prisma.video.findUnique({
+            where: { userOwner: userId, id: videoId },
+            select: {
+                visibility: true,
+                upload: {
+                    select: {
+                        processing: {
+                            select: {
+                                status: true,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+
+    async likeOrDislikeVideo(userId: string, videoId: string, isLike: boolean) {
+        const existing = await this.prisma.likeVideo.findUnique({
+            where: { userId_videoId: { userId, videoId } },
+        });
+
+        if (existing && existing.isLike === isLike) {
+            return await this.prisma.video.findUnique({
+                where: { id: videoId },
+                select: {
+                    videoLike: true,
+                    videoDislike: true,
+                }
+            });
+        }       
+        if (existing && existing.isLike !== isLike) {
+            await this.prisma.likeVideo.update({
+                where: { userId_videoId: { userId, videoId } },
+                data: { 
+                    isLike: isLike 
+                },
+            });
+
+            return await this.prisma.video.update({
+                where: { id: videoId },
+                data: {
+                    ...(isLike 
+                        ? { videoLike: { increment: 1 }, videoDislike: { decrement: 1 } } 
+                        : { videoLike: { decrement: 1 }, videoDislike: { increment: 1 } }),
+                },
+                select: {
+                    videoLike: true,
+                    videoDislike: true,
+                }
+            });
+        }
+
+        await this.prisma.likeVideo.create({
+            data: { userId, videoId, isLike },
+        });
+
+        return await this.prisma.video.update({
+            where: { id: videoId },
+            data: {
+                ...(isLike ? { videoLike: { increment: 1 } } : { videoDislike: { increment: 1 } }),
+            },
+            select: {
+                videoLike: true,
+                videoDislike: true,
+            }
+        });
+    }
+
+    async subscribeChannel(userId: string, channelId: string, subscribe: boolean) {
+        const existing = await this.prisma.subscribe.findUnique({
+            where: { userId_channelId: { userId, channelId } },
+        });
+
+        if (existing && subscribe === true) {
+
+            return await this.prisma.user.findUnique({
+                where: { id: channelId },
+                select: {
+                    subscribeCount: true,
+                }
+            });
+        }
+
+        if (existing && subscribe === false) {
+            await this.prisma.subscribe.delete({
+                where: { userId_channelId: { userId, channelId } },
+            });
+
+            return await this.prisma.user.update({
+                where: { id: channelId },
+                data: {
+                    subscribeCount: {
+                        decrement: 1,
+                    }
+                },
+                select: {
+                    subscribeCount: true,
+                }
+            });
+        }
+
+        await this.prisma.subscribe.create({
+            data: { userId, channelId },
+        });
+
+        return await this.prisma.user.update({
+            where: { id: channelId },
+            data: {
+                subscribeCount: {
+                    increment: 1,
+                }
+            },
+            select: {
+                subscribeCount: true,
+            }
+        });
+    }
+
 }

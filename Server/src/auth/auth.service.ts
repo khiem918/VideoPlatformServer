@@ -7,7 +7,7 @@ import { AuthRepository } from './repository/auth.repository';
 import { v4 as uuidv4 } from 'uuid';
 import { compare, hash } from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import { RedisService } from 'src/session/session.service';
+import { RedisService } from 'src/auth/session.service';
 import { Session } from './type/session.type';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';

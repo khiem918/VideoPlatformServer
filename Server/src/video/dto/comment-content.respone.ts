@@ -2,7 +2,7 @@ import { Field, ObjectType } from "@nestjs/graphql";
 
 @ObjectType()
 export class CommentContentResponse {
-    @Field(() => BigInt)
+    @Field(() => String)
     id: string;
 
     @Field(() => String)
@@ -19,7 +19,4 @@ export class CommentContentResponse {
 
     @Field(() => Number)
     replyCount?: number;
-
-    @Field(() => String)
-    owenerName: string;
 }

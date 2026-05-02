@@ -41,18 +41,6 @@ export class EnvironmentVariables {
   @IsString()
   COOKIE_SECRET: string;
 
-  // @IsNotEmpty()
-  // @IsString()
-  // CLIENT_URL: string;
-
-  // @IsOptional()
-  // @IsString()
-  // SSL_KEY_PATH?: string;
-
-  // @IsOptional()
-  // @IsString()
-  // SSL_CERT_PATH?: string;
-
   @IsNotEmpty()
   CLOUDFLARE_R2_REGION: string;
 
@@ -93,6 +81,10 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   EMBED_API_KEY :string;
+
+  @IsNotEmpty()
+  @IsString()
+  R2_SIGN_SECRET: string;
 }
 
 export function validateEnv(

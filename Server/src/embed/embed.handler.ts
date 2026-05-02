@@ -47,21 +47,30 @@ export class EmbedHandler extends WorkerHost {
             throw new Error('Invalid job data format');
         }
 
-        const { videoId, title, description} = data;
+        const { videoId, userOwner, title, description, createdAt } = data;
 
         if (typeof videoId !== 'string' || !videoId.trim()) {
             throw new Error('Invalid or missing videoId');
+        }
+
+        if (typeof userOwner !== 'string' || !userOwner.trim()) {
+            throw new Error('Invalid or missing userOwner');
         }
 
         if (typeof title !== 'string' || !title.trim()) {
             throw new Error('Invalid or missing title');
         }
 
+        if (!Number.isInteger(createdAt)) {
+            throw new Error('Invalid or missing createdAt');
+        }
+
         return {
             videoId: videoId.trim(),
+            userOwner: userOwner.trim(),
             title: title.trim(),
-            description: description.trim() || '', 
-            // tags: Array.isArray(tags) ? tags : [],
+            description: typeof description === 'string' ? description.trim() : '',
+            createdAt,
         };
     }
 }

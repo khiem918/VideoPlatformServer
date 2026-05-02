@@ -2,7 +2,6 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException,
 import { S3Service } from 'src/s3/s3.service';
 import { VideoRepository } from './repository/video.repository';
 import { VideoProcessingQueueService } from '../video-processing/video-processing.queue';
-import { ulid } from 'ulid';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadStatus } from '@prisma/client';
 import { EmbedQueueService } from 'src/embed/embed.queue';
@@ -10,8 +9,8 @@ import { EmbedClient } from 'src/embed/embedservice/embed.client';
 import { SemanticProcessingService } from 'src/semantic-processing/semantic-processing.service';
 import { TagService } from 'src/tag/tag.service';
 import { QdrantService } from 'src/qdrant/qdrant.service';
-import { concat } from 'rxjs';
-import { WatchVideoResponse } from './dto/watch-video.respone';
+import { WatchVideoResponse, WatchVideoUrlResponse } from './dto/watch-video.respone';
+import { NotificationService } from 'src/notification/notification.service';
 
 @Injectable()
 export class VideoService {
@@ -35,8 +34,10 @@ export class VideoService {
     private readonly embedClient: EmbedClient,
     private readonly qdrantService: QdrantService,
     private readonly semanticProcessingService: SemanticProcessingService,
-    private readonly tagService: TagService
+    private readonly tagService: TagService,
+    private readonly notificationService: NotificationService,
   ) { }
+
 
   async initUpload(
     userId: string,
@@ -82,7 +83,7 @@ export class VideoService {
     };
   }
 
-  async completeUpload(userId: string, uploadId: string): Promise<void> {
+  async completeUpload(userId: string, uploadId: string) {
     const upload = await this.videorepository.findUpload(userId, uploadId);
 
     if (upload?.userId !== userId) {
@@ -108,7 +109,6 @@ export class VideoService {
       r2Path: upload.r2Path,
       mimeType: upload.mimeType,
     });
-
   }
 
   async deleteVideo(userId: string, videoId: string): Promise<void> {
@@ -126,9 +126,13 @@ export class VideoService {
           directoryPath = `${match[1]}/`;
         }
       }
-      await this.s3Service.deleteDirectory(directoryPath);
 
-      await this.videorepository.deleteVideo(userId, videoId);
+      Promise.all([
+        await this.s3Service.deleteDirectory(directoryPath),
+        await this.qdrantService.deleteVideoVector(videoId),
+        await this.videorepository.deleteVideo(userId, videoId),
+      ]);
+
     } catch (error) {
       console.error(`Failed to delete video from R2:`, error);
       throw new NotFoundException('Failed to delete video from storage');
@@ -160,9 +164,7 @@ export class VideoService {
           videoLike: video.videoLike,
           videoDislike: video.videoDislike,
           visibility: video.visibility,
-          uploadStatus: isDraft ? video.upload?.status : null,
-          uploadedAt: isDraft ? video.upload?.uploadedAt : null,
-          rawDesc: isDraft ? null : video.rawDesc,
+          rawDesc: isDraft ? null : video.videoDesc,
           tags: isDraft ? [] : video.videoHashtags?.map(vh => vh.displayTag),
           createdAt: video.createdAt,
           updatedAt: video.updatedAt,
@@ -182,7 +184,8 @@ export class VideoService {
     tags?: string[],
     description?: string,
     visibility?: 'DRAFT' | 'PRIVATE' | 'PUBLISHED',
-  ): Promise<void> {
+    isFirstPublish?: boolean,
+  ) {
     const video = await this.videorepository.findVideoById(videoId, userId);
 
     if (!video || video.userOwner !== userId) {
@@ -193,13 +196,33 @@ export class VideoService {
       throw new BadRequestException('Title is required for the video');
     }
 
+    const handle_description_update = description !== undefined
+      ? (description ? await this.semanticProcessingService.processingDescription(description) : '')
+      : undefined;
+
+    if (title !== undefined || description !== undefined) {
+      try {
+        await this.embedQueueService.addEmbedJob({
+          videoId,
+          userOwner: video.userOwner,
+          title: title || video.videoName || '',
+          description: handle_description_update !== undefined ? handle_description_update : '',
+          createdAt: new Date(video.createdAt).getTime(),
+        });
+      } catch (error) {
+        console.error(`Failed to enqueue embedding job for video ${videoId}:`, error);
+      }
+    }
+
     if (tags) {
       await this.tagService.handleTags(videoId, tags);
     }
 
-    const handle_description_update = description !== undefined
-      ? (description ? await this.semanticProcessingService.processingDescription(description) : '')
-      : undefined;
+    const videoStatus = await this.videorepository.getVideoStatus(userId, videoId);
+
+    if (videoStatus?.upload?.processing?.status !== 'COMPLETED' || videoStatus.upload?.processing?.status !== null) {
+      visibility = 'DRAFT';
+    }
 
     const result = await this.videorepository.updateVideo(
       userId,
@@ -210,26 +233,94 @@ export class VideoService {
       visibility,
     );
 
-    if (result.count === 0) {
+    if (isFirstPublish && isFirstPublish === true) {
+      this.notificationService.sendNotification(
+        userId,
+        'NEW_SUBSCRIBED_CHANNELS_VIDEO',
+         `${video.userOwner} has published a new video: ${title || video.videoName || 'Untitled Video'}`,
+        'CHANNEL',
+      ).catch(error => {
+        console.error(`Failed to send notification for new published video ${videoId}:`, error);
+      });
+    }
+
+    if (!result) {
       throw new NotFoundException('Video not found or not owned by user');
     }
 
-    if (title !== undefined || description !== undefined) {
+    if (result.thumbnailUrl) {
       try {
-        await this.embedQueueService.addEmbedJob({
-          videoId,
-          title: title || video.videoName || '',
-          description: handle_description_update !== undefined ? handle_description_update : '',
-        });
+        result.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(result.thumbnailUrl, 3600);
       } catch (error) {
-        console.error(`Failed to enqueue embedding job for video ${videoId}:`, error);
+        console.error(`Failed to get presigned URL for thumbnail ${result.thumbnailUrl}:`, error);
       }
+    }
+
+    return {
+      id: result.id,
+      videoName: result.videoName,
+      duration: result.duration,
+      videoUrl: result.videoUrl,
+      thumbnailUrl: result.thumbnailUrl,
+      videoView: result.videoView,
+      videoLike: result.videoLike,
+      videoDislike: result.videoDislike,
+      visibility: result.visibility,
+      rawDesc: result.videoDesc,
+      tags: tags,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
     }
   }
 
+  async getWatchVideoMetadata(videoId: string, userId: string): Promise<WatchVideoResponse> {
+    const video = await this.videorepository.getVideoForWatching(userId, videoId);
 
-  async watchVideo(videoId: string, userId?: string): Promise<WatchVideoResponse> {
-    const video = await this.videorepository.getVideoForWatching(videoId);
+    if (!video || video.res1?.videoUrl === null) {
+      throw new NotFoundException('Video not found or processing not complete');
+    }
+
+    if (video.res1?.userOwner !== userId) {
+      if (video.res1?.visibility === 'PRIVATE') {
+        throw new ForbiddenException('This video is private');
+      }
+      if (video.res1?.visibility === 'DRAFT') {
+        throw new ForbiddenException('This video is unpublished');
+      }
+    }
+
+    Promise.all([
+      this.videorepository.incrementViewCount(videoId).catch(err => {
+        console.error('Failed to increment view count:', err);
+      }),
+      ...(userId ? [this.videorepository.updateHistory(userId, videoId).catch(err => {
+        console.error('Failed to update video history:', err);
+      })] : [])
+    ]);
+
+
+
+    return {
+      id: video.res1.id,
+      videoName: video.res1.videoName,
+      duration: video.res1.duration,
+      videoView: video.res1.videoView + 1,
+      videoLike: video.res1.videoLike,
+      videoDislike: video.res1.videoDislike,
+      desc: video.res1.videoDesc ? video.res1.videoDesc : undefined,
+      tags: video.res1.videoHashtags?.map(vh => vh.displayTag) || [],
+      ownerId: video.res1.userOwner,
+      ownerName: video.res1.owner?.userName ? video.res1.owner?.userName : video.res1.userOwner,
+      createdAt: video.res1.createdAt,
+      subscriberCount: video.res1?.owner?.subscribeCount || 0,
+      isSubscribe: video.res3? true : false,
+      isLiked: video.res2 ? ( video.res2.isLike === true ? true : false) : false,
+      isDisliked: video.res2 ? ( video.res2.isLike === false ? true : false) : false,
+    };
+  }
+
+  async getWatchVideoUrl(userId: string, videoId: string): Promise<WatchVideoUrlResponse> {
+    const video = await this.videorepository.findVideoById(videoId);
 
     if (!video || video.videoUrl === null) {
       throw new NotFoundException('Video not found or processing not complete');
@@ -244,50 +335,20 @@ export class VideoService {
       }
     }
 
-    this.videorepository.incrementViewCount(videoId).catch(err => {
-      console.error('Failed to increment view count:', err);
-    });
-
-    const presignedUrl = await this.s3Service.getPresignedDownloadUrl(video.videoUrl, 3600);
-
-    this.logger.log({
-      id: video.id,
-      videoName: video.videoName,
-      videoUrl: presignedUrl,
-      thumbnailUrl: video.thumbnailUrl,
-      duration: video.duration,
-      videoView: video.videoView + 1,
-      videoLike: video.videoLike,
-      videoDislike: video.videoDislike,
-      visibility: video.visibility,
-      rawDesc: video.rawDesc,
-      tags: video.videoHashtags?.map(vh => vh.displayTag) || [],
-      ownerId: video.userOwner,
-      ownerName: video.owner?.userName,
-      createdAt: video.createdAt,
-      updatedAt: video.updatedAt,
-    })
+    const expiresAt = Date.now() + 100 * 60 * 1000;
+    const sig = await this.s3Service.signUrl(expiresAt);
+    const mdpUrl = await this.s3Service.getDownloadUrl(video.videoUrl);
 
     return {
-      id: video.id,
-      videoName: video.videoName,
-      videoUrl: presignedUrl,
-      duration: video.duration,
-      videoView: video.videoView + 1,
-      videoLike: video.videoLike,
-      videoDislike: video.videoDislike,
-      desc: video.rawDesc ? video.rawDesc : undefined,
-      tags: video.videoHashtags?.map(vh => vh.displayTag) || [],
-      ownerId: video.userOwner,
-      ownerName: video.owner?.userName ? video.owner?.userName : video.userOwner,
-      createdAt: video.createdAt,
+      signature: sig,
+      expiresAt: expiresAt,
+      mpdUrl: mdpUrl,
     };
   }
 
   async searchVideos(userId: string, query: string, limit: number = 20, offset: number = 0) {
     const KEYWORD_WEIGHT = 0.3;
-    const TITLE_VECTOR_WEIGHT = 0.4;
-    const DESCRIPTION_VECTOR_WEIGHT = 0.3;
+    const VECTOR_WEIGHT = 0.7;
     const candidateLimit = Math.max(limit * 5, 50);
 
     const [queryVector, keywordResults] = await Promise.all([
@@ -295,42 +356,35 @@ export class VideoService {
       this.videorepository.keywordSearch(query, candidateLimit),
     ]);
 
-    // this.logger.log(`Generated query vector for search: ${JSON.stringify(queryVector)}`);lllkllll
-    // this.logger.log(`Keyword search results: ${JSON.stringify(keywordResults)}`);
+    const vectorHits = await this.qdrantService.vectorSearch({
+      denseVector: queryVector,
+      limit: candidateLimit,
+      prefetchLimit: candidateLimit * 2,
+    });
 
-    const vectorResults = await this.qdrantService.searchSimilarVideos(
-      queryVector,
-      candidateLimit,
-    );
-
-    // this.logger.log(`Vector search results: ${JSON.stringify(vectorResults)}`);
+    // this.logger.log(`Keyword hits: ${JSON.stringify(keywordResults)}`);
+    // this.logger.log(`Vector hits: ${JSON.stringify(vectorHits)}`);
 
     const maxKw = keywordResults.reduce((m, r) => Math.max(m, r.rank), 0) || 1;
+    const maxVec = vectorHits.reduce((m, h) => Math.max(m, h.score), 0) || 1;
 
-    const scoreMap = new Map<string, { kw: number; title_vec: number, desc_vec: number }>();
+    const scoreMap = new Map<string, { kw: number; vec: number }>();
 
     for (const r of keywordResults) {
-      scoreMap.set(r.id, { kw: r.rank / maxKw, title_vec: 0, desc_vec: 0 });
+      scoreMap.set(r.id, { kw: r.rank / maxKw, vec: 0 });
     }
 
-    for (const r of vectorResults[0]) {
-      const videoId = r.payload?.['videoId'] as string | undefined ?? String(r.id);
-      const entry = scoreMap.get(videoId) ?? { kw: 0, title_vec: 0, desc_vec: 0 };
-      entry.title_vec = r.score;
-      scoreMap.set(videoId, entry);
-    }
-
-    for (const r of vectorResults[1]) {
-      const videoId = r.payload?.['videoId'] as string | undefined ?? String(r.id);
-      const entry = scoreMap.get(videoId) ?? { kw: 0, title_vec: 0, desc_vec: 0 };
-      entry.desc_vec = r.score;
+    for (const hit of vectorHits) {
+      const videoId = (hit.payload.videoId as string | undefined) ?? hit.id;
+      const entry = scoreMap.get(videoId) ?? { kw: 0, vec: 0 };
+      entry.vec = hit.score / maxVec;
       scoreMap.set(videoId, entry);
     }
 
     const ranked = Array.from(scoreMap.entries())
       .map(([videoId, scores]) => ({
         videoId,
-        finalScore: KEYWORD_WEIGHT * scores.kw + TITLE_VECTOR_WEIGHT * scores.title_vec + DESCRIPTION_VECTOR_WEIGHT * scores.desc_vec,
+        finalScore: KEYWORD_WEIGHT * scores.kw + VECTOR_WEIGHT * scores.vec,
       }))
       .sort((a, b) => b.finalScore - a.finalScore);
 
@@ -359,7 +413,7 @@ export class VideoService {
           thumbnailUrl: v.thumbnailUrl,
           duration: v.duration,
           videoView: v.videoView,
-          rawDesc: v.rawDesc,
+          rawDesc: v.videoDesc,
           updatedAt: v.updatedAt,
           ownerName: v.owner.userName ? v.owner.userName : v.owner.id,
         };
@@ -367,14 +421,14 @@ export class VideoService {
     );
 
     const results = resultsRaw.filter(Boolean);
-    this.logger.log(`Final search results: ${JSON.stringify(results)}`);
+    // this.logger.log(`Final search results: ${JSON.stringify(results)}`);
     return { results, total };
   }
 
   async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: bigint }) {
     const comments = await this.videorepository.getVideoComments(videoId, cursor);
     return comments.map(c => ({
-      id: c.id,
+      id: c.id.toString(),
       content: c.content,
       createdAt: c.createdAt,
       likeCount: c.likeCount,
@@ -386,6 +440,7 @@ export class VideoService {
 
   async commentOnVideo(videoId: string, userId: string, content: string) {
     try {
+
       const video = await this.videorepository.findVideoById(videoId, userId);
       if (!video) {
         throw new NotFoundException('Video not found');
@@ -398,7 +453,16 @@ export class VideoService {
       if (video.visibility === 'DRAFT') {
         throw new ForbiddenException('Cannot comment on unpublished video');
       }
-      await this.videorepository.createComment(videoId, userId, content);
+      const comment = await this.videorepository.createComment(videoId, userId, content);
+
+      return {
+        id: comment.id.toString(),
+        content: comment.content,
+        createdAt: comment.createdAt,
+        ownerName: comment.user.userName ? comment.user.userName : comment.user.id,
+        likeCount: 0,
+        replyCount: 0,
+      };
     } catch (error) {
       if (error instanceof NotFoundException || error instanceof ForbiddenException) {
         throw error;
@@ -407,4 +471,61 @@ export class VideoService {
       throw new BadRequestException('Unable to comment on video at this time');
     }
   }
+
+  async updateVideoHistory(userId: string, videoId: string, pauseAt?: number) {
+    await this.videorepository.updateHistory(userId, videoId, pauseAt);
+  }
+
+
+  async likeOrDislikeVideo(userId: string, videoId: string, like: boolean) {
+    const video = await this.videorepository.findVideoById(videoId, userId);
+    if (!video) {
+      throw new NotFoundException('Video not found');
+    }
+
+    if (video.visibility === 'PRIVATE') {
+      throw new ForbiddenException('Cannot like/dislike private video');
+    }
+
+    if (video.visibility === 'DRAFT') {
+      throw new ForbiddenException('Cannot like/dislike unpublished video');
+    }
+
+    const res = await this.videorepository.likeOrDislikeVideo(userId, videoId, like);
+    if (!res) {
+      throw new NotFoundException('Like/dislike operation failed');
+    }
+    return { likeCount: res.videoLike, dislikeCount: res.videoDislike };
+  }
+
+  async subscribeChannel(userId: string, channelId: string, subscribe: boolean) {
+    if (userId === channelId) {
+      throw new BadRequestException('Cannot subscribe to your own channel');
+    }
+
+    const result = await this.videorepository.subscribeChannel(userId, channelId, subscribe);
+    if (!result) {
+      throw new NotFoundException('Subscription operation failed or channel not found');
+    }
+    return {
+      subscriberCount : result.subscribeCount,
+      isSubscribe : subscribe
+    };
+  }
+
+  async trackVideoWatchProgress(userId: string, videoId: string, pauseAt?: number) {
+    const video = await this.videorepository.findVideoById(videoId, userId);    
+    if (!video) {
+      throw new NotFoundException('Video not found');
+    }     
+    if (video.visibility === 'PRIVATE') {
+      throw new ForbiddenException('Cannot track progress of private video');
+    }     
+    if (video.visibility === 'DRAFT') {
+      throw new ForbiddenException('Cannot track progress of unpublished video');
+    }     
+    await this.videorepository.updateHistory(userId, videoId, pauseAt);
+  }   
+
+  
 }

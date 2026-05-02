@@ -30,12 +30,6 @@ export class UserVideoResponse {
   visibility: string;
 
   @Field(() => String, { nullable: true })
-  uploadStatus?: string;
-
-  @Field(() => Date, { nullable: true })
-  uploadedAt?: Date;
-
-  @Field(() => String, { nullable: true })
   rawDesc?: string;
 
   @Field(() => [String], { nullable: true })

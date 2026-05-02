@@ -9,6 +9,7 @@ import { TranscodingDataDto } from './dto/transcodingdata.dto';
 import { TranscodingFailedException } from './exceptions/transcoding-failed.exception';
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
 import { ProcessingStatus } from '@prisma/client';
+import { NotificationService } from 'src/notification/notification.service';
 
 
 export type TranscodedVideoPaths = {
@@ -34,6 +35,7 @@ export class VideoProcessingService {
     private readonly ffmpegService: FFmpegService,
     private readonly repository: VideoProcessingRepository,
     private readonly s3Service: S3Service,
+    private readonly notificationService: NotificationService,
   ) {
     this.ensureTempDir();
   }
@@ -41,7 +43,7 @@ export class VideoProcessingService {
   private ensureTempDir(): void {
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
-      this.logger.debug(`Created temp directory: ${this.tempDir}`);
+      // this.logger.debug(`Created temp directory: ${this.tempDir}`);
     }
   }
 
@@ -68,12 +70,12 @@ export class VideoProcessingService {
         `Video metadata: ${videoDuration}s, ${metadata.width}x${metadata.height}`,
       );
 
-      const hlsOutputDir = path.join(workDir, 'hls');
-      await this.ffmpegService.transcodeToHLS(
+      const dashOutputDir = path.join(workDir, 'dash');
+      await this.ffmpegService.transcodeToDASH(
         inputPath,
-        hlsOutputDir,
+        dashOutputDir,
       );
-      this.logger.log(`HLS transcoding completed for ${uploadId}`);
+      this.logger.log(`DASH transcoding completed for ${uploadId}`);
 
       const thumbsDir = path.join(workDir, 'thumb');
       await fs.promises.mkdir(thumbsDir, { recursive: true });
@@ -88,7 +90,7 @@ export class VideoProcessingService {
           {
             uploadId,
             originalPath: data.r2Path,
-            masterPlaylist: 'hls/master.m3u8',
+            manifest: 'dash/manifest.mpd',
             thumbnails: ['thumb/0.jpg'],
             video: metadata,
             generatedAt: new Date().toISOString(),
@@ -111,7 +113,7 @@ export class VideoProcessingService {
         uploadResult.thumbnailPath,
         videoDuration,
       );
-    
+
       this.logger.log(
         `Completed transcoding for video ${uploadId}, manifest: ${uploadResult.manifestPath}, thumbnail: ${uploadResult.thumbnailPath}`,
       );
@@ -196,7 +198,7 @@ export class VideoProcessingService {
     const artifactFiles = files.filter((file) => {
       const relativePath = path.relative(localOutputDir, file).replace(/\\/g, '/');
       return (
-        relativePath.startsWith('hls/') ||
+        relativePath.startsWith('dash/') ||
         relativePath.startsWith('thumb/') ||
         relativePath === 'meta.json'
       );
@@ -226,7 +228,7 @@ export class VideoProcessingService {
           mimeType,
         );
 
-        if (relativePath === 'hls/master.m3u8') {
+        if (relativePath === 'dash/manifest.mpd') {
           remoteManifestPath = uploadedPath;
         }
 
@@ -334,12 +336,16 @@ export class VideoProcessingService {
   }
 
   private getMimeTypeByPath(relativePath: string): string {
-    if (relativePath.endsWith('.m3u8')) {
-      return 'application/vnd.apple.mpegurl';
+    if (relativePath.endsWith('.mpd')) {
+      return 'application/dash+xml';
     }
 
-    if (relativePath.endsWith('.ts')) {
-      return 'video/mp2t';
+    if (relativePath.endsWith('.m4s')) {
+      return 'video/iso.segment';
+    }
+
+    if (relativePath.endsWith('.mp4')) {
+      return 'video/mp4';
     }
 
     if (relativePath.endsWith('.jpg') || relativePath.endsWith('.jpeg')) {

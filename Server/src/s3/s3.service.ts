@@ -12,7 +12,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { InternalServerErrorException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { ConfigService } from '@nestjs/config';
-import { createHash } from 'crypto';
+import { createHash, createHmac } from 'crypto';
 
 @Injectable()
 export class S3Service {
@@ -127,6 +127,7 @@ export class S3Service {
     }
   }
 
+
   async fileExists(r2Path: string): Promise<boolean> {
     try {
       const command = new HeadObjectCommand({
@@ -144,6 +145,7 @@ export class S3Service {
     }
   }
 
+
   async getFileStream(r2Path: string): Promise<Readable> {
     try {
       const command = new GetObjectCommand({
@@ -159,6 +161,22 @@ export class S3Service {
     }
   }
 
+  async getFileBuffer(r2Path: string): Promise<Buffer> {
+    try {
+      const stream = await this.getFileStream(r2Path);
+
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks);
+    } catch (error: any) {
+      this.logger.error(`Failed to read file into buffer: ${error.message}`);
+      throw error;
+    }
+  }
+
+
   async getPresignedDownloadUrl(r2Path: string, expiresIn: number = 3600): Promise<string> {
     try {
       const command = new GetObjectCommand({
@@ -172,26 +190,15 @@ export class S3Service {
     }
   }
 
-  // async deleteVideoByR2Path(r2Path: string): Promise<void> {
-  //   try {
-  //     const command = new DeleteObjectsCommand({
-  //       Bucket: this.bucketName,
-  //       Delete: {
-  //         Objects: [{ Key: r2Path }],
-  //         Quiet: true,
-  //       },
-  //     });
-  //     await this.s3Client.send(command);
-  //   } catch (error: any) {
-  //     this.logger.error(`Failed to delete video: ${error.message}`);
-  //     throw error;
-  //   }
-  // }
+  async getDownloadUrl(r2Path: string): Promise<string> {
+    return `${this.configService.get<string>('R2_WORKER_URL')}/${r2Path}`;
+  }
+
 
   async deleteDirectory(prefix: string): Promise<void> {
     try {
       const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
-      
+
       let isTruncated = true;
       let continuationToken: string | undefined = undefined;
 
@@ -202,7 +209,7 @@ export class S3Service {
           ContinuationToken: continuationToken,
         });
 
-        const listResponse : any = await this.s3Client.send(listCommand);
+        const listResponse: any = await this.s3Client.send(listCommand);
 
         if (!listResponse.Contents || listResponse.Contents.length === 0) {
           break;
@@ -232,4 +239,21 @@ export class S3Service {
       throw new InternalServerErrorException('Failed to delete directory contents');
     }
   }
+
+  async signUrl(expiresIn: number = 3600): Promise<string> {
+    const secret_key = this.configService.get<string>('R2_SIGN_SECRET');
+    const key = this.configService.get<string>('WORKER_KEY');
+
+    const data = `${key}:${expiresIn}`;
+
+    if (!secret_key) {
+      this.logger.error('Missing R2_SIGN_SECRET in configuration');
+      throw new InternalServerErrorException('Missing R2_SIGN_SECRET in configuration');
+    }
+
+    return createHmac('sha256', secret_key)
+      .update(data)
+      .digest('hex');
+  }
+
 }

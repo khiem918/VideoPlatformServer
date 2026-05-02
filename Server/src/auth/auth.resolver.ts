@@ -9,7 +9,7 @@ import { OAuth2Client } from 'google-auth-library';
 import type { Request, Response } from 'express';
 import { AuthPayload } from './type/auth-payload.type';
 import { GqlAuthGuard } from './guard/gql-auth.guard';
-import { CurrentUser } from './decorator/current-user.decorator';
+import { gqlCurrentUser } from './decorator/gql-current-user.decorator';
 import { ConfigService } from '@nestjs/config';
 import { SignInInput } from './dto/auth.dto';
 
@@ -47,7 +47,7 @@ export class AuthResolver {
 
   @Query(() => String)
   @UseGuards(GqlAuthGuard)
-  me(@CurrentUser() user: { userId: string }): string {
+  me(@gqlCurrentUser() user: { userId: string }): string {
     return user.userId;
   }
 
@@ -90,7 +90,7 @@ export class AuthResolver {
   @Mutation(() => AuthPayload)
   @UseGuards(GqlAuthGuard)
   async rotateToken(
-    @CurrentUser() user: { userId: string; iat: number },
+    @gqlCurrentUser() user: { userId: string; iat: number },
     @Context('req') req: Request,
     @Context('res') res: Response,
   ): Promise<AuthPayload> {
@@ -165,7 +165,7 @@ export class AuthResolver {
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async signOut(
-    @CurrentUser() user: { userId: string; iat: number },
+    @gqlCurrentUser() user: { userId: string; iat: number },
     @Context('res') res: Response,
     @Context('req') req: Request,
   ): Promise<boolean> {
@@ -180,4 +180,6 @@ export class AuthResolver {
     res.clearCookie('SSID');
     return true;
   }
+
+
 }

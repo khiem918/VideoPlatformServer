@@ -2,6 +2,32 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import type { Request } from 'express';
+
+function extractTokenFromRequest(request: Request): string | null {
+  const bearerToken = ExtractJwt.fromAuthHeaderAsBearerToken()(request);
+  if (bearerToken) {
+    return bearerToken;
+  }
+
+  const queryToken = typeof request.query.token === 'string' ? request.query.token : null;
+  if (queryToken) {
+    return queryToken.startsWith('token=') ? queryToken.slice('token='.length) : queryToken;
+  }
+
+  const pathToken = typeof request.params?.token === 'string' ? request.params.token : null;
+  if (pathToken) {
+    return pathToken.startsWith('token=') ? pathToken.slice('token='.length) : pathToken;
+  }
+
+  const urlMatch = request.url.match(/(?:\?|&)token=([^&]+)/);
+  if (!urlMatch) {
+    return null;
+  }
+
+  const rawToken = decodeURIComponent(urlMatch[1]);
+  return rawToken.startsWith('token=') ? rawToken.slice('token='.length) : rawToken;
+}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -13,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([extractTokenFromRequest]),
       ignoreExpiration: false,
       secretOrKey: jwtSecret,
     });

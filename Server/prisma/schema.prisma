@@ -28,6 +28,9 @@ model User {
   watchHistory   WatchHistory[]
   videoUploads   VideoUpload[]
   comments       Comment[]
+  likeVideos     LikeVideo[]
+  channelNotification   ChannelNotification[]
+  systemNotification    SystemNotification[]
 
   @@index([userName])
   @@map("user")
@@ -72,7 +75,7 @@ model VideoHashtag {
 model Subscribe {
   userId          String   @map("user_id")
   channelId       String   @map("channel_id")
-  notifySubscribe Boolean @default(false) @map("nofify_subscribe")
+  notifySubscribe Boolean @default(true) @map("nofify_subscribe")
 
   user    User @relation("UserSubscriptions", fields: [userId], references: [id])
   channel User @relation("ChannelSubscriptions", fields: [channelId], references: [id])
@@ -86,7 +89,10 @@ model Subscribe {
 model WatchHistory {
   userId   String     @map("user_id")
   videoId  String     @map("video_id")
-  pausedAt String?    @map("paused_at") @db.VarChar(8)
+
+  pausedAt Int    @map("paused_at") @default(0)
+  
+  watchedAt  DateTime   @map("watched_at") @default(now())
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
@@ -119,6 +125,7 @@ model Video {
   videoDesc         String?         @db.Text     
   rawDesc           String?          @db.Text
   comments          Comment[]
+  likeVideos        LikeVideo[]
 
   @@index([userOwner])
   @@index([visibility])
@@ -127,6 +134,19 @@ model Video {
   @@schema("core")
 }
 
+model LikeVideo { 
+  userId    String        
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  videoId   String            
+  video     Video             @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  isLike    Boolean           @default(true)
+
+  @@id([userId, videoId])
+  @@map("like_video")
+  @@schema("core")
+}
 
 model VideoProcessing {
   id                String    @id @default(cuid())
@@ -144,7 +164,6 @@ model VideoProcessing {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  variants          VideoVariant[]
 
   @@index([status])
   @@index([createdAt(sort: Desc)])
@@ -231,18 +250,7 @@ enum Resolution {
   @@schema("core")
 }
 
-model VideoVariant {
-  processingId      String    @map("processing_id")
-  resolution        Resolution
-  bitrate           Int
-  path              String
 
-  processing VideoProcessing @relation(fields: [processingId], references: [id], onDelete: Cascade)
-
-  @@id([processingId, resolution])
-  @@map("video_variant")
-  @@schema("core")
-}
 
 model Comment {
   id         BigInt   @id
@@ -269,6 +277,52 @@ model Comment {
   @@index([videoId, parentId, createdAt(sort: Desc)])
   @@schema("core")
 }
+
+model ChannelNotification { 
+  id          String               @id @default(cuid())
+
+  channelId    String           
+  channel      User                @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  
+  content     String               @db.Text
+  createdAt   DateTime             @default(now())
+  notificationSubject String       @map("notification_subject")
+  isRead      Boolean              @default(false) @map("is_read")
+
+  @@map("channel_notification")
+  @@schema("core")
+  @@index([channelId])
+}
+
+model SystemNotification {
+  id        String                @id @default(cuid())
+  
+  userId    String                
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content   String                @db.Text
+  createdAt       DateTime        @default(now())
+  notificationSubject String       @map("notification_subject")
+  isRead      Boolean              @default(false) @map("is_read")
+
+  @@map("system_notification")
+  @@index([userId])
+  @@schema("core")
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

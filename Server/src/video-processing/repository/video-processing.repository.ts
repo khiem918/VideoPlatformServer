@@ -102,6 +102,7 @@ export class VideoProcessingRepository {
             videoUrl,
             thumbnailUrl,
             duration,
+            visibility: 'PUBLISHED',
           },
         });
       });

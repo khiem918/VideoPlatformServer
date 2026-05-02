@@ -1,24 +1,45 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { QdrantClient } from '@qdrant/js-client-rest';
+import {
+  VECTOR_NAMES,
+  VideoPayload,
+  VideoPoint,
+} from './type/qdrant.types';
+
+export interface VectorSearchParams {
+  denseVector: number[];
+  limit?: number;
+  prefetchLimit?: number;
+  filter?: Record<string, unknown>;
+  scoreThreshold?: number;
+  fusion?: 'rrf' | 'dbsf';
+}
+
+export interface VectorSearchHit {
+  id: string;
+  score: number;
+  payload: Partial<VideoPayload>;
+}
 
 @Injectable()
 export class QdrantService implements OnModuleInit {
   private readonly qdrantClient: QdrantClient;
   private readonly logger = new Logger(QdrantService.name);
-  
+
   private readonly COLLECTION_NAME = 'videos';
-  
-  private readonly VECTOR_SIZE = 768; 
+
+  private readonly VECTOR_SIZE = 768;
 
   constructor() {
-    this.qdrantClient = new QdrantClient({ 
+    this.qdrantClient = new QdrantClient({
       url: process.env.QDRANT_URL || 'http://localhost:6333',
-      checkCompatibility: false 
+      checkCompatibility: false
     });
   }
 
   async onModuleInit() {
     await this.initCollection();
+    await this.ensurePayloadIndexes();
   }
 
   private async initCollection() {
@@ -27,20 +48,18 @@ export class QdrantService implements OnModuleInit {
       const exists = collections.some((c) => c.name === this.COLLECTION_NAME);
 
       if (!exists) {
-        this.logger.log(`Creating Qdrant collection: ${this.COLLECTION_NAME}`);
         await this.qdrantClient.createCollection(this.COLLECTION_NAME, {
           vectors: {
-            title: {
+            [VECTOR_NAMES.titleDense]: {
               size: this.VECTOR_SIZE,
               distance: 'Cosine',
             },
-            desc: {
+            [VECTOR_NAMES.descDense]: {
               size: this.VECTOR_SIZE,
               distance: 'Cosine',
             },
           },
         });
-        this.logger.log('Collection created successfully with named vectors: title, desc.');
       } else {
         this.logger.log(`Collection ${this.COLLECTION_NAME} already exists.`);
       }
@@ -50,65 +69,116 @@ export class QdrantService implements OnModuleInit {
     }
   }
 
-  async upsertVideoVectors(
-    videoId: string,
-    titleVector: number[],
-    descVector?: number[],
-    payload?: Record<string, any>,
-  ) {
+  private async ensurePayloadIndexes() {
+    const indexes: { field_name: string; field_schema: 'keyword' | 'integer' }[] = [
+      { field_name: 'videoId', field_schema: 'keyword' },
+      { field_name: 'userOwner', field_schema: 'keyword' },
+      { field_name: 'createdAt', field_schema: 'integer' },
+    ];
+
+    for (const index of indexes) {
+      try {
+        await this.qdrantClient.createPayloadIndex(this.COLLECTION_NAME, {
+          field_name: index.field_name,
+          field_schema: index.field_schema,
+          wait: true,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/already exists/i.test(message)) {
+          this.logger.warn(
+            `Failed to create payload index on ${index.field_name}: ${message}`,
+          );
+        }
+      }
+    }
+  }
+
+  async upsertVideoPoint(point: VideoPoint) {
     try {
+      const vector: Record<string, number[]> = {
+        [VECTOR_NAMES.titleDense]: point.vectors.titleDense,
+      };
+
+      if (point.vectors.descDense) {
+        vector[VECTOR_NAMES.descDense] = point.vectors.descDense;
+      }
+
       await this.qdrantClient.upsert(this.COLLECTION_NAME, {
         wait: true,
         points: [
           {
-            id: videoId, 
-            vector: {
-              title: titleVector,
-              ...(descVector && { desc: descVector }),
-            },
-            payload: {
-              videoId, 
-              ...payload,
-            },
+            id: point.id,
+            vector,
+            payload: { ...point.payload },
           },
         ],
       });
-      
-      this.logger.log(`Successfully upserted vectors for video: ${videoId}`);
+
+      this.logger.log(`Successfully upserted point for video: ${point.id}`);
     } catch (error) {
-      this.logger.error(`Failed to upsert vectors for video ${videoId}`, error);
+      this.logger.error(`Failed to upsert point for video ${point.id}`, error);
       throw error;
     }
   }
 
+  async vectorSearch(params: VectorSearchParams): Promise<VectorSearchHit[]> {
+    const {
+      denseVector,
+      limit = 100,
+      prefetchLimit,
+      filter,
+      scoreThreshold,
+      fusion = 'rrf',
+    } = params;
 
-  async searchSimilarVideos(vector: number[], limit: number = 10) {
+    const prefetchCap = prefetchLimit ?? Math.max(limit * 4, 40);
+
+    const prefetch: Array<Record<string, unknown>> = [
+      {
+        query: denseVector,
+        using: VECTOR_NAMES.titleDense,
+        limit: prefetchCap,
+        ...(filter ? { filter } : {}),
+      },  
+      {
+        query: denseVector,
+        using: VECTOR_NAMES.descDense,
+        limit: prefetchCap,
+        ...(filter ? { filter } : {}),
+      },
+    ];
+
     try {
-
-      const results = await this.qdrantClient.searchBatch(this.COLLECTION_NAME, {
-        searches: [
-          {
-            vector: {
-              name: 'title',
-              vector: vector
-            },
-            limit: limit,
-            with_payload: true, 
-          }, 
-          { 
-            vector: {
-              name: 'desc',
-              vector: vector
-            },
-            limit: limit,
-            with_payload: true, 
-          }
-        ]
+      const response = await this.qdrantClient.query(this.COLLECTION_NAME, {
+        prefetch,
+        query: { fusion },
+        limit,
+        with_payload: true,
+        ...(filter ? { filter } : {}),
+        ...(scoreThreshold !== undefined ? { score_threshold: scoreThreshold } : {}),
       });
 
-      return results;
+      return response.points.map((point) => ({
+        id: String(point.id),
+        score: point.score,
+        payload: (point.payload ?? {}) as Partial<VideoPayload>,
+      }));
     } catch (error) {
-      this.logger.error(`Error searching video vectors`, error);
+      this.logger.error('Vector search failed', error);
+      throw error;
+    }
+  }
+
+  async deleteVideoVector(videoId: string) {
+    try {
+      await this.qdrantClient.delete(this.COLLECTION_NAME, {
+        wait: true,
+        points: [videoId],
+      });
+      this.logger.log(`Successfully deleted vector for video: ${videoId}`);
+    } catch (error) {
+      this.logger.error(`Failed to delete vector for video ${videoId}`, error);
       throw error;
     }
   }

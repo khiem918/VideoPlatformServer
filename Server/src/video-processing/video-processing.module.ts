@@ -8,11 +8,13 @@ import { VideoProcessingQueueService } from './video-processing.queue';
 import { VideoProcessingRepository } from './repository/video-processing.repository';
 import { FFmpegService } from './ffmpeg.service';
 import { S3Service } from 'src/s3/s3.service';
+import { NotificationModule } from 'src/notification/notification.module';
 
 @Module({
   imports: [
     PrismaModule,
     QueueModule,
+    NotificationModule,
     
     BullModule.registerQueue({
       name: process.env.QUEUE_NAME || 'video-processing',

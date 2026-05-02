@@ -6,7 +6,7 @@ import {
 import { GqlExecutionContext } from '@nestjs/graphql';
 import type { Request } from 'express';
 
-export const CurrentUser = createParamDecorator(
+export const gqlCurrentUser = createParamDecorator(
   (_: unknown, context: ExecutionContext) => {
     const gqlContext = GqlExecutionContext.create(context);
     const contextObj = gqlContext.getContext();

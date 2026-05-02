@@ -11,15 +11,21 @@ import { VideoProcessingModule } from "src/video-processing/video-processing.mod
 import { SemanticProcessingService } from "src/semantic-processing/semantic-processing.service";
 import { TagService } from "src/tag/tag.service";
 import { QdrantModule } from "src/qdrant/qdrant.module";
+import { NotificationModule } from "src/notification/notification.module";
+// import { VideoController } from "./video.controller";
 
 @Module({
     imports: [
         EmbedModule,
         VideoProcessingModule,
         QdrantModule,
+        NotificationModule,
         BullModule.registerQueue({
             name: process.env.QUEUE_NAME || 'video-processing',
         }),
+    ],
+    controllers: [
+        // VideoController
     ],
     providers: [
         S3Service,
@@ -30,7 +36,6 @@ import { QdrantModule } from "src/qdrant/qdrant.module";
         VideoResolver,
         SemanticProcessingService, 
         TagService,
-        
     ],
     exports: [VideoService],
 })

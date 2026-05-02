@@ -1,12 +1,12 @@
 import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
-import { CurrentUser } from 'src/auth/decorator/current-user.decorator';
+import { gqlCurrentUser } from 'src/auth/decorator/gql-current-user.decorator';
 import { GqlAuthGuard } from 'src/auth/guard/gql-auth.guard';
 import { VideoService } from './video.service';
 import { InitUploadResponse } from './dto/init-upload.response';
 import { UserVideosListResponse, UserVideoResponse } from './dto/user-videos.response';
 import { SearchVideosResponse } from './dto/search-videos.response';
-import { WatchVideoResponse } from './dto/watch-video.respone';
+import { WatchVideoResponse, WatchVideoUrlResponse, LikeDislikeResponse, SubscribeChannelResponse } from './dto/watch-video.respone';
 import { CommentContentResponse } from './dto/comment-content.respone';
 
 @Resolver()
@@ -20,16 +20,16 @@ export class VideoResolver {
   }
 
   @Mutation(() => InitUploadResponse)
-  // @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard)
   async initUploadVideo(
-      // @CurrentUser() user: { userId: string },
+      @gqlCurrentUser() user: { userId: string },
       @Args('fileName') fileName: string,
       @Args('fileSize') fileSize: number,
       @Args('mimeType') mimeType: string,
   ) : Promise<InitUploadResponse> {
     const uploadData = await this.videoService.initUpload(
-      // user.userId,
-      "@jrALUe0g",
+      user.userId,
+      // "@jrALUe0g",
       fileName,
       mimeType,
       fileSize,
@@ -45,7 +45,7 @@ export class VideoResolver {
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async completeUploadVideo(
-    @CurrentUser() user: { userId: string },
+    @gqlCurrentUser() user: { userId: string },
     @Args('uploadId') uploadId: string,
   ): Promise<boolean> {
     await this.videoService.completeUpload(user.userId, uploadId);
@@ -56,7 +56,7 @@ export class VideoResolver {
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async deleteVideoUpload(
-    @CurrentUser() user: { userId: string },
+    @gqlCurrentUser() user: { userId: string },
     @Args('uploadId') uploadId: string,
   ): Promise<boolean> {
     await this.videoService.deleteVideo(user.userId, uploadId);
@@ -66,7 +66,7 @@ export class VideoResolver {
   @Query(() => UserVideosListResponse)
   @UseGuards(GqlAuthGuard)
   async getUserVideos(
-    @CurrentUser() user: { userId: string },
+    @gqlCurrentUser() user: { userId: string },
   ): Promise<UserVideosListResponse> {
     const result = await this.videoService.getUserVideos(
       user.userId,
@@ -75,29 +75,28 @@ export class VideoResolver {
     return result as any;
   }
 
-  @Mutation(() => Boolean)
-  // @UseGuards(GqlAuthGuard)
+  @Mutation(() => UserVideoResponse)
+  @UseGuards(GqlAuthGuard)
   async updateVideo(
-    // @CurrentUser() user: { userId: string },
+    @gqlCurrentUser() user: { userId: string },
     @Args('videoId') videoId: string,
     @Args('title') title: string,
-    @Args('tags', { type: () => [String] }) tags: string[],
-    @Args('description') description: string,
+    @Args('tags', { type: () => [String], nullable: true }) tags: string[],
+    @Args('description', {type: () => String, nullable: true}) description: string,
     @Args('visibility') visibility: string,
+    @Args('first_publish', { type: () => Boolean, nullable: true }) first_publish: boolean,
 
-  ): Promise<boolean> {
-    
-    await this.videoService.updateVideo("@jrALUe0g", videoId, title, tags, description, visibility as 'DRAFT' | 'PRIVATE' | 'PUBLISHED');
-    return true;
+  ): Promise<UserVideoResponse> {
+      return await this.videoService.updateVideo("@jrALUe0g", videoId, title, tags, description, visibility as 'DRAFT' | 'PRIVATE' | 'PUBLISHED', first_publish) as UserVideoResponse;
   }
 
   @Mutation(() => Boolean)
   // @UseGuards(GqlAuthGuard) 
   async deleteVideo(
-    // @CurrentUser() user: { userId: string },
+    // @gqlCurrentUser() user: { userId: string },
     @Args('videoId') videoId: string,
   ): Promise<boolean> {
-    // await this.videoService.deleteVideo(user.userId, uploadId);
+    // await this.videoService.deleteVideo(user.userId, videoId);
     await this.videoService.deleteVideo("@jrALUe0g", videoId);
     return true;
   }
@@ -114,39 +113,97 @@ export class VideoResolver {
   }
 
   @Query(() => WatchVideoResponse)
-  async watchVideo(
+  @UseGuards(GqlAuthGuard)
+  async getWatchVideoMetadata(
     @Args('videoId') videoId: string,
-    @Args('userId', { nullable: true }) qUserId?: string,
+    @gqlCurrentUser() user: { userId: string },
   ): Promise<WatchVideoResponse> {
-    // Using simple argument for userId to track views/permissions, typically you would extract this from req context/token @CurrentUser() but making it nullable for unauthenticated users.
-    const result = await this.videoService.watchVideo(videoId, qUserId);
+    const result = await this.videoService.getWatchVideoMetadata(videoId, user.userId);
     return result as any;
   }
 
+  @UseGuards(GqlAuthGuard)
+  @Query(() => WatchVideoUrlResponse)
+  async getWatchVideoUrl(
+    @Args('videoId') videoId: string,
+    @gqlCurrentUser() user: { userId: string },
+  ): Promise<WatchVideoUrlResponse> {
+    return await this.videoService.getWatchVideoUrl(user.userId, videoId) as any;
+  }
 
   // @Query(() => [UserVideoResponse])
   // async suggestVideo(
-  //   @Args('userId') userId: string, 
+  //   @gqlCurrentUser() user: { userId: string },
   // ) {
   //   const result = await this.videoService.suggestVideos(userId);
   //   return result as any;
   // }
 
-  @Mutation(() => Boolean)
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => CommentContentResponse)
   async commentOnVideo(
-    videoId: string,
-    userId: string,
-    content: string,
+    @Args('videoId') videoId: string,
+    @gqlCurrentUser() user: { userId: string },
+    @Args('content') content: string,
   )  {
-    await this.videoService.commentOnVideo(videoId, userId, content);
+    return await this.videoService.commentOnVideo(videoId, user.userId, content);
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Query(() => [CommentContentResponse])
+  async getVideoComments(
+    @Args('videoId') videoId: string,
+    @Args('cursorCreatedAt', { type: () => Date, nullable: true }) cursorCreatedAt?: Date,
+    @Args('cursorId', { type: () => String, nullable: true }) cursorId?: string,
+  ) : Promise<CommentContentResponse[]>{
+    return await this.videoService.getVideoComments(
+      videoId,
+      cursorCreatedAt && cursorId ? { createdAt: cursorCreatedAt, id: BigInt(cursorId) } : undefined,
+    ); 
+  };
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => Boolean)
+  async updateVideoHistory(
+    @gqlCurrentUser() user: { userId: string },
+    @Args('videoId', {type: () => Int, nullable: true } ) videoId: string
+  ) {
+    await this.videoService.updateVideoHistory(user.userId, videoId);
+    return true;
+  }
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => LikeDislikeResponse)                                        
+  async likeOrDislikeVideo(
+    @Args('videoId') videoId: string,
+    @gqlCurrentUser() user: { userId: string },
+    @Args('like') like: boolean,
+  ) : Promise<LikeDislikeResponse> {
+    return await this.videoService.likeOrDislikeVideo(user.userId, videoId, like);
+  }
+
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() =>  SubscribeChannelResponse)                        
+  async subscribeChannel(
+    @Args('channelId') channelId: string,
+    @gqlCurrentUser() user: { userId: string },
+    @Args('subscribe') subscribe: boolean
+  ) : Promise<SubscribeChannelResponse> {
+    return await this.videoService.subscribeChannel(user.userId, channelId, subscribe);
+  }
+
+
+  @UseGuards(GqlAuthGuard)
+  @Mutation(() => Boolean)
+  async trackVideoWatchProgress(
+    @Args('videoId') videoId: string,
+    @gqlCurrentUser() user: { userId: string },
+    @Args('pauseAt', { type: () => Int, nullable: true }) pauseAt?: number,
+  ) {
+    await this.videoService.trackVideoWatchProgress(user.userId, videoId, pauseAt);
     return true;
   }
 
 
-  @Query(() => [CommentContentResponse])
-  async getVideoComments(videoId: string, cursor?: { createdAt: Date, id: bigint }) {
-    return await this.videoService.getVideoComments(videoId, cursor); 
-  };
-
-
-}
+} 

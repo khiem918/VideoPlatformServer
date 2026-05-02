@@ -46,7 +46,7 @@ export class FFmpegService {
     });
   }
 
-  async transcodeToHLS(
+  async transcodeToDASH(
     inputPath: string,
     outputDir: string,
   ): Promise<{ manifest: string }> {
@@ -66,53 +66,57 @@ export class FFmpegService {
         { name: '2160p', w: 3840, h: 2160, bitrate: '15000k' },
       ].filter((q) => q.w <= originalWidth && q.h <= originalHeight);
 
-      const variants: { quality: string; bitrate: string }[] = [];
-
-      for (const q of qualities) {
-        const playlist = path.join(outputDir, `${q.name}.m3u8`);
-        const segmentPattern = path.join(outputDir, `${q.name}_segment_%03d.ts`);
-
-        await new Promise<void>((resolve, reject) => {
-          ffmpeg(inputPath)
-            .videoFilter(`scale=${q.w}:${q.h}`)
-            .videoCodec('libx264')
-            .videoBitrate(q.bitrate)
-            .outputOptions([
-              '-g 48',
-              '-keyint_min 48',
-              '-sc_threshold 0',
-              '-c:a aac',
-              '-b:a 128k',
-              '-hls_time 6',
-              '-hls_playlist_type vod',
-              `-hls_segment_filename ${segmentPattern}`,
-            ])
-            .output(playlist)
-            .on('end', () => {
-              this.logger.log(`Transcoded ${q.name}`);
-              resolve();
-            })
-            .on('error', (error) => {
-              this.logger.error(`Transcoding ${q.name} failed: ${error.message}`);
-              reject(error);
-            })
-            .run();
-        });
-
-        variants.push({
-          quality: q.name,
-          bitrate: q.bitrate,
-        });
+      if (qualities.length === 0) {
+        throw new Error('No suitable quality variants for input resolution');
       }
 
-      const masterPath = path.join(outputDir, 'master.m3u8');
-      const masterContent = this.generateMasterPlaylist(variants);
+      const manifestPath = path.join(outputDir, 'manifest.mpd');
+      const outputOptions: string[] = [];
 
-      await fs.promises.writeFile(masterPath, masterContent);
+      for (let i = 0; i < qualities.length; i++) {
+        outputOptions.push('-map', '0:v:0');
+      }
+      outputOptions.push('-map', '0:a:0?');
 
-      return { manifest: masterPath };
+      outputOptions.push('-c:v', 'libx264');
+      outputOptions.push('-c:a', 'aac');
+      outputOptions.push('-b:a', '128k');
+
+      qualities.forEach((q, i) => {
+        outputOptions.push(`-b:v:${i}`, q.bitrate);
+        outputOptions.push(`-s:v:${i}`, `${q.w}x${q.h}`);
+      });
+
+      outputOptions.push('-g', '48');
+      outputOptions.push('-keyint_min', '48');
+      outputOptions.push('-sc_threshold', '0');
+
+      outputOptions.push('-use_template', '1');
+      outputOptions.push('-use_timeline', '1');
+      outputOptions.push('-seg_duration', '6');
+      outputOptions.push('-adaptation_sets', 'id=0,streams=v id=1,streams=a');
+      outputOptions.push('-f', 'dash');
+
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(inputPath)
+          .outputOptions(...outputOptions)
+          .output(manifestPath)
+          .on('end', () => {
+            this.logger.log(
+              `Transcoded to DASH with ${qualities.length} variants`,
+            );
+            resolve();
+          })
+          .on('error', (error) => {
+            this.logger.error(`DASH transcoding failed: ${error.message}`);
+            reject(error);
+          })
+          .run();
+      });
+
+      return { manifest: manifestPath };
     } catch (error) {
-      this.logger.error(`HLS transcoding failed: ${error.message}`);
+      this.logger.error(`DASH transcoding failed: ${error.message}`);
       throw error;
     }
   }
@@ -180,31 +184,6 @@ export class FFmpegService {
     }
 
     return duration;
-  }
-
-  private generateMasterPlaylist(
-    variants: { quality: string; bitrate: string }[],
-  ): string {
-    const resolutionMap = {
-      '144p': '256x144',
-      '360p': '640x360',
-      '720p': '1280x720',
-      '1080p': '1920x1080',
-      '1440p': '2560x1440',
-      '2160p': '3840x2160',
-    };
-
-    let content = '#EXTM3U\n#EXT-X-VERSION:3\n';
-
-    for (const v of variants) {
-      const bitrate = parseInt(v.bitrate.replace('k', '')) * 1000;
-      const resolution = resolutionMap[v.quality];
-
-      content += `#EXT-X-STREAM-INF:BANDWIDTH=${bitrate},RESOLUTION=${resolution}\n`;
-      content += `${v.quality}.m3u8\n`;
-    }
-
-    return content;
   }
 
   async cleanup(dirPath: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { Field, ObjectType } from "@nestjs/graphql";
+import { Field, FIELD_TYPENAME, ObjectType, Int } from "@nestjs/graphql";
 
 
 @ObjectType()
@@ -8,9 +8,6 @@ export class WatchVideoResponse {
 
     @Field(() => Number)
     duration: Number;
-
-    @Field(() => String)
-    videoUrl: string;
 
     @Field(() => String)
     videoName: string;
@@ -38,4 +35,47 @@ export class WatchVideoResponse {
 
     @Field(() => String)
     ownerName: string;
+
+    @Field(() => Number)
+    subscriberCount: number;
+
+    @Field(() => Boolean)
+    isSubscribe: boolean;
+
+    @Field(() => Boolean)
+    isLiked: boolean;
+    
+    @Field(() => Boolean)
+    isDisliked: boolean;
+}
+
+@ObjectType()
+export class WatchVideoUrlResponse {
+    @Field(() => String)
+    mpdUrl : string;
+
+    @Field(() => String)
+    signature : string; 
+
+    @Field(() => Number)
+    expiresAt : number; 
+}
+
+
+@ObjectType()
+export class LikeDislikeResponse {
+  @Field(() => Int)
+  likeCount: number;
+
+  @Field(() => Int)
+  dislikeCount: number; 
+}
+
+@ObjectType()
+export class SubscribeChannelResponse {
+    @Field(() => Boolean)
+    isSubscribe: boolean;
+    
+    @Field(() => Int)
+    subscriberCount: number;
 }
