@@ -5,7 +5,6 @@ import { VideoProcessingQueueService } from '../video-processing/video-processin
 import { v4 as uuidv4 } from 'uuid';
 import { UploadStatus } from '@prisma/client';
 import { EmbedQueueService } from 'src/embed/embed.queue';
-import { EmbedClient } from 'src/embed/embedservice/embed.client';
 import { SemanticProcessingService } from 'src/semantic-processing/semantic-processing.service';
 import { TagService } from 'src/tag/tag.service';
 import { QdrantService } from 'src/qdrant/qdrant.service';
@@ -31,7 +30,6 @@ export class VideoService {
     private readonly videorepository: VideoRepository,
     private readonly VideoProcessingQueueService: VideoProcessingQueueService,
     private readonly embedQueueService: EmbedQueueService,
-    private readonly embedClient: EmbedClient,
     private readonly qdrantService: QdrantService,
     private readonly semanticProcessingService: SemanticProcessingService,
     private readonly tagService: TagService,
@@ -195,9 +193,10 @@ export class VideoService {
     if (!title && !video.videoName) {
       throw new BadRequestException('Title is required for the video');
     }
-
-    const handle_description_update = description !== undefined
-      ? (description ? await this.semanticProcessingService.processingDescription(description) : '')
+    const normalized_desc = description !== undefined ? await this.semanticProcessingService.processingDescription(description) : undefined;
+    
+    const handle_description_update = normalized_desc !== undefined
+      ? (normalized_desc ? await this.semanticProcessingService.summarizeDescription(normalized_desc as string) : '')
       : undefined;
 
     if (title !== undefined || description !== undefined) {
@@ -205,12 +204,13 @@ export class VideoService {
         await this.embedQueueService.addEmbedJob({
           videoId,
           userOwner: video.userOwner,
-          title: title || video.videoName || '',
+          title: await this.semanticProcessingService.normalizeText(title || video.videoName || ''),
           description: handle_description_update !== undefined ? handle_description_update : '',
           createdAt: new Date(video.createdAt).getTime(),
         });
       } catch (error) {
         console.error(`Failed to enqueue embedding job for video ${videoId}:`, error);
+        throw new BadRequestException('Failed to process video metadata for search indexing');
       }
     }
 
@@ -346,85 +346,6 @@ export class VideoService {
     };
   }
 
-  async searchVideos(userId: string, query: string, limit: number = 20, offset: number = 0) {
-    const KEYWORD_WEIGHT = 0.3;
-    const VECTOR_WEIGHT = 0.7;
-    const candidateLimit = Math.max(limit * 5, 50);
-
-    const [queryVector, keywordResults] = await Promise.all([
-      this.embedClient.generateQueryVector(query),
-      this.videorepository.keywordSearch(query, candidateLimit),
-    ]);
-
-    const vectorHits = await this.qdrantService.vectorSearch({
-      denseVector: queryVector,
-      limit: candidateLimit,
-      prefetchLimit: candidateLimit * 2,
-    });
-
-    // this.logger.log(`Keyword hits: ${JSON.stringify(keywordResults)}`);
-    // this.logger.log(`Vector hits: ${JSON.stringify(vectorHits)}`);
-
-    const maxKw = keywordResults.reduce((m, r) => Math.max(m, r.rank), 0) || 1;
-    const maxVec = vectorHits.reduce((m, h) => Math.max(m, h.score), 0) || 1;
-
-    const scoreMap = new Map<string, { kw: number; vec: number }>();
-
-    for (const r of keywordResults) {
-      scoreMap.set(r.id, { kw: r.rank / maxKw, vec: 0 });
-    }
-
-    for (const hit of vectorHits) {
-      const videoId = (hit.payload.videoId as string | undefined) ?? hit.id;
-      const entry = scoreMap.get(videoId) ?? { kw: 0, vec: 0 };
-      entry.vec = hit.score / maxVec;
-      scoreMap.set(videoId, entry);
-    }
-
-    const ranked = Array.from(scoreMap.entries())
-      .map(([videoId, scores]) => ({
-        videoId,
-        finalScore: KEYWORD_WEIGHT * scores.kw + VECTOR_WEIGHT * scores.vec,
-      }))
-      .sort((a, b) => b.finalScore - a.finalScore);
-
-    const total = ranked.length;
-    const page = ranked.slice(offset, offset + limit);
-
-    const videos = await this.videorepository.findManyByIds(userId, page.map((r) => r.videoId));
-    const videoMap = new Map(videos.map((v) => [v.id, v]));
-
-    const resultsRaw = await Promise.all(
-      page.map(async (r) => {
-        const v = videoMap.get(r.videoId);
-        if (!v) return null;
-
-        if (v.thumbnailUrl) {
-          try {
-            v.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(v.thumbnailUrl, 3600);
-          } catch (error) {
-            console.error(`Failed to get presigned URL for thumbnail ${v.thumbnailUrl}:`, error);
-          }
-        }
-        // this.logger.log(`Processed video for search result: ${v.id} - ${v.videoName}`);
-        return {
-          id: v.id,
-          videoName: v.videoName,
-          thumbnailUrl: v.thumbnailUrl,
-          duration: v.duration,
-          videoView: v.videoView,
-          rawDesc: v.videoDesc,
-          updatedAt: v.updatedAt,
-          ownerName: v.owner.userName ? v.owner.userName : v.owner.id,
-        };
-      })
-    );
-
-    const results = resultsRaw.filter(Boolean);
-    // this.logger.log(`Final search results: ${JSON.stringify(results)}`);
-    return { results, total };
-  }
-
   async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: bigint }) {
     const comments = await this.videorepository.getVideoComments(videoId, cursor);
     return comments.map(c => ({
@@ -526,6 +447,4 @@ export class VideoService {
     }     
     await this.videorepository.updateHistory(userId, videoId, pauseAt);
   }   
-
-  
 }

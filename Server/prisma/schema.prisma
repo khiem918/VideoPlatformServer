@@ -99,6 +99,7 @@ model WatchHistory {
 
   @@id([userId, videoId])
   @@index([videoId])
+  @@index([userId, watchedAt(sort: Desc)])
   @@map("watch_history")
   @@schema("core")
 }
@@ -130,6 +131,9 @@ model Video {
   @@index([userOwner])
   @@index([visibility])
   @@index([createdAt(sort: Desc)])
+  @@index([visibility, createdAt(sort: Desc)])
+  @@index([visibility, videoView(sort: Desc)])
+  @@index([videoReleasedDate(sort: Desc)])
   @@map("video")
   @@schema("core")
 }
@@ -144,6 +148,7 @@ model LikeVideo {
   isLike    Boolean           @default(true)
 
   @@id([userId, videoId])
+  @@index([videoId])
   @@map("like_video")
   @@schema("core")
 }
@@ -167,6 +172,7 @@ model VideoProcessing {
 
   @@index([status])
   @@index([createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
   @@map("video_processing")
   @@schema("core")
 }
@@ -227,6 +233,7 @@ model VideoUpload {
   @@index([userId])
   @@index([status])
   @@index([createdAt(sort: Desc)])
+  @@index([userId, status])
   @@map("video_upload")
   @@schema("core")
 }
@@ -275,6 +282,7 @@ model Comment {
   createdAt  DateTime @default(now())
 
   @@index([videoId, parentId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
   @@schema("core")
 }
 
@@ -292,6 +300,8 @@ model ChannelNotification {
   @@map("channel_notification")
   @@schema("core")
   @@index([channelId])
+  @@index([channelId, createdAt(sort: Desc)])
+  @@index([channelId, isRead])
 }
 
 model SystemNotification {
@@ -307,6 +317,8 @@ model SystemNotification {
 
   @@map("system_notification")
   @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isRead])
   @@schema("core")
 }
 
@@ -338,10 +350,3 @@ model SystemNotification {
 
 
 
-model VideoTest { 
-  id    String      @id @default(cuid())
-  name  String      
-  desc  String      
-
-  @@schema("test")
-}

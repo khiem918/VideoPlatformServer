@@ -59,6 +59,15 @@ export class QdrantService implements OnModuleInit {
               distance: 'Cosine',
             },
           },
+          hnsw_config: { 
+            m: 32, 
+            ef_construction: 200,
+            full_scan_threshold: 2000,
+            on_disk: false,
+          }, 
+          optimizers_config: {
+            memmap_threshold: 20000,
+          }
         });
       } else {
         this.logger.log(`Collection ${this.COLLECTION_NAME} already exists.`);
@@ -98,11 +107,8 @@ export class QdrantService implements OnModuleInit {
     try {
       const vector: Record<string, number[]> = {
         [VECTOR_NAMES.titleDense]: point.vectors.titleDense,
+        [VECTOR_NAMES.descDense]: point.vectors.descDense || point.vectors.titleDense,
       };
-
-      if (point.vectors.descDense) {
-        vector[VECTOR_NAMES.descDense] = point.vectors.descDense;
-      }
 
       await this.qdrantClient.upsert(this.COLLECTION_NAME, {
         wait: true,
@@ -129,7 +135,7 @@ export class QdrantService implements OnModuleInit {
       prefetchLimit,
       filter,
       scoreThreshold,
-      fusion = 'rrf',
+      fusion = 'dbsf',
     } = params;
 
     const prefetchCap = prefetchLimit ?? Math.max(limit * 4, 40);

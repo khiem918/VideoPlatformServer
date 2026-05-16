@@ -5,7 +5,7 @@ import { GqlAuthGuard } from 'src/auth/guard/gql-auth.guard';
 import { VideoService } from './video.service';
 import { InitUploadResponse } from './dto/init-upload.response';
 import { UserVideosListResponse, UserVideoResponse } from './dto/user-videos.response';
-import { SearchVideosResponse } from './dto/search-videos.response';
+import { SearchVideosResponse } from '../search/dto/search-videos.response';
 import { WatchVideoResponse, WatchVideoUrlResponse, LikeDislikeResponse, SubscribeChannelResponse } from './dto/watch-video.respone';
 import { CommentContentResponse } from './dto/comment-content.respone';
 
@@ -76,9 +76,9 @@ export class VideoResolver {
   }
 
   @Mutation(() => UserVideoResponse)
-  @UseGuards(GqlAuthGuard)
+  // @UseGuards(GqlAuthGuard)
   async updateVideo(
-    @gqlCurrentUser() user: { userId: string },
+    // @gqlCurrentUser() user: { userId: string },
     @Args('videoId') videoId: string,
     @Args('title') title: string,
     @Args('tags', { type: () => [String], nullable: true }) tags: string[],
@@ -99,17 +99,6 @@ export class VideoResolver {
     // await this.videoService.deleteVideo(user.userId, videoId);
     await this.videoService.deleteVideo("@jrALUe0g", videoId);
     return true;
-  }
-
-  @Query(() => SearchVideosResponse)
-  async searchVideos(
-    @Args('userId', { nullable: true }) userId: string,
-    @Args('query') query: string,
-    @Args('limit', { type: () => Int, defaultValue: 20 }) limit: number,
-    @Args('offset', { type: () => Int, defaultValue: 0 }) offset: number,
-  ): Promise<SearchVideosResponse> {
-    const result = await this.videoService.searchVideos(userId, query, limit, offset);
-    return result as any;
   }
 
   @Query(() => WatchVideoResponse)

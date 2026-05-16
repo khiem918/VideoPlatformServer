@@ -64,7 +64,7 @@ type Query {
   getWatchVideoUrl(videoId: String!): WatchVideoUrlResponse!
   hello: String!
   me: String!
-  searchVideos(limit: Int! = 20, offset: Int! = 0, query: String!, userId: String): SearchVideosResponse!
+  searchVideos(limit: Int! = 20, offset: Int! = 0, query: String!): SearchVideosResponse!
 }
 
 type SearchVideoItem {

@@ -12,7 +12,7 @@ import { SemanticProcessingService } from "src/semantic-processing/semantic-proc
 import { TagService } from "src/tag/tag.service";
 import { QdrantModule } from "src/qdrant/qdrant.module";
 import { NotificationModule } from "src/notification/notification.module";
-// import { VideoController } from "./video.controller";
+import { SummarizeClient } from "src/semantic-processing/summarizeservice/summarize.client";
 
 @Module({
     imports: [
@@ -36,6 +36,7 @@ import { NotificationModule } from "src/notification/notification.module";
         VideoResolver,
         SemanticProcessingService, 
         TagService,
+        SummarizeClient,
     ],
     exports: [VideoService],
 })

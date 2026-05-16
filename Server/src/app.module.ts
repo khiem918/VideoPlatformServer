@@ -15,6 +15,7 @@ import { validateEnv } from './config/env.validation';
 import { VideoModule } from './video/video.module';
 import { EmbedModule } from './embed/embed.module';
 import { NotificationModule } from './notification/notification.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { NotificationModule } from './notification/notification.module';
     VideoModule,
     EmbedModule,
     NotificationModule,
+    SearchModule,
   ],
   controllers: [],
   providers: [AppService, S3Service],

@@ -112,7 +112,7 @@ export class RedisNotifyService implements OnModuleInit, OnModuleDestroy {
     async consumeFromRedisStream(key: string, groupName: string, consumerName: string, count: number, block: number): Promise<any[]> {
         try {
             const messages = await this.sub.xreadgroup('GROUP', groupName, consumerName, 'COUNT', count, 'BLOCK', block, 'STREAMS', key, '>');
-            this.logger.log("messages: " + JSON.stringify(messages));
+            // this.logger.log("messages: " + JSON.stringify(messages));
             return messages;
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';

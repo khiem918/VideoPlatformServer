@@ -254,22 +254,19 @@ export class VideoRepository {
         `;
     }
 
-    async findManyByIds(userId: string, ids: string[]) {
-        return await this.prisma.video.findMany({
-            where: { id: { in: ids } },
-            include: {
-                owner: {
-                    select: {
-                        userName: true,
-                        id: true,
-                    }
-                },
-                videoHashtags: {
-                    include: { hashtag: true }
-                },
-            }
-        });
-    }
+    // async findManyByIds(ids: string[]) {
+    //     return await this.prisma.video.findMany({
+    //         where: { id: { in: ids }, visibility: 'PUBLISHED' },
+    //         include: {
+    //             owner: {
+    //                 select: {
+    //                     userName: true,
+    //                     id: true,
+    //                 }
+    //             },
+    //         }
+    //     });
+    // }
 
     // async markVideoAsFailed(videoId: string, reason: string) {
     //     return await this.prisma.video.update({

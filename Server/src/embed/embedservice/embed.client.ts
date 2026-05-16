@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-export interface TagProcessRequest {
+export interface ProcessRequest {
   videoId: string;
   textToEmbed: string;
+  isQuery?: boolean;
 }
 
 export interface EmbeddingResponse {
@@ -21,9 +22,9 @@ export class EmbedClient {
   }
 
   async generateVector(
-    request: TagProcessRequest | TagProcessRequest[]
+    request: ProcessRequest | ProcessRequest[]
   ): Promise<EmbeddingResponse | EmbeddingResponse[]> {
-    const response = await fetch(`${this.baseUrl}/api/vector/generate`, {
+    const response = await fetch(`${this.baseUrl}/vector/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -41,13 +42,13 @@ export class EmbedClient {
   }
 
   async generateQueryVector(text: string): Promise<number[]> {
-    const response = await fetch(`${this.baseUrl}/api/vector/generate`, {
+    const response = await fetch(`${this.baseUrl}/vector/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-API-Key': this.apiKey,
       },
-      body: JSON.stringify([{ videoId: '__query__', textToEmbed: text }]),
+      body: JSON.stringify([{ videoId: '__query__', textToEmbed: text, isQuery: true }]),
     });
 
     if (!response.ok) {
