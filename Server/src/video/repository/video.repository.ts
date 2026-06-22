@@ -1,44 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
-import { ProcessingStatus, UploadStatus, VideoVisibility, } from "@prisma/client";
+import { ProcessingStatus, UploadVideoStatus, VideoVisibility, VideoStatus } from "@prisma/client";
 
 @Injectable()
 export class VideoRepository {
     constructor(private readonly prisma: PrismaService) { }
-
-    async createVideoUpload(
-        userId: string,
-        fileName: string,
-        fileSize: number,
-        r2Path: string,
-        mimeType: string,
-    ) {
-
-        return await this.prisma.videoUpload.create({
-            data: {
-                userId: userId,
-                fileName: fileName,
-                fileSize: fileSize,
-                r2Path: r2Path,
-                mimeType: mimeType,
-                status: UploadStatus.PENDING,
-            },
-        });
-    }
-
-    async createVideo(
-        userId: string,
-        upLoadId: string,
-        videoId: string,
-    ) {
-        return await this.prisma.video.create({
-            data: {
-                userOwner: userId,
-                uploadId: upLoadId,
-                duration: 0,
-            },
-        });
-    }
 
     async initVideoUpload(
         userId: string,
@@ -52,13 +18,14 @@ export class VideoRepository {
         return await this.prisma.$transaction(async (tx) => {
             await tx.videoUpload.create({
                 data: {
+                    videoId: videoId,
                     id: videoUploadId,
                     userId: userId,
                     fileName: fileName,
                     fileSize: fileSize,
                     r2Path: r2Path,
                     mimeType: mimeType,
-                    status: UploadStatus.PENDING,
+                    videoStatus: UploadVideoStatus.PENDING,
                 },
             });
 
@@ -66,27 +33,10 @@ export class VideoRepository {
                 data: {
                     id: videoId,
                     userOwner: userId,
-                    uploadId: videoUploadId,
                     duration: 0,
                 },
             });
         });
-    }
-
-
-    async updateVideoStatus(uploadId: string, status: UploadStatus) {
-        return await this.prisma.videoUpload.update({
-            where: { id: uploadId },
-            data: { status: status },
-        });
-    }
-
-    async getVideoUpload(uploadId: string) {
-
-        return await this.prisma.videoUpload.findUnique({
-            where: { id: uploadId },
-        });
-
     }
 
     async findUpload(userId: string, uploadId: string) {
@@ -96,10 +46,13 @@ export class VideoRepository {
 
     }
 
-    async updateUploadStatus(userId: string, uploadId: string, status: UploadStatus) {
+    async updateUpload(userId: string, uploadId: string, status: UploadVideoStatus, jobId?: string) {
         return await this.prisma.videoUpload.updateMany({
             where: { id: uploadId, userId: userId },
-            data: { status: status },
+            data: { 
+                videoStatus: status,
+                ...(jobId && { processingJobId: jobId }),
+            },
         });
     }
 
@@ -138,28 +91,15 @@ export class VideoRepository {
                 userOwner: userId,
             },
             include: {
-                videoHashtags: {
-                    include: {
-                        hashtag: true
-                    }
-                },
-                upload: {
-                    select: {
-                        id: true,
-                        fileName: true,
-                        status: true,
-                        uploadedAt: true,
-                    },
-                },
+                videoHashtags: true,
             },
             orderBy: {
                 createdAt: 'desc',
             },
         });
-
     }
 
-    async updateVideo(userId: string, videoId: string, title?: string, description?: string, rawDescription?: string, visibility?: VideoVisibility) {
+    async updateVideo(userId: string, videoId: string, title?: string, description?: string, visibility?: VideoVisibility, status?: VideoStatus   ) {
         return await this.prisma.video.update({
             where: {
                 id: videoId,
@@ -168,8 +108,8 @@ export class VideoRepository {
             data: {
                 ...(title !== undefined && { videoName: title }),
                 ...(description !== undefined && { videoDesc: description }),
-                ...(rawDescription !== undefined && { rawDesc: rawDescription }),
                 ...(visibility !== undefined && { visibility: visibility }),
+                ...(status !== undefined && { videoStatus: status }),       
             },
         });
     }
@@ -191,7 +131,7 @@ export class VideoRepository {
 
 
     async getVideoForWatching(userId: string, videoId: string) {
-        const res1 =  await this.prisma.video.findUnique({
+        const res1 = await this.prisma.video.findUnique({
             where: { id: videoId },
             include: {
                 owner: {
@@ -201,11 +141,7 @@ export class VideoRepository {
                         subscribeCount: true,
                     }
                 },
-                videoHashtags: {
-                    include: {
-                        hashtag: true
-                    }
-                }
+                videoHashtags: true,
             }
         });
 
@@ -222,9 +158,9 @@ export class VideoRepository {
         }
 
         return {
-            res1, 
+            res1,
             res2,
-            res3,        
+            res3,
         }
     }
 
@@ -239,45 +175,57 @@ export class VideoRepository {
         });
     }
 
-    async keywordSearch(query: string, limit: number): Promise<Array<{ id: string; rank: number }>> {
-        return await this.prisma.$queryRaw<Array<{ id: string; rank: number }>>`
-            SELECT id, ts_rank_cd(
-                to_tsvector('english', "video_name" || ' ' || COALESCE("videoDesc", '')),
-                plainto_tsquery('english', ${query})
-            ) AS rank
-            FROM core.video
-            WHERE video_visibility = 'PUBLISHED'
-                AND to_tsvector('english', "video_name" || ' ' || COALESCE("videoDesc", ''))
-                    @@ plainto_tsquery('english', ${query})
-            ORDER BY rank DESC
-            LIMIT ${limit}
-        `;
+    async updateHistory(userId: string, videoId: string, pauseAt?: number) {
+        return await this.prisma.watchHistory.upsert({
+            where: { userId_videoId: { userId, videoId } },
+            update: { pausedAt: (pauseAt ? pauseAt : 0) },
+            create: {
+                userId,
+                videoId,
+                ...(pauseAt ? { pausedAt: pauseAt } : {}),
+            },
+        });
     }
 
-    // async findManyByIds(ids: string[]) {
-    //     return await this.prisma.video.findMany({
-    //         where: { id: { in: ids }, visibility: 'PUBLISHED' },
-    //         include: {
-    //             owner: {
-    //                 select: {
-    //                     userName: true,
-    //                     id: true,
-    //                 }
-    //             },
-    //         }
-    //     });
+    async watchVideo(userId: string, videoId: string) {
+        await this.prisma.$transaction(async (tx) => {
+            await tx.watchHistory.upsert({
+                where: { userId_videoId: { userId, videoId } },
+                update: { pausedAt: 0 },
+                create: {
+                    userId,
+                    videoId,
+                    pausedAt: 0,
+                },
+            });
+
+            await tx.video.update({
+                where: { id: videoId },
+                data: {
+                    videoView: {
+                        increment: 1
+                    }
+                }
+            });
+        });
+    }
+
+    // async keywordSearch(query: string, limit: number): Promise<Array<{ id: string; rank: number }>> {
+    //     return await this.prisma.$queryRaw<Array<{ id: string; rank: number }>>`
+    //     SELECT id, ts_rank_cd(
+    //         to_tsvector('english', "video_name" || ' ' || COALESCE("videoDesc", '')),
+    //         plainto_tsquery('english', ${query})
+    //         ) AS rank
+    //         FROM core.video
+    //         WHERE video_visibility = 'PUBLISHED'
+    //             AND to_tsvector('english', "video_name" || ' ' || COALESCE("videoDesc", ''))
+    //                 @@ plainto_tsquery('english', ${query})
+    //         ORDER BY rank DESC
+    //         LIMIT ${limit}
+    //     `;
     // }
 
-    // async markVideoAsFailed(videoId: string, reason: string) {
-    //     return await this.prisma.video.update({
-    //         where: { id: videoId },
-    //         data: {
-    //             fail_in: thi,
-    //         },
-    //     });
-    // }
-
-    async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: bigint }) {
+    async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: string }) {
         return await this.prisma.comment.findMany({
             where: {
                 videoId: videoId,
@@ -310,7 +258,6 @@ export class VideoRepository {
     async createComment(videoId: string, userId: string, content: string) {
         return await this.prisma.comment.create({
             data: {
-                id: BigInt(Date.now()),
                 videoId: videoId,
                 userId: userId,
                 content: content,
@@ -325,40 +272,9 @@ export class VideoRepository {
                         id: true,
                     }
                 },
-            }   
-        });
-    }
-
-    async updateHistory(userId: string, videoId: string, pauseAt?: number) {
-        return await this.prisma.watchHistory.upsert({
-            where: { userId_videoId: { userId, videoId } },
-            update: { pausedAt: (pauseAt ? pauseAt : 0) },
-            create: {
-                userId,
-                videoId,
-                ...(pauseAt ? { pausedAt: pauseAt } : {}),
-            },
-        });
-    }
-
-    async getVideoStatus(userId: string, videoId: string) {
-        return this.prisma.video.findUnique({
-            where: { userOwner: userId, id: videoId },
-            select: {
-                visibility: true,
-                upload: {
-                    select: {
-                        processing: {
-                            select: {
-                                status: true,
-                            }
-                        }
-                    }
-                }
             }
         });
     }
-
 
     async likeOrDislikeVideo(userId: string, videoId: string, isLike: boolean) {
         const existing = await this.prisma.likeVideo.findUnique({
@@ -373,20 +289,20 @@ export class VideoRepository {
                     videoDislike: true,
                 }
             });
-        }       
+        }
         if (existing && existing.isLike !== isLike) {
             await this.prisma.likeVideo.update({
                 where: { userId_videoId: { userId, videoId } },
-                data: { 
-                    isLike: isLike 
+                data: {
+                    isLike: isLike
                 },
             });
 
             return await this.prisma.video.update({
                 where: { id: videoId },
                 data: {
-                    ...(isLike 
-                        ? { videoLike: { increment: 1 }, videoDislike: { decrement: 1 } } 
+                    ...(isLike
+                        ? { videoLike: { increment: 1 }, videoDislike: { decrement: 1 } }
                         : { videoLike: { decrement: 1 }, videoDislike: { increment: 1 } }),
                 },
                 select: {

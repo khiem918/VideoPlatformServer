@@ -26,7 +26,7 @@ export class SearchRepository {
 
     async findManyByIds(ids: string[]) {
         return await this.prisma.video.findMany({
-            where: { id: { in: ids }, visibility: 'PUBLISHED' },
+            where: { id: { in: ids }, visibility: 'PUBLIC' },
             include: {
                 owner: {
                     select: {

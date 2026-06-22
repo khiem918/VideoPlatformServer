@@ -84,10 +84,8 @@ export class VideoResolver {
     @Args('tags', { type: () => [String], nullable: true }) tags: string[],
     @Args('description', {type: () => String, nullable: true}) description: string,
     @Args('visibility') visibility: string,
-    @Args('first_publish', { type: () => Boolean, nullable: true }) first_publish: boolean,
-
   ): Promise<UserVideoResponse> {
-      return await this.videoService.updateVideo("@jrALUe0g", videoId, title, tags, description, visibility as 'DRAFT' | 'PRIVATE' | 'PUBLISHED', first_publish) as UserVideoResponse;
+      return await this.videoService.updateVideo("@jrALUe0g", videoId, title, tags, description, visibility as 'DRAFT' | 'PRIVATE' | 'PUBLIC') as UserVideoResponse;
   }
 
   @Mutation(() => Boolean)
@@ -147,7 +145,7 @@ export class VideoResolver {
   ) : Promise<CommentContentResponse[]>{
     return await this.videoService.getVideoComments(
       videoId,
-      cursorCreatedAt && cursorId ? { createdAt: cursorCreatedAt, id: BigInt(cursorId) } : undefined,
+      cursorCreatedAt && cursorId ? { createdAt: cursorCreatedAt, id: cursorId   } : undefined,
     ); 
   };
 

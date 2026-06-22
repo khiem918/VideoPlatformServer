@@ -260,21 +260,22 @@ const testData = [
 ];
 
 async function main() {
-  console.log('Seeding VideoTest database...');
+  console.log('Seeding database...');
 
-  await prisma.videoTest.deleteMany({}); 
+  // VideoTest model does not exist in schema, skipping seed
+  // await prisma.videoTest.deleteMany({}); 
 
-  for (const item of testData) {
-    await prisma.videoTest.create({
-      data: {
-        id: item.id.toString(), 
-        name: item.title,
-        desc: item.description
-      }
-    });
-  }
+  // for (const item of testData) {
+  //   await prisma.videoTest.create({
+  //     data: {
+  //       id: item.id.toString(), 
+  //       name: item.title,
+  //       desc: item.description
+  //     }
+  //   });
+  // }
 
-  console.log(`Successfully seeded ${testData.length} VideoTest records!`);
+  console.log(`Seed script completed!`);
 }
 
 main()

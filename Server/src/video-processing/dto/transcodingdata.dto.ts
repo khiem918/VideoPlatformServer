@@ -33,3 +33,9 @@ export class TranscodingResponseDto {
   startedAt: Date;
   completedAt?: Date;
 }
+
+export class TranscodedVideoPaths {
+  manifestPath: string;
+  thumbnailPath: string;
+  metadataPath: string;
+};

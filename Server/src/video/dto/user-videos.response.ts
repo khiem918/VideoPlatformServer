@@ -17,8 +17,8 @@ export class UserVideoResponse {
   @Field(() => String, { nullable: true })
   thumbnailUrl?: string;
 
-  @Field(() => Int)
-  videoView: number;
+  @Field(() => BigInt)
+  videoView: bigint;
 
   @Field(() => Int)
   videoLike: number;

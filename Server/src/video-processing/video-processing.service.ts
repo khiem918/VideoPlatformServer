@@ -9,33 +9,18 @@ import { TranscodingDataDto } from './dto/transcodingdata.dto';
 import { TranscodingFailedException } from './exceptions/transcoding-failed.exception';
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
 import { ProcessingStatus } from '@prisma/client';
-import { NotificationService } from 'src/notification/notification.service';
-
-
-export type TranscodedVideoPaths = {
-  manifestPath: string;
-  thumbnailPath: string;
-  metadataPath: string;
-};
-
+import { TranscodedVideoPaths } from './dto/transcodingdata.dto';
 
 @Injectable()
 export class VideoProcessingService {
+
   private readonly logger = new Logger(VideoProcessingService.name);
   private readonly tempDir = '/tmp/video-processing';
-  private readonly supportedMimeTypes = new Set([
-    'video/mp4',
-    'video/x-matroska',
-    'video/webm',
-    'video/quicktime',
-    'video/x-msvideo',
-  ]);
 
   constructor(
     private readonly ffmpegService: FFmpegService,
     private readonly repository: VideoProcessingRepository,
     private readonly s3Service: S3Service,
-    private readonly notificationService: NotificationService,
   ) {
     this.ensureTempDir();
   }
@@ -43,20 +28,18 @@ export class VideoProcessingService {
   private ensureTempDir(): void {
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
-      // this.logger.debug(`Created temp directory: ${this.tempDir}`);
     }
   }
 
 
   async transcodeVideo(data: TranscodingDataDto): Promise<TranscodedVideoPaths> {
+
     const { uploadId, r2Path, mimeType } = data;
     const workDir = path.join(this.tempDir, uploadId);
 
     try {
-      this.validateInput(data);
-      await this.repository.updateStatus(uploadId, ProcessingStatus.TRANSCODING);
 
-      this.logger.log(`Started transcoding for video ${uploadId}`);
+      await this.repository.updateStatus(uploadId, ProcessingStatus.PROCESSING);
 
       const inputPath = await this.downloadVideoFromR2(
         r2Path,
@@ -66,24 +49,22 @@ export class VideoProcessingService {
 
       const metadata = await this.ffmpegService.getVideoMetadata(inputPath);
       const videoDuration = Math.max(1, Math.floor(metadata.duration));
-      this.logger.debug(
-        `Video metadata: ${videoDuration}s, ${metadata.width}x${metadata.height}`,
-      );
 
       const dashOutputDir = path.join(workDir, 'dash');
+
       await this.ffmpegService.transcodeToDASH(
         inputPath,
         dashOutputDir,
       );
-      this.logger.log(`DASH transcoding completed for ${uploadId}`);
 
       const thumbsDir = path.join(workDir, 'thumb');
       await fs.promises.mkdir(thumbsDir, { recursive: true });
+
       const thumbnailPath = path.join(thumbsDir, '0.jpg');
       await this.ffmpegService.extractThumbnail(inputPath, thumbnailPath);
-      this.logger.log(`Thumbnail extracted for ${uploadId}`);
 
       const metadataPath = path.join(workDir, 'meta.json');
+
       await fs.promises.writeFile(
         metadataPath,
         JSON.stringify(
@@ -119,6 +100,7 @@ export class VideoProcessingService {
       );
 
       return uploadResult;
+
     } catch (error) {
       await this.recordFailure(uploadId, error);
 
@@ -140,24 +122,6 @@ export class VideoProcessingService {
     }
   }
 
-
-  private validateInput(data: TranscodingDataDto): void {
-    if (!data.uploadId || !data.r2Path || !data.mimeType) {
-      throw new InvalidVideoException(
-        'Missing required transcoding data fields',
-        data.uploadId || 'unknown',
-      );
-    }
-
-    if (!this.supportedMimeTypes.has(data.mimeType)) {
-      throw new InvalidVideoException(
-        `Unsupported video format: ${data.mimeType}`,
-        data.uploadId,
-      );
-    }
-  }
-
-
   private async downloadVideoFromR2(
     r2Path: string,
     workDir: string,
@@ -171,11 +135,11 @@ export class VideoProcessingService {
 
       const videoStream = await this.s3Service.getFileStream(r2Path);
       const writeStream = fs.createWriteStream(inputPath);
+
       await pipeline(videoStream, writeStream);
 
-      this.logger.debug(`Downloaded video from ${r2Path} to ${inputPath}`);
-
       return inputPath;
+
     } catch (error) {
       throw error instanceof TranscodingFailedException
         ? error
@@ -192,9 +156,11 @@ export class VideoProcessingService {
     uploadId: string,
     sourceR2Path: string,
   ): Promise<TranscodedVideoPaths> {
+
     const videoId = this.s3Service.extractVideoIdFromR2Path(sourceR2Path);
 
     const files = await this.getFilesRecursive(localOutputDir);
+
     const artifactFiles = files.filter((file) => {
       const relativePath = path.relative(localOutputDir, file).replace(/\\/g, '/');
       return (
@@ -301,10 +267,15 @@ export class VideoProcessingService {
       error instanceof Error ? error.message : 'Unknown error';
 
     try {
+
       await this.repository.recordFailure(uploadId, errorMessage);
+     
       this.logger.error(`Recorded failure for video ${uploadId}: ${errorMessage}`);
+
     } catch (dbError) {
+
       this.logger.error(`Failed to record failure for ${uploadId}`, dbError);
+
     }
   }
 
@@ -316,7 +287,7 @@ export class VideoProcessingService {
         this.logger.debug(`Cleaned up temporary directory: ${workDir}`);
       }
     } catch (error) {
-      this.logger.warn(
+      this.logger.error(
         `Failed to cleanup temp directory ${workDir}: ${error instanceof Error ? error.message : 'Unknown error'}`,
       );
     }

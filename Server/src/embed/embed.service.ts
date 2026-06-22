@@ -5,10 +5,8 @@ import { QdrantService } from 'src/qdrant/qdrant.service';
 
 @Injectable()
 export class EmbedService {
-    private readonly logger = new Logger(EmbedService.name);
-
     constructor(
-        
+
         private readonly embedClient: EmbedClient,
         private readonly qdrantService: QdrantService,
 
@@ -17,44 +15,42 @@ export class EmbedService {
     async processEmbed(data: EmbedDataDto): Promise<void> {
         const { videoId, userOwner, title, description, createdAt } = data;
 
-        try {
-            const res = await this.embedClient.generateVector([
-                {
-                    videoId: videoId,
-                    textToEmbed: title,
-                },
+        const res = await this.embedClient.generateVector([
+            {
+                videoId: videoId,
+                textToEmbed: title,
+            },
 
-                ... (description ? [{
-                    videoId: videoId,
-                    textToEmbed: description,
-                }] : [])
+            ... (description ? [{
+                videoId: videoId,
+                textToEmbed: description,
+            }] : [])
 
-            ]);
+        ]);
 
-            const vectors = Array.isArray(res) ? res : [res];
-            const titleVector = vectors[0]?.vector;
-            if (!titleVector) {
-                throw new Error('Missing title vector from embed service');
-            }
+        const vectors = Array.isArray(res) ? res : [res];
+        const titleVector = vectors[0]?.vector;
 
-            const descVector = description && vectors.length >= 2 ? vectors[1].vector : undefined;
-
-            await this.qdrantService.upsertVideoPoint({
-                id: videoId,
-                payload: {
-                    videoId,
-                    userOwner,
-                    title,
-                    description: description || null,
-                    createdAt,
-                },
-                vectors: {
-                    titleDense: titleVector,
-                    descDense: descVector,
-                },
-            });
-        } catch (error) {
-            this.logger.error(`Error occurred while generating vectors: ${error.message}`);
+        if (!titleVector) {
+            throw new Error('Missing title vector from embed service');
         }
+
+        const descVector = description && vectors.length >= 2 ? vectors[1].vector : undefined;
+
+        await this.qdrantService.upsertVideoPoint({
+            id: videoId,
+            payload: {
+                videoId,
+                userOwner,
+                title,
+                description: description || null,
+                createdAt,
+            },
+            vectors: {
+                titleDense: titleVector,
+                descDense: descVector,
+            },
+        });
+
     }
 }

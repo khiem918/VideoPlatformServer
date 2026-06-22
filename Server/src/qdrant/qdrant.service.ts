@@ -33,7 +33,7 @@ export class QdrantService implements OnModuleInit {
   constructor() {
     this.qdrantClient = new QdrantClient({
       url: process.env.QDRANT_URL || 'http://localhost:6333',
-      checkCompatibility: false
+      checkCompatibility: false,
     });
   }
 

@@ -4,18 +4,18 @@ import { validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
   @IsNumber()
-  SERVER_PORT: number;
+  SERVER_PORT!: number;
 
   @IsNotEmpty()
   @IsString()
-  DATABASE_URL: string;
+  DATABASE_URL!: string;
 
   @IsNotEmpty()
   @IsString()
-  REDIS_HOST: string;
+  REDIS_HOST!: string;
 
   @IsNumber()
-  REDIS_PORT: number;
+  REDIS_PORT!: number;
 
   @IsOptional()
   @IsString()
@@ -23,35 +23,43 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  JWT_SECRET: string;
+  JWT_SECRET!: string;
 
   @IsNotEmpty()
   @IsNumber()
-  ACCESS_TOKEN_EXPIRES_IN: number;
+  ACCESS_TOKEN_EXPIRES_IN!: number;
 
   @IsNotEmpty()
   @IsNumber()
-  REFRESH_TOKEN_EXPIRES_IN: number;
+  REFRESH_TOKEN_EXPIRES_IN!: number;
 
   @IsNotEmpty()
   @IsString()
-  GOOGLE_CLIENT_ID: string;
+  FIREBASE_PROJECT_ID!: string;
 
   @IsNotEmpty()
   @IsString()
-  COOKIE_SECRET: string;
+  FIREBASE_CLIENT_EMAIL!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_REGION: string;
+  @IsString()
+  FIREBASE_PRIVATE_KEY!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_ACCESS_KEY_ID: string;
+  @IsString()
+  COOKIE_SECRET!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_SECRET_ACCESS_KEY: string;
+  CLOUDFLARE_R2_REGION!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_BUCKET_NAME: string;
+  CLOUDFLARE_R2_ACCESS_KEY_ID!: string;
+
+  @IsNotEmpty()
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY!: string;
+
+  @IsNotEmpty()
+  CLOUDFLARE_R2_BUCKET_NAME!: string;
 
   @IsOptional()
   CLOUDFLARE_R2_ENDPOINT?: string;
@@ -60,31 +68,35 @@ export class EnvironmentVariables {
   CLOUDFLARE_R2_FORCE_PATH_STYLE?: boolean;
 
   @IsNotEmpty()
-  MAX_FILE_SIZE: number;
+  MAX_FILE_SIZE!: number;
 
   @IsNotEmpty()  
   @IsString()
-  QUEUE_NAME: string;
+  QUEUE_NAME! : string;
 
   @IsNotEmpty()
   @IsString()
-  QUEUE_HOST: string;
+  QUEUE_HOST!: string;
 
   @IsNotEmpty()
   @IsString()
-  QUEUE_PORT: string;
+  QUEUE_PORT!: string;
 
   @IsNotEmpty()
   @IsString()
-  EMBED_API_URL: string;
+  EMBED_API_URL!: string;
 
   @IsNotEmpty()
   @IsString()
-  EMBED_API_KEY :string;
+  EMBED_API_KEY!: string;
 
   @IsNotEmpty()
   @IsString()
-  R2_SIGN_SECRET: string;
+  R2_SIGN_SECRET!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  RABBITMQ_URL!: string;
 }
 
 export function validateEnv(

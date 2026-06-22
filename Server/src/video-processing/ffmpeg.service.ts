@@ -58,7 +58,6 @@ export class FFmpegService {
       const originalHeight = metadata.height;
 
       const qualities = [
-        { name: '144p', w: 256, h: 144, bitrate: '200k' },
         { name: '360p', w: 640, h: 360, bitrate: '500k' },
         { name: '720p', w: 1280, h: 720, bitrate: '2500k' },
         { name: '1080p', w: 1920, h: 1080, bitrate: '5000k' },
@@ -76,8 +75,8 @@ export class FFmpegService {
       for (let i = 0; i < qualities.length; i++) {
         outputOptions.push('-map', '0:v:0');
       }
-      outputOptions.push('-map', '0:a:0?');
 
+      outputOptions.push('-map', '0:a:0?');
       outputOptions.push('-c:v', 'libx264');
       outputOptions.push('-c:a', 'aac');
       outputOptions.push('-b:a', '128k');
@@ -86,11 +85,10 @@ export class FFmpegService {
         outputOptions.push(`-b:v:${i}`, q.bitrate);
         outputOptions.push(`-s:v:${i}`, `${q.w}x${q.h}`);
       });
-
+      
       outputOptions.push('-g', '48');
       outputOptions.push('-keyint_min', '48');
       outputOptions.push('-sc_threshold', '0');
-
       outputOptions.push('-use_template', '1');
       outputOptions.push('-use_timeline', '1');
       outputOptions.push('-seg_duration', '6');

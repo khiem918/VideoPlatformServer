@@ -21,19 +21,13 @@ export class S3Service {
   private readonly logger = new Logger(S3Service.name);
 
   constructor(private readonly configService: ConfigService) {
-    const accessKeyId = this.configService.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID');
-    const secretAccessKey = this.configService.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY');
-    const endpoint = this.configService.get<string>('CLOUDFLARE_R2_ENDPOINT');
-    const region = this.configService.get<string>('CLOUDFLARE_R2_REGION');
-    const bucketName = this.configService.get<string>('CLOUDFLARE_R2_BUCKET_NAME');
-
-    if (!accessKeyId || !secretAccessKey || !endpoint || !region || !bucketName) {
-      this.logger.error('Missing Cloudflare R2 configuration');
-      throw new InternalServerErrorException('Cloudflare R2 configuration is incomplete');
-    }
+    const accessKeyId = this.configService.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID') || '';
+    const secretAccessKey = this.configService.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY') || '';
+    const endpoint = this.configService.get<string>('CLOUDFLARE_R2_ENDPOINT') || '';
+    const region = this.configService.get<string>('CLOUDFLARE_R2_REGION') || '';
+    const bucketName = this.configService.get<string>('CLOUDFLARE_R2_BUCKET_NAME') || '';
 
     this.bucketName = bucketName;
-
 
     this.s3Client = new S3Client({
       region: region,

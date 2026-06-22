@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthResolver } from './auth.resolver';
+import { FirebaseService } from './firebase.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { AuthRepository } from './repository/auth.repository';
@@ -24,7 +25,7 @@ import { RedisService } from './session.service';
       }),
     }),
   ],
-  providers: [AuthService, AuthResolver, JwtStrategy, AuthRepository, RedisService],
+  providers: [AuthService, AuthResolver, JwtStrategy, AuthRepository, RedisService, FirebaseService],
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

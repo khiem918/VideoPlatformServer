@@ -3,13 +3,13 @@ import { S3Service } from 'src/s3/s3.service';
 import { VideoRepository } from './repository/video.repository';
 import { VideoProcessingQueueService } from '../video-processing/video-processing.queue';
 import { v4 as uuidv4 } from 'uuid';
-import { UploadStatus } from '@prisma/client';
-import { EmbedQueueService } from 'src/embed/embed.queue';
-import { SemanticProcessingService } from 'src/semantic-processing/semantic-processing.service';
-import { TagService } from 'src/tag/tag.service';
+import { UploadVideoStatus } from '@prisma/client';
+// import { EmbedQueueService } from 'src/embed/embed.queue';
+// import { SemanticProcessingService } from 'src/semantic-processing/semantic-processing.service';
+// import { TagService } from 'src/tag/tag.service';
 import { QdrantService } from 'src/qdrant/qdrant.service';
 import { WatchVideoResponse, WatchVideoUrlResponse } from './dto/watch-video.respone';
-import { NotificationService } from 'src/notification/notification.service';
+// import { NotificationService } from 'src/notification/notification.service';
 
 @Injectable()
 export class VideoService {
@@ -23,17 +23,17 @@ export class VideoService {
   private readonly maxFileSize = parseInt(
     process.env.MAX_FILE_SIZE || '10737418240',
   );
+
   private readonly logger = new Logger(VideoService.name);
 
   constructor(
     private readonly s3Service: S3Service,
     private readonly videorepository: VideoRepository,
     private readonly VideoProcessingQueueService: VideoProcessingQueueService,
-    private readonly embedQueueService: EmbedQueueService,
+    // private readonly embedQueueService: EmbedQueueService,
     private readonly qdrantService: QdrantService,
-    private readonly semanticProcessingService: SemanticProcessingService,
-    private readonly tagService: TagService,
-    private readonly notificationService: NotificationService,
+    // private readonly semanticProcessingService: SemanticProcessingService,
+    // private readonly tagService: TagService,
   ) { }
 
 
@@ -81,6 +81,9 @@ export class VideoService {
     };
   }
 
+  /*
+
+  */
   async completeUpload(userId: string, uploadId: string) {
     const upload = await this.videorepository.findUpload(userId, uploadId);
 
@@ -88,7 +91,7 @@ export class VideoService {
       throw new NotFoundException('Upload session not found for this user');
     }
 
-    if (upload.status !== UploadStatus.PENDING) {
+    if (upload.videoStatus !== UploadVideoStatus.PENDING) {
       throw new BadRequestException('Upload session is not pending');
     }
 
@@ -97,16 +100,17 @@ export class VideoService {
       throw new NotFoundException('Uploaded file not found in storage');
     }
 
-    await Promise.all([
-      this.videorepository.updateUploadStatus(userId, uploadId, UploadStatus.UPLOADED),
-      this.videorepository.createVideoProcessing(upload.id),
-    ]);
-
-    await this.VideoProcessingQueueService.addTranscodingJob({
+    const jobId = await this.VideoProcessingQueueService.addTranscodingJob({
       uploadId: upload.id,
       r2Path: upload.r2Path,
       mimeType: upload.mimeType,
     });
+
+    await Promise.all([
+      this.videorepository.updateUpload(userId, uploadId, UploadVideoStatus.UPLOADED, jobId),
+      this.videorepository.createVideoProcessing(upload.id),
+    ]);
+
   }
 
   async deleteVideo(userId: string, videoId: string): Promise<void> {
@@ -125,7 +129,7 @@ export class VideoService {
         }
       }
 
-      Promise.all([
+      await Promise.all([
         await this.s3Service.deleteDirectory(directoryPath),
         await this.qdrantService.deleteVideoVector(videoId),
         await this.videorepository.deleteVideo(userId, videoId),
@@ -154,7 +158,7 @@ export class VideoService {
 
         return {
           id: video.id,
-          videoName: isDraft ? video.upload?.fileName : video.videoName,
+          videoName: isDraft ? "draft" : video.videoName,
           duration: video.duration,
           videoUrl: isDraft ? null : video.videoUrl,
           thumbnailUrl: isDraft ? null : video.thumbnailUrl,
@@ -175,14 +179,17 @@ export class VideoService {
     };
   }
 
+  /*
+    nexting update : separate data for searching into another service 
+  */
+ 
   async updateVideo(
     userId: string,
     videoId: string,
     title?: string,
     tags?: string[],
     description?: string,
-    visibility?: 'DRAFT' | 'PRIVATE' | 'PUBLISHED',
-    isFirstPublish?: boolean,
+    visibility?: 'DRAFT' | 'PRIVATE' | 'PUBLIC',
   ) {
     const video = await this.videorepository.findVideoById(videoId, userId);
 
@@ -193,34 +200,8 @@ export class VideoService {
     if (!title && !video.videoName) {
       throw new BadRequestException('Title is required for the video');
     }
-    const normalized_desc = description !== undefined ? await this.semanticProcessingService.processingDescription(description) : undefined;
-    
-    const handle_description_update = normalized_desc !== undefined
-      ? (normalized_desc ? await this.semanticProcessingService.summarizeDescription(normalized_desc as string) : '')
-      : undefined;
 
-    if (title !== undefined || description !== undefined) {
-      try {
-        await this.embedQueueService.addEmbedJob({
-          videoId,
-          userOwner: video.userOwner,
-          title: await this.semanticProcessingService.normalizeText(title || video.videoName || ''),
-          description: handle_description_update !== undefined ? handle_description_update : '',
-          createdAt: new Date(video.createdAt).getTime(),
-        });
-      } catch (error) {
-        console.error(`Failed to enqueue embedding job for video ${videoId}:`, error);
-        throw new BadRequestException('Failed to process video metadata for search indexing');
-      }
-    }
-
-    if (tags) {
-      await this.tagService.handleTags(videoId, tags);
-    }
-
-    const videoStatus = await this.videorepository.getVideoStatus(userId, videoId);
-
-    if (videoStatus?.upload?.processing?.status !== 'COMPLETED' || videoStatus.upload?.processing?.status !== null) {
+    if (video.videoStatus !== 'AVAILABLE') {
       visibility = 'DRAFT';
     }
 
@@ -229,20 +210,8 @@ export class VideoService {
       videoId,
       title,
       description,
-      handle_description_update,
       visibility,
     );
-
-    if (isFirstPublish && isFirstPublish === true) {
-      this.notificationService.sendNotification(
-        userId,
-        'NEW_SUBSCRIBED_CHANNELS_VIDEO',
-         `${video.userOwner} has published a new video: ${title || video.videoName || 'Untitled Video'}`,
-        'CHANNEL',
-      ).catch(error => {
-        console.error(`Failed to send notification for new published video ${videoId}:`, error);
-      });
-    }
 
     if (!result) {
       throw new NotFoundException('Video not found or not owned by user');
@@ -289,22 +258,13 @@ export class VideoService {
       }
     }
 
-    Promise.all([
-      this.videorepository.incrementViewCount(videoId).catch(err => {
-        console.error('Failed to increment view count:', err);
-      }),
-      ...(userId ? [this.videorepository.updateHistory(userId, videoId).catch(err => {
-        console.error('Failed to update video history:', err);
-      })] : [])
-    ]);
-
-
+    await this.videorepository.watchVideo(userId, videoId);
 
     return {
       id: video.res1.id,
       videoName: video.res1.videoName,
       duration: video.res1.duration,
-      videoView: video.res1.videoView + 1,
+      videoView: Number(video.res1.videoView) + 1,
       videoLike: video.res1.videoLike,
       videoDislike: video.res1.videoDislike,
       desc: video.res1.videoDesc ? video.res1.videoDesc : undefined,
@@ -313,9 +273,9 @@ export class VideoService {
       ownerName: video.res1.owner?.userName ? video.res1.owner?.userName : video.res1.userOwner,
       createdAt: video.res1.createdAt,
       subscriberCount: video.res1?.owner?.subscribeCount || 0,
-      isSubscribe: video.res3? true : false,
-      isLiked: video.res2 ? ( video.res2.isLike === true ? true : false) : false,
-      isDisliked: video.res2 ? ( video.res2.isLike === false ? true : false) : false,
+      isSubscribe: video.res3 ? true : false,
+      isLiked: video.res2 ? (video.res2.isLike === true ? true : false) : false,
+      isDisliked: video.res2 ? (video.res2.isLike === false ? true : false) : false,
     };
   }
 
@@ -346,7 +306,7 @@ export class VideoService {
     };
   }
 
-  async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: bigint }) {
+  async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: string }) {
     const comments = await this.videorepository.getVideoComments(videoId, cursor);
     return comments.map(c => ({
       id: c.id.toString(),
@@ -429,22 +389,22 @@ export class VideoService {
       throw new NotFoundException('Subscription operation failed or channel not found');
     }
     return {
-      subscriberCount : result.subscribeCount,
-      isSubscribe : subscribe
+      subscriberCount: result.subscribeCount,
+      isSubscribe: subscribe
     };
   }
 
   async trackVideoWatchProgress(userId: string, videoId: string, pauseAt?: number) {
-    const video = await this.videorepository.findVideoById(videoId, userId);    
+    const video = await this.videorepository.findVideoById(videoId, userId);
     if (!video) {
       throw new NotFoundException('Video not found');
-    }     
+    }
     if (video.visibility === 'PRIVATE') {
       throw new ForbiddenException('Cannot track progress of private video');
-    }     
+    }
     if (video.visibility === 'DRAFT') {
       throw new ForbiddenException('Cannot track progress of unpublished video');
-    }     
+    }
     await this.videorepository.updateHistory(userId, videoId, pauseAt);
-  }   
+  }
 }

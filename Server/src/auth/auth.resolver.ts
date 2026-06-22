@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { OAuth2Client } from 'google-auth-library';
+import { FirebaseService } from './firebase.service';
 import type { Request, Response } from 'express';
 import { AuthPayload } from './type/auth-payload.type';
 import { GqlAuthGuard } from './guard/gql-auth.guard';
@@ -15,33 +15,21 @@ import { SignInInput } from './dto/auth.dto';
 
 @Resolver()
 export class AuthResolver {
-
-  private client: OAuth2Client;
-
   constructor(
-    private readonly authService: AuthService, 
+    private readonly authService: AuthService,
+    private readonly firebaseService: FirebaseService,
     private readonly config: ConfigService,
-  ) {
-    this.client = new OAuth2Client(this.config.get('GOOGLE_CLIENT_ID'));
-  }
+  ) {}
 
-  async verifyGoogleToken(idToken: string): Promise<any> {
+  async verifyFirebaseToken(idToken: string): Promise<{ email?: string }> {
+    if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
+      throw new BadRequestException('Invalid or empty Firebase token');
+    }
+
     try {
-      if (!idToken || typeof idToken !== 'string' || idToken.trim() === '') {
-        throw new BadRequestException('Invalid or empty Google token');
-      }
-
-      const ticket = await this.client.verifyIdToken({
-        idToken: idToken,
-        audience: this.config.get('GOOGLE_CLIENT_ID'),
-      });
-
-      return ticket.getPayload();
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new UnauthorizedException('Invalid Google token');
+      return await this.firebaseService.verifyIdToken(idToken);
+    } catch {
+      throw new UnauthorizedException('Invalid Firebase token');
     }
   }
 
@@ -56,7 +44,7 @@ export class AuthResolver {
     @Args('ClientToken') clientToken: SignInInput,
     @Context('res') res: Response,
   ): Promise<AuthPayload> {
-    const googlePayload = await this.verifyGoogleToken(clientToken.clientId);
+    const googlePayload = await this.verifyFirebaseToken(clientToken.clientId);
 
     if (!googlePayload?.email) {
       throw new UnauthorizedException('No email in Google token');

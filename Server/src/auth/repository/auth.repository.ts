@@ -13,7 +13,7 @@ export class AuthRepository {
       return this.prisma.user.upsert({
         where: { userEmail },
         update: {},
-        create: { id: `@${nanoid(8)}`, userEmail, userPassword: uuid() },
+        create: { id: `@${nanoid(8)}`, userEmail },
         select: { id: true },
       });
     } catch (error) {

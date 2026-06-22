@@ -16,8 +16,9 @@ export class VideoProcessingQueueService {
     private readonly queue: Queue,
   ) {}
 
-  async addTranscodingJob(data: TranscodingDataDto): Promise<void> {
+  async addTranscodingJob(data: TranscodingDataDto): Promise<string> {
     try {
+
       const job = await this.queue.add('transcode-video', data, {
         attempts: 3,
         backoff: {
@@ -25,22 +26,27 @@ export class VideoProcessingQueueService {
           delay: 5000,
         },
         removeOnComplete: true,
-        removeOnFail: false,
+        removeOnFail: true,
       });
 
       this.logger.log(
         `Added transcoding job for uploadId: ${data.uploadId}`,
       );
       
+      job.updateProgress(5);
+
+      return job.id as string;
+
     } catch (error) {
+      
       this.logger.error(
         `Failed to add job to queue for uploadId: ${data.uploadId}`,
         error instanceof Error ? error.stack : error,
       );
+
       throw error;
     }
   }
-
 
   async getJobStatus(jobId: string): Promise<TranscodingResponseDto | null> {
     try {
@@ -52,6 +58,7 @@ export class VideoProcessingQueueService {
       }
 
       const state = await job.getState();
+
       const progress =
         typeof job.progress === 'function'
           ? 
@@ -67,18 +74,22 @@ export class VideoProcessingQueueService {
         startedAt: job.processedOn ? new Date(job.processedOn) : new Date(),
         completedAt: job.finishedOn ? new Date(job.finishedOn) : undefined,
       };
+
     } catch (error) {
+
       this.logger.error(
         `Failed to get job status for ${jobId}`,
         error instanceof Error ? error.stack : error,
       );
+
       throw error;
+
     }
   }
 
-
   async removeJob(jobId: string): Promise<void> {
     try {
+
       const job = await this.queue.getJob(jobId);
 
       if (!job) {
@@ -87,13 +98,18 @@ export class VideoProcessingQueueService {
       }
 
       await job.remove();
+
       this.logger.log(`Removed job: ${jobId}`);
+
     } catch (error) {
+
       this.logger.error(
         `Failed to remove job ${jobId}`,
         error instanceof Error ? error.stack : error,
       );
+
       throw error;
+
     }
   }
 }
