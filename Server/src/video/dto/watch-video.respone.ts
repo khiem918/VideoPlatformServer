@@ -64,11 +64,11 @@ export class WatchVideoUrlResponse {
 
 @ObjectType()
 export class LikeDislikeResponse {
-  @Field(() => Int)
-  likeCount: number;
+  @Field(() => BigInt)
+  likeCount: bigint;
 
-  @Field(() => Int)
-  dislikeCount: number; 
+  @Field(() => BigInt)
+  dislikeCount: bigint; 
 }
 
 @ObjectType()
@@ -76,6 +76,6 @@ export class SubscribeChannelResponse {
     @Field(() => Boolean)
     isSubscribe: boolean;
     
-    @Field(() => Int)
-    subscriberCount: number;
+    @Field(() => BigInt)
+    subscriberCount: bigint;
 }

@@ -26,7 +26,7 @@ export class VideoProcessingQueueService {
           delay: 5000,
         },
         removeOnComplete: true,
-        removeOnFail: true,
+        removeOnFail: true,           /// retry by cronjob 
       });
 
       this.logger.log(

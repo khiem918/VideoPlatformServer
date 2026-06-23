@@ -26,11 +26,13 @@
     "@as-integrations/express5": "^1.1.2",
     "@aws-sdk/client-s3": "^3.1019.0",
     "@aws-sdk/s3-request-presigner": "^3.1019.0",
+    "@golevelup/nestjs-rabbitmq": "^9.0.2",
     "@nestjs/apollo": "^13.2.4",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.17",
+    "@nestjs/devtools-integration": "^0.2.1",
     "@nestjs/graphql": "^13.2.4",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "*",
@@ -58,11 +60,9 @@
     "install": "^0.13.0",
     "ioredis": "^5.10.1",
     "nanoid": "^5.1.6",
-    "npm": "^11.6.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.20.0",
-    "postgresql": "^0.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "tsx": "^4.21.0",
@@ -117,9 +117,6 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
   },
   "allowScripts": {
     "firebase-admin@14.0.0": true,

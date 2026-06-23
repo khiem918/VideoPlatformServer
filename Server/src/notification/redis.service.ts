@@ -10,19 +10,14 @@ export class RedisNotifyService implements OnModuleInit, OnModuleDestroy {
     constructor() {
         const redisPort = Number.parseInt(process.env.REDIS_PORT ?? '6379', 10);
 
-        this.pub = new Redis({
+        const redisConfig: import('ioredis').RedisOptions = {
             host: process.env.REDIS_HOST ?? '127.0.0.1',
             port: Number.isNaN(redisPort) ? 6379 : redisPort,
-            password: process.env.REDIS_PASSWORD,
             db: 2,
-        });
+        };
 
-        this.sub = new Redis({
-            host: process.env.REDIS_HOST ?? '127.0.0.1',
-            password: process.env.REDIS_PASSWORD,
-            port: Number.isNaN(redisPort) ? 6379 : redisPort,
-            db: 2,
-        });
+        this.pub = new Redis(redisConfig);
+        this.sub = new Redis(redisConfig);
 
         this.pub.on('connect', () =>
             this.logger.log('pub connecting...'),

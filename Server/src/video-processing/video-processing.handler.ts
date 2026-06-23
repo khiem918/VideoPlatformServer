@@ -4,7 +4,6 @@ import { Job } from 'bullmq';
 import { VideoProcessingService } from './video-processing.service';
 import { TranscodingDataDto } from './dto/transcodingdata.dto';
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
-import { TranscodingFailedException } from './exceptions/transcoding-failed.exception';
 import { TranscodedVideoPaths } from './dto/transcodingdata.dto';
 
 @Processor('video-processing')
@@ -49,14 +48,15 @@ export class VideoProcessingHandler extends WorkerHost {
 
     const dto = new TranscodingDataDto();
 
+    dto.processingId = data.processingId as string;
     dto.uploadId = data.uploadId as string;
     dto.r2Path = data.r2Path as string;
     dto.mimeType = data.mimeType as string;
 
-    if (!dto.uploadId || !dto.r2Path || !dto.mimeType) {
+    if (!dto.uploadId || !dto.r2Path || !dto.mimeType || !dto.processingId) {
 
       throw new InvalidVideoException(
-        'Missing required fields: uploadId, r2Path, mimeType',
+        'Missing required fields: uploadId, r2Path, mimeType, processingId',
         (data.uploadId as string) || 'unknown',
 
       );

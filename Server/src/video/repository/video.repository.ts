@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
-import { ProcessingStatus, UploadVideoStatus, VideoVisibility, VideoStatus } from "@prisma/client";
+import { ProcessingStatus, UploadVideoStatus, VideoVisibility, VideoStatus, ProcessingType } from "@prisma/client";
 
 @Injectable()
 export class VideoRepository {
@@ -33,7 +33,6 @@ export class VideoRepository {
                 data: {
                     id: videoId,
                     userOwner: userId,
-                    duration: 0,
                 },
             });
         });
@@ -46,44 +45,44 @@ export class VideoRepository {
 
     }
 
-    async updateUpload(userId: string, uploadId: string, status: UploadVideoStatus, jobId?: string) {
+    async updateUpload(userId: string, uploadId: string, status: UploadVideoStatus) {
         return await this.prisma.videoUpload.updateMany({
             where: { id: uploadId, userId: userId },
             data: { 
                 videoStatus: status,
-                ...(jobId && { processingJobId: jobId }),
             },
         });
     }
 
-    async createVideoProcessing(videoUploadId: string) {
+    async createVideoProcessing(videoId: string) {
         return await this.prisma.videoProcessing.create({
             data: {
-                videoUploadId: videoUploadId,
-                status: ProcessingStatus.PENDING,
+                videoId: videoId,
+                ProcessingType: ProcessingType.VIDEO,
+                status: ProcessingStatus.PROCESSING,
             },
         });
     }
 
-    async getUserVideos(userId: string) {
-        return await this.prisma.videoUpload.findMany({
-            where: { userId: userId },
-            include: {
-                processing: true,
-            },
-        });
-    }
+    // async getUserVideos(userId: string) {
+    //     return await this.prisma.videoUpload.findMany({
+    //         where: { userId: userId },
+    //         include: {
+    //             processing: true,
+    //         },
+    //     });
+    // }
 
-    async deleteUploadByUserId(userId: string, uploadId: string): Promise<boolean> {
-        const result = await this.prisma.videoUpload.deleteMany({
-            where: {
-                id: uploadId,
-                userId: userId,
-            },
-        });
+    // async deleteUploadByUserId(userId: string, uploadId: string): Promise<boolean> {
+    //     const result = await this.prisma.videoUpload.deleteMany({
+    //         where: {
+    //             id: uploadId,
+    //             userId: userId,
+    //         },
+    //     });
 
-        return result.count > 0;
-    }
+    //     return result.count > 0;
+    // }
 
     async getUserAllVideos(userId: string) {
         return await this.prisma.video.findMany({

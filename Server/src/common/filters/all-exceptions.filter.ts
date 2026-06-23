@@ -26,12 +26,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private handleGraphQLException(exception: unknown) {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
-      const message = exception.message;
-      this.logger.warn(`GraphQL Exception: ${status} - ${message}`);
-      throw new GraphQLError(message, {
+      const response = exception.getResponse();
+      
+      const message = typeof response === 'object' && response !== null && 'message' in response
+        ? (response as any).message
+        : exception.message;
+
+      const extra = typeof response === 'object' && response !== null ? response : {};
+
+      this.logger.warn(`GraphQL Exception: ${status} - ${JSON.stringify(message)}`);
+      
+      throw new GraphQLError(Array.isArray(message) ? message[0] : message, {
         extensions: {
           code: status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'BAD_REQUEST',
           status,
+          errors: Array.isArray(message) ? message : undefined, 
+          ...extra,
         },
       });
     }
@@ -39,9 +49,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof Error) {
       this.logger.error(`GraphQL Error: ${exception.message}`, exception.stack);
       throw new GraphQLError(
-        process.env.NODE_ENV === 'production'
-          ? 'Internal server error'
-          : exception.message,
+        process.env.NODE_ENV === 'production' ? 'Internal server error' : exception.message,
         {
           extensions: {
             code: 'INTERNAL_SERVER_ERROR',
@@ -66,11 +74,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
-      const message = exception.message;
-      this.logger.warn(`HTTP Exception: ${status} - ${message}`);
+      const exceptionResponse = exception.getResponse();
+
+      this.logger.warn(`HTTP Exception: ${status} - ${JSON.stringify(exceptionResponse)}`);
+
+      if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+        return response.status(status).json({
+          ...exceptionResponse,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       return response.status(status).json({
         statusCode: status,
-        message,
+        message: exception.message,
         timestamp: new Date().toISOString(),
       });
     }
@@ -79,10 +96,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(`HTTP Error: ${exception.message}`, exception.stack);
       return response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
         statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-        message:
-          process.env.NODE_ENV === 'production'
-            ? 'Internal server error'
-            : exception.message,
+        message: process.env.NODE_ENV === 'production' ? 'Internal server error' : exception.message,
         timestamp: new Date().toISOString(),
       });
     }

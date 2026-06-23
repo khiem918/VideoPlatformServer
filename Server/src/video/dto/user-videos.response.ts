@@ -20,11 +20,11 @@ export class UserVideoResponse {
   @Field(() => BigInt)
   videoView: bigint;
 
-  @Field(() => Int)
-  videoLike: number;
+  @Field(() => BigInt)
+  videoLike: bigint;
 
-  @Field(() => Int)
-  videoDislike: number;
+  @Field(() => BigInt)
+  videoDislike: bigint;
 
   @Field(() => String)
   visibility: string;

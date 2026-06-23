@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import { readFileSync } from 'fs';
 import helmet from 'helmet';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const bootstrapConfigService = new ConfigService();
@@ -21,11 +22,13 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { 
                                                     httpsOptions,
                                                     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+                                                    snapshot: true,
                                                   });
   const configservice = app.get<ConfigService>(ConfigService);
 
   app.use(cookieParser(configservice.get<string>('COOKIE_SECRET')));
   // app.use(helmet());
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({
     origin: configservice.get<string>('CLIENT_URL') ?? 'http://localhost:5173',
     credentials: true,

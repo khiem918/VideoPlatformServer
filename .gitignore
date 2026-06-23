@@ -500,3 +500,6 @@ env/
 # Package locks and generated files
 package-lock.json
 generated/
+
+
+opencode.json

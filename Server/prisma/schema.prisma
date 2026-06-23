@@ -86,27 +86,28 @@ model WatchHistory {
 }
 
 model Video {
-  id                String          @id @default(cuid())
-  videoName         String          @default("draft") @map("video_name") @db.VarChar(1000)
-  videoReleasedDate DateTime?       @map("video_released_date") @db.Timestamp(6)
-  videoView         BigInt          @default(0) @map("video_view")
-  videoLike         Int             @default(0) @map("video_like")
-  videoDislike      Int             @default(0) @map("video_dislike")
-  userOwner         String          @map("user_owner")
-  videoUrl          String          @default("") @map("video_url_storage") @db.VarChar(1000)
-  thumbnailUrl      String          @default("") @map("thumbnail_url") @db.VarChar(1000)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  visibility        VideoVisibility @default(DRAFT) @map("video_visibility")
-  duration          Int             @default(0)
-  videoDesc         String?
+  id                String            @id @default(cuid())
+  videoName         String            @default("draft") @map("video_name") @db.VarChar(1000)
+  videoReleasedDate DateTime?         @map("video_released_date") @db.Timestamp(6)
+  videoView         BigInt            @default(0) @map("video_view")
+  videoLike         BigInt            @default(0) @map("video_like")
+  videoDislike      BigInt            @default(0) @map("video_dislike")
+  userOwner         String            @map("user_owner")
+  videoUrl          String            @default("") @map("video_url_storage") @db.VarChar(1000)
+  thumbnailUrl      String            @default("") @map("thumbnail_url") @db.VarChar(1000)
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  visibility        VideoVisibility   @default(DRAFT) @map("video_visibility")
+  duration          Int               @default(0) @map("duration")
+  videoDesc         String?           @map("video_desc")
   comments          Comment[]
   likeVideos        LikeVideo[]
   upload            VideoUpload?
-  owner             User            @relation(fields: [userOwner], references: [id], onDelete: Cascade)
+  owner             User              @relation(fields: [userOwner], references: [id], onDelete: Cascade)
   videoHashtags     VideoHashtag[]
   watchHistory      WatchHistory[]
-  videoStatus       VideoStatus     @default(PROCESSING) @map("video_status")
+  videoStatus       VideoStatus?      @map("video_status")
+  videoProcessings  VideoProcessing[]
 
   @@index([userOwner])
   @@index([createdAt(sort: Desc)])
@@ -118,9 +119,9 @@ model Video {
 }
 
 model LikeVideo {
-  userId  String
-  videoId String
-  isLike  Boolean @default(true)
+  userId  String  @map("user_id")
+  videoId String  @map("video_id")
+  isLike  Boolean @default(true) @map("is_like")
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   video   Video   @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
@@ -131,15 +132,16 @@ model LikeVideo {
 }
 
 model VideoProcessing {
-  id            String           @id @default(cuid())
-  videoUploadId String           @unique
-  status        ProcessingStatus @default(PENDING)
-  errorMessage  String?
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  videoUpload   VideoUpload      @relation(fields: [videoUploadId], references: [id], onDelete: Cascade)
+  id             String           @id @default(cuid())
+  status         ProcessingStatus @default(PROCESSING) @map("status")
+  errorMessage   String?          @map("error_message")
+  startedAt      DateTime?        @map("started_at")
+  completedAt    DateTime?        @map("completed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  ProcessingType ProcessingType   @map("processing_type")
+  videoId        String           @map("video_id")
+  video        Video            @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
@@ -149,22 +151,20 @@ model VideoProcessing {
 
 model VideoUpload {
   id              String            @id @default(cuid())
-  userId          String
-  fileName        String
-  mimeType        String
-  fileSize        BigInt
-  r2Path          String            @unique // Original video path
-  videoStatus     UploadVideoStatus @default(PENDING)
-  uploadedAt      DateTime          @default(now())
-  completedAt     DateTime?
-  processingJobId String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  videoId         String            @unique
+  userId          String            @map("user_id")
+  fileName        String            @map("file_name")
+  mimeType        String            @map("mime_type")
+  fileSize        BigInt            @map("file_size")
+  r2Path          String            @unique @map("r2_path")
+  videoStatus     UploadVideoStatus @default(PENDING) @map("video_status")
+  uploadedAt      DateTime          @default(now()) @map("uploaded_at")
+  completedAt     DateTime?         @map("completed_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  videoId         String            @unique @map("video_id")
   video           Video             @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  processing      VideoProcessing?
   user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  metaStatus      UploadMetaStatus  @default(PENDING)
+  metaStatus      UploadMetaStatus  @default(PENDING) @map("meta_status")
 
   @@index([metaStatus, videoStatus])
   @@index([createdAt(sort: Desc)])
@@ -175,27 +175,28 @@ model VideoUpload {
 
 model Comment {
   id         String   @id @default(cuid())
-  videoId    String
-  userId     String
-  parentId   String?
-  content    String
-  likeCount  Int      @default(0)
-  replyCount Int      @default(0)
-  status     Int      @default(0)
-  createdAt  DateTime @default(now())
+  videoId    String   @map("video_id")
+  userId     String   @map("user_id")
+  parentId   String?  @map("parent_id")
+  content    String   @map("content")
+  likeCount  Int      @default(0) @map("like_count")
+  replyCount Int      @default(0) @map("reply_count")
+  status     Int      @default(0) @map("status")
+  createdAt  DateTime @default(now()) @map("created_at")
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   video      Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@index([videoId, parentId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])
+  @@index([likeCount(sort: Desc)])
   @@schema("core")
 }
 
 model ChannelNotification {
   id                  String   @id @default(cuid())
-  channelId           String
-  content             String
-  createdAt           DateTime @default(now())
+  channelId           String   @map("channel_id")
+  content             String   @map("content")
+  createdAt           DateTime @default(now()) @map("created_at")
   notificationSubject String   @map("notification_subject")
   isRead              Boolean  @default(false) @map("is_read")
   channel             User     @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -209,9 +210,9 @@ model ChannelNotification {
 
 model SystemNotification {
   id                  String   @id @default(cuid())
-  userId              String
-  content             String
-  createdAt           DateTime @default(now())
+  userId              String   @map("user_id")
+  content             String   @map("content")
+  createdAt           DateTime @default(now()) @map("created_at")
   notificationSubject String   @map("notification_subject")
   isRead              Boolean  @default(false) @map("is_read")
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -244,10 +245,16 @@ enum UploadMetaStatus {
 }
 
 enum ProcessingStatus {
-  PENDING
   PROCESSING
   COMPLETED
   FAILED
+
+  @@schema("core")
+}
+
+enum ProcessingType {
+  VIDEO
+  META
 
   @@schema("core")
 }
@@ -275,7 +282,7 @@ enum VideoStatus {
   AVAILABLE
   PROCESSING
   VIDEO_FAILED
-  MERTA_FAILED
+  META_FAILED
 
   @@schema("core")
 }

@@ -18,7 +18,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     this.redisClient = new Redis({
       host: process.env.REDIS_HOST ?? '127.0.0.1',
       port: Number.isNaN(redisPort) ? 6379 : redisPort,
-      password: process.env.REDIS_PASSWORD,
       db: 0,
     });
 

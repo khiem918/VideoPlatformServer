@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -16,6 +15,8 @@ import { VideoModule } from './video/video.module';
 import { EmbedModule } from './embed/embed.module';
 import { NotificationModule } from './notification/notification.module';
 import { SearchModule } from './search/search.module';
+import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
+import { DevtoolsModule } from '@nestjs/devtools-integration';
 
 @Module({
   imports: [
@@ -39,8 +40,13 @@ import { SearchModule } from './search/search.module';
     EmbedModule,
     NotificationModule,
     SearchModule,
+    RabbitmqModule,
+    DevtoolsModule.register({
+      http: true,
+      port: 3001,
+    }),
   ],
   controllers: [],
-  providers: [AppService, S3Service],
+  providers: [S3Service],
 })
 export class AppModule {}

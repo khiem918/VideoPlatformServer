@@ -34,12 +34,10 @@ export class VideoProcessingService {
 
   async transcodeVideo(data: TranscodingDataDto): Promise<TranscodedVideoPaths> {
 
-    const { uploadId, r2Path, mimeType } = data;
+    const { uploadId, processingId, r2Path, mimeType } = data;
     const workDir = path.join(this.tempDir, uploadId);
 
     try {
-
-      await this.repository.updateStatus(uploadId, ProcessingStatus.PROCESSING);
 
       const inputPath = await this.downloadVideoFromR2(
         r2Path,
@@ -102,7 +100,7 @@ export class VideoProcessingService {
       return uploadResult;
 
     } catch (error) {
-      await this.recordFailure(uploadId, error);
+      await this.recordFailure(uploadId, processingId, error);
 
       if (error instanceof InvalidVideoException) {
         throw error;
@@ -150,10 +148,9 @@ export class VideoProcessingService {
     }
   }
 
-
   private async uploadToR2(
     localOutputDir: string,
-    uploadId: string,
+    processingId: string,
     sourceR2Path: string,
   ): Promise<TranscodedVideoPaths> {
 
@@ -173,7 +170,7 @@ export class VideoProcessingService {
     if (artifactFiles.length === 0) {
       throw new TranscodingFailedException(
         'No transcoding artifacts found for upload',
-        uploadId,
+        processingId,
       );
     }
 
@@ -211,21 +208,21 @@ export class VideoProcessingService {
     if (!remoteManifestPath) {
       throw new TranscodingFailedException(
         'Manifest upload failed',
-        uploadId,
+        processingId,
       );
     }
 
     if (!remoteThumbnailPath) {
       throw new TranscodingFailedException(
         'Thumbnail upload failed',
-        uploadId,
+        processingId,
       );
     }
 
     if (!remoteMetadataPath) {
       throw new TranscodingFailedException(
         'Metadata upload failed',
-        uploadId,
+        processingId,
       );
     }
 
@@ -262,13 +259,13 @@ export class VideoProcessingService {
   }
 
 
-  private async recordFailure(uploadId: string, error: unknown): Promise<void> {
+  private async recordFailure(uploadId: string, processingId: string, error: unknown): Promise<void> {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
 
     try {
 
-      await this.repository.recordFailure(uploadId, errorMessage);
+      await this.repository.recordFailure(uploadId, processingId, errorMessage);
      
       this.logger.error(`Recorded failure for video ${uploadId}: ${errorMessage}`);
 
@@ -278,7 +275,6 @@ export class VideoProcessingService {
 
     }
   }
-
 
   private async cleanupTempFiles(workDir: string): Promise<void> {
     try {

@@ -4,12 +4,10 @@ import { VideoRepository } from './repository/video.repository';
 import { VideoProcessingQueueService } from '../video-processing/video-processing.queue';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadVideoStatus } from '@prisma/client';
-// import { EmbedQueueService } from 'src/embed/embed.queue';
-// import { SemanticProcessingService } from 'src/semantic-processing/semantic-processing.service';
-// import { TagService } from 'src/tag/tag.service';
 import { QdrantService } from 'src/qdrant/qdrant.service';
 import { WatchVideoResponse, WatchVideoUrlResponse } from './dto/watch-video.respone';
-// import { NotificationService } from 'src/notification/notification.service';
+import { PublisherService } from 'src/rabbitmq/publisher.service';
+
 
 @Injectable()
 export class VideoService {
@@ -30,10 +28,8 @@ export class VideoService {
     private readonly s3Service: S3Service,
     private readonly videorepository: VideoRepository,
     private readonly VideoProcessingQueueService: VideoProcessingQueueService,
-    // private readonly embedQueueService: EmbedQueueService,
     private readonly qdrantService: QdrantService,
-    // private readonly semanticProcessingService: SemanticProcessingService,
-    // private readonly tagService: TagService,
+    private readonly publisherService: PublisherService,
   ) { }
 
 
@@ -81,10 +77,7 @@ export class VideoService {
     };
   }
 
-  /*
-
-  */
-  async completeUpload(userId: string, uploadId: string) {
+  async completeUpload(userId: string, uploadId: string) : Promise<void> {
     const upload = await this.videorepository.findUpload(userId, uploadId);
 
     if (upload?.userId !== userId) {
@@ -100,17 +93,18 @@ export class VideoService {
       throw new NotFoundException('Uploaded file not found in storage');
     }
 
-    const jobId = await this.VideoProcessingQueueService.addTranscodingJob({
+    const [_, processing] = await Promise.all([
+      this.videorepository.updateUpload(userId, uploadId, UploadVideoStatus.UPLOADED),
+      this.videorepository.createVideoProcessing(upload.videoId),
+    ]);
+
+
+    await this.VideoProcessingQueueService.addTranscodingJob({
+      processingId: processing.id,
       uploadId: upload.id,
       r2Path: upload.r2Path,
       mimeType: upload.mimeType,
     });
-
-    await Promise.all([
-      this.videorepository.updateUpload(userId, uploadId, UploadVideoStatus.UPLOADED, jobId),
-      this.videorepository.createVideoProcessing(upload.id),
-    ]);
-
   }
 
   async deleteVideo(userId: string, videoId: string): Promise<void> {
@@ -182,7 +176,7 @@ export class VideoService {
   /*
     nexting update : separate data for searching into another service 
   */
- 
+
   async updateVideo(
     userId: string,
     videoId: string,
@@ -216,6 +210,14 @@ export class VideoService {
     if (!result) {
       throw new NotFoundException('Video not found or not owned by user');
     }
+
+    await this.publisherService.transferVideoMetadata(
+      result.id,
+      title ? title : undefined,
+      description ? description : undefined,
+      tags ? tags : undefined
+    );
+
 
     if (result.thumbnailUrl) {
       try {
@@ -265,8 +267,8 @@ export class VideoService {
       videoName: video.res1.videoName,
       duration: video.res1.duration,
       videoView: Number(video.res1.videoView) + 1,
-      videoLike: video.res1.videoLike,
-      videoDislike: video.res1.videoDislike,
+      videoLike: Number(video.res1.videoLike),
+      videoDislike: Number(video.res1.videoDislike),
       desc: video.res1.videoDesc ? video.res1.videoDesc : undefined,
       tags: video.res1.videoHashtags?.map(vh => vh.displayTag) || [],
       ownerId: video.res1.userOwner,

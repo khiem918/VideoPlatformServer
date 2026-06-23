@@ -8,6 +8,11 @@ export class TranscodingDataDto {
 
   @IsString()
   @IsNotEmpty()
+  @Length(1, 50)
+  processingId: string;
+
+  @IsString()
+  @IsNotEmpty()
   @Length(1, 500)
   r2Path: string;
 

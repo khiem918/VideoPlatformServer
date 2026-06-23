@@ -96,7 +96,7 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  RABBITMQ_URL!: string;
+  RABBITMQ_URI!: string;
 }
 
 export function validateEnv(

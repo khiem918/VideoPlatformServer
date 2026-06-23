@@ -1,31 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ProcessingStatus, UploadVideoStatus, VideoStatus, VideoVisibility } from '@prisma/client';
+import { UploadMetaStatus } from '@prisma/client';
 
 @Injectable()
 export class VideoProcessingRepository {
 
   constructor(private readonly prisma: PrismaService) { }
-
-  async updateStatus(
-    uploadId: string,
-    status: ProcessingStatus,
-  ): Promise<{ videoUploadId: string }> {
-
-    return await this.prisma.videoProcessing.update({
-
-      where: { videoUploadId: uploadId },
-
-      data: {
-        status,
-        updatedAt: new Date(),
-      },
-
-      select: { videoUploadId: true },
-
-    });
-
-  }
 
   async finalizeProcessingAndUpdateVideo(
     uploadId: string,
@@ -35,10 +16,6 @@ export class VideoProcessingRepository {
   ): Promise<void> {
 
     await this.prisma.$transaction(async (tx) => {
-
-      await tx.videoProcessing.delete({
-        where: { videoUploadId: uploadId },
-      });
 
       const videoUpload = await tx.videoUpload.update({
 
@@ -56,7 +33,7 @@ export class VideoProcessingRepository {
           videoUrl,
           thumbnailUrl,
           duration,
-          ...(videoUpload.metaStatus === 'PROCESSED'
+          ...(videoUpload.metaStatus === UploadMetaStatus.PROCESSED
             ? {
               videoStatus: VideoStatus.AVAILABLE,
               visibility: VideoVisibility.PUBLIC,
@@ -68,12 +45,12 @@ export class VideoProcessingRepository {
 
   }
 
-  async recordFailure(uploadId: string, error: string): Promise<void> {
+  async recordFailure(uploadId: string, processingId: string, error: string): Promise<void> {
 
     await this.prisma.$transaction(async (tx) => {
 
-      await tx.videoProcessing.update({
-        where: { videoUploadId: uploadId },
+      const videoProcessing = await tx.videoProcessing.update({
+        where: { id: processingId },
 
         data: {
           status: ProcessingStatus.FAILED,
@@ -82,12 +59,19 @@ export class VideoProcessingRepository {
         },
       });
 
-      await tx.videoUpload.update({ 
-        where: { id : uploadId },
+      await tx.videoUpload.update({
+        where: { id: uploadId },
         data: {
           videoStatus: UploadVideoStatus.FAILED,
         },
       })
+
+      await tx.video.update({
+        where: { id: videoProcessing.videoId },
+        data: {
+          videoStatus: VideoStatus.VIDEO_FAILED,
+        },
+      })  
     });
   }
 }
