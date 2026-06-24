@@ -3,13 +3,13 @@ import { ObjectType, Field, Int } from '@nestjs/graphql';
 @ObjectType()
 export class UserVideoResponse {
   @Field(() => String)
-  id: string;
+  id!: string;
 
   @Field(() => String, { nullable: true })
   videoName?: string;
 
   @Field(() => Int)
-  duration: number;
+  duration!: number;
 
   @Field(() => String, { nullable: true })
   videoUrl?: string;
@@ -18,16 +18,16 @@ export class UserVideoResponse {
   thumbnailUrl?: string;
 
   @Field(() => BigInt)
-  videoView: bigint;
+  videoView!: number;
 
   @Field(() => BigInt)
-  videoLike: bigint;
+  videoLike!: number;
 
   @Field(() => BigInt)
-  videoDislike: bigint;
+  videoDislike!: number;
 
   @Field(() => String)
-  visibility: string;
+  visibility!: string;
 
   @Field(() => String, { nullable: true })
   rawDesc?: string;
@@ -36,18 +36,18 @@ export class UserVideoResponse {
   tags?: string[];
 
   @Field(() => Date)
-  createdAt: Date;
+  createdAt!: Date;
 
   @Field(() => Date)
-  updatedAt: Date;
+  updatedAt!: Date;
 }
 
 @ObjectType()
 export class UserVideosListResponse {
   @Field(() => Int)
-  total: number;
+  total!: number;
 
   @Field(() => [UserVideoResponse])
-  videos: UserVideoResponse[];
+  videos!: UserVideoResponse[];
 }
 

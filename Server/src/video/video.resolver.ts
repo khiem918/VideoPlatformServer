@@ -5,7 +5,6 @@ import { GqlAuthGuard } from 'src/auth/guard/gql-auth.guard';
 import { VideoService } from './video.service';
 import { InitUploadResponse } from './dto/init-upload.response';
 import { UserVideosListResponse, UserVideoResponse } from './dto/user-videos.response';
-import { SearchVideosResponse } from '../search/dto/search-videos.response';
 import { WatchVideoResponse, WatchVideoUrlResponse, LikeDislikeResponse, SubscribeChannelResponse } from './dto/watch-video.respone';
 import { CommentContentResponse } from './dto/comment-content.respone';
 

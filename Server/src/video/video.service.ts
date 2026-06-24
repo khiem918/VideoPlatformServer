@@ -93,9 +93,9 @@ export class VideoService {
       throw new NotFoundException('Uploaded file not found in storage');
     }
 
-    const [_, processing] = await Promise.all([
-      this.videorepository.updateUpload(userId, uploadId, UploadVideoStatus.UPLOADED),
+    const [processing] = await Promise.all([
       this.videorepository.createVideoProcessing(upload.videoId),
+      this.videorepository.updateUpload(userId, uploadId, UploadVideoStatus.UPLOADED),
     ]);
 
 
@@ -156,9 +156,9 @@ export class VideoService {
           duration: video.duration,
           videoUrl: isDraft ? null : video.videoUrl,
           thumbnailUrl: isDraft ? null : video.thumbnailUrl,
-          videoView: video.videoView,
-          videoLike: video.videoLike,
-          videoDislike: video.videoDislike,
+          videoView: Number(video.videoView),
+          videoLike: Number(video.videoLike),
+          videoDislike: Number(video.videoDislike),
           visibility: video.visibility,
           rawDesc: isDraft ? null : video.videoDesc,
           tags: isDraft ? [] : video.videoHashtags?.map(vh => vh.displayTag),
@@ -172,10 +172,6 @@ export class VideoService {
       videos: processedVideos,
     };
   }
-
-  /*
-    nexting update : separate data for searching into another service 
-  */
 
   async updateVideo(
     userId: string,
@@ -218,7 +214,6 @@ export class VideoService {
       tags ? tags : undefined
     );
 
-
     if (result.thumbnailUrl) {
       try {
         result.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(result.thumbnailUrl, 3600);
@@ -233,9 +228,9 @@ export class VideoService {
       duration: result.duration,
       videoUrl: result.videoUrl,
       thumbnailUrl: result.thumbnailUrl,
-      videoView: result.videoView,
-      videoLike: result.videoLike,
-      videoDislike: result.videoDislike,
+      videoView: Number(result.videoView),
+      videoLike: Number(result.videoLike),
+      videoDislike: Number(result.videoDislike),
       visibility: result.visibility,
       rawDesc: result.videoDesc,
       tags: tags,
@@ -274,7 +269,7 @@ export class VideoService {
       ownerId: video.res1.userOwner,
       ownerName: video.res1.owner?.userName ? video.res1.owner?.userName : video.res1.userOwner,
       createdAt: video.res1.createdAt,
-      subscriberCount: video.res1?.owner?.subscribeCount || 0,
+      subscriberCount: Number(video.res1?.owner?.subscribeCount) || 0,
       isSubscribe: video.res3 ? true : false,
       isLiked: video.res2 ? (video.res2.isLike === true ? true : false) : false,
       isDisliked: video.res2 ? (video.res2.isLike === false ? true : false) : false,
@@ -378,7 +373,11 @@ export class VideoService {
     if (!res) {
       throw new NotFoundException('Like/dislike operation failed');
     }
-    return { likeCount: res.videoLike, dislikeCount: res.videoDislike };
+    
+    return { 
+            likeCount: Number(res.videoLike), 
+            dislikeCount: Number(res.videoDislike) 
+          };
   }
 
   async subscribeChannel(userId: string, channelId: string, subscribe: boolean) {
@@ -391,7 +390,7 @@ export class VideoService {
       throw new NotFoundException('Subscription operation failed or channel not found');
     }
     return {
-      subscriberCount: result.subscribeCount,
+      subscriberCount: Number(result.subscribeCount),
       isSubscribe: subscribe
     };
   }
