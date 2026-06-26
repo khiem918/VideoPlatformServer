@@ -1,5 +1,0 @@
-services: {}
-
-# Embed_Server (FastAPI) is currently stateless — it has no Postgres/Redis/Qdrant
-# dependency of its own, so there's nothing to provision here yet. Add services
-# (or the Embed_Server container itself) when that changes.
