@@ -2,28 +2,27 @@ import aio_pika
 import json
 import logging
 import asyncio
-from infrastructure.queue.rabbitmq import get_mq_connection, declare
 from functools import partial
+from src.infrastructure.queue.rabbitmq import get_mq_connection, declare
+from src.app.container import Container
 
 MAX_RETRIES = 3
 
 logger = logging.getLogger(__name__)
 
 async def handle_dead_letter_message(
-    message: aio_pika.IncomingMessage, 
-    exchange: aio_pika.Exchange
+    message: aio_pika.IncomingMessage,
+    exchange: aio_pika.Exchange,
 ) -> None:
-    async with handle_dead_letter_message(requeue=False):  
+    async with message.process(requeue=False):
         x_death = message.headers.get("x-death", [])
         death_count = x_death[0]["count"] if x_death else 0
 
         payload = json.loads(message.body.decode())
         correlation_id = payload.get('correlationId')
         video_id = payload.get('videoId')
-        title = payload.get('title')
-        hashtag = payload.get('hashtag')
 
-        logger.debug(f"Received dead letter message: correlation_id={correlation_id}, video_id={video_id}, title={title}, hashtag={hashtag}, death_count={death_count}")
+        logger.debug(f"Received dead letter message: correlation_id={correlation_id}, video_id={video_id}, death_count={death_count}")
 
         if death_count >= MAX_RETRIES:
             await exchange.publish(
@@ -31,17 +30,17 @@ async def handle_dead_letter_message(
                     body=json.dumps({
                         "correlationId": correlation_id,
                         "status": "failed",
-                        "error": "Max retries exceeded"
+                        "error": "Max retries exceeded",
                     }),
                     delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                     content_type="application/json",
                 ),
-                routing_key="video.metadata.res"
+                routing_key="video.metadata.res",
             )
+            return
 
-        delay = min(2 ** death_count, 60)  
-
-        logger.debug(f"Requeuing message with delay of {delay} seconds: correlation_id={correlation_id}, video_id={video_id}, title={title}, hashtag={hashtag}, death_count={death_count}")
+        delay = min(2 ** death_count, 60)
+        logger.debug(f"Requeuing with delay={delay}s: correlation_id={correlation_id}, death_count={death_count}")
 
         await asyncio.sleep(delay)
 
@@ -51,12 +50,11 @@ async def handle_dead_letter_message(
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                 content_type="application/json",
                 headers=message.headers,
-            ),  
-            routing_key= "video.meatadata.trans"
+            ),
+            routing_key="video.metadata.trans",
         )
 
-async def start_dlq_consumer(
-) -> None:
+async def start_dlq_consumer(container: Container):
     connection = await get_mq_connection()
     channel = await connection.channel()
 

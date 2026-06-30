@@ -9,7 +9,6 @@ export class PublisherService {
         private readonly amqpConnection: AmqpConnection,
     ) {}
 
-
     async transferVideoMetadata(videoId: string, title ? :string, description ? : string, hashtags ? : string[]) : Promise<string> {
         const correlationId = videoId; 
         const payload : TransferVideoMetadata = {

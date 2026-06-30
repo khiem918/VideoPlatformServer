@@ -28,27 +28,9 @@ model User {
   @@schema("core")
 }
 
-/**
- * --------This model is going to be moved to search service
- * model Hashtag {
- * id            String         @id @default(uuid())
- * normalized    String         @unique @map("normalized_tag")
- * count         BigInt         @default(0)
- * isCanoncial   Boolean        @default(false)
- * createdAt     DateTime       @default(now())
- * videoHashtags VideoHashtag[]
- * @@index([count(sort: Desc)])
- * @@index([createdAt(sort: Desc)])
- * @@map("hashtag")
- * @@schema("core")
- * }
- */
-
 model VideoHashtag {
   videoId    String @map("video_id")
-  // hashtagId  String  @map("hashtag_id")
   displayTag String @map("display_tag")
-  // hashtag    Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
   video      Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
 
   @@id([videoId])
