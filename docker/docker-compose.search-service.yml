@@ -1,5 +1,16 @@
-services: {}
+services:
+  postgres:
+    image: postgres:16
+    container_name: video_platform_search_db
+    restart: unless-stopped
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: video_streaming_search
+    volumes:
+      - pgdata:/var/lib/postgresql/searchservicedata
 
-# Embed_Server (FastAPI) is currently stateless — it has no Postgres/Redis/Qdrant
-# dependency of its own, so there's nothing to provision here yet. Add services
-# (or the Embed_Server container itself) when that changes.
+volumes:
+  pgdata:

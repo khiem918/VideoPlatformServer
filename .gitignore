@@ -505,3 +505,5 @@ generated/
 opencode.json
 
 NOTE.md
+
+.codegraph/

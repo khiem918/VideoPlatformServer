@@ -1,52 +1,51 @@
 import aio_pika
 import json
 import logging
-from infrastructure.queue.rabbitmq import get_mq_connection, declare
+from src.infrastructure.queue.rabbitmq import get_mq_connection, declare
+from src.app.container import Container
 
-PREFETCH_COUNT = 1 # depend on number of instances 
+PREFETCH_COUNT = 1
 
 logger = logging.getLogger(__name__)
 
 async def handle_metadata_transfer_message(
     message: aio_pika.IncomingMessage,
     exchange: aio_pika.Exchange,
+    container: Container,
 ) -> None:
-    async with message.process(requeue= False):     # it wraps the ack/nack
-        payload = json.loads(message.body.decode()) 
+    async with message.process(requeue=False):
+        payload = json.loads(message.body.decode())
         correlation_id = payload.get('correlationId')
         video_id = payload.get('videoId')
         title = payload.get('title')
-        hashtag = payload.get('hashtag')
+        desc = payload.get('desc')
 
-        logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}, title={title}, hashtag={hashtag}")
-
-        ## call heandler 
-
-        result= "" # result from handler
-
+        logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}")
+        
+        await container.metadata_process.process(video_id, title, desc)
 
         await exchange.publish(
             aio_pika.Message(
-                body = json.dumps({
+                body=json.dumps({
                     "correlationId": correlation_id,
-                    "status": "successed",
+                    "status": "succeeded",
                 }),
-                delivery_mode = aio_pika.DeliveryMode.PERSISTENT,
-                content_type = "application/json",
-            ), 
-            routing_key = "video.metadata.trans"
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                content_type="application/json",
+            ),
+            routing_key="video.metadata.res",
         )
 
-async def start_consumer(): 
+async def start_consumer(container: Container):
     connection = await get_mq_connection()
     channel = await connection.channel()
 
     await channel.set_qos(prefetch_count=PREFETCH_COUNT)
 
-    exchange, _, video_metadata_transfer_q = await declare(channel)
+    exchange, _, video_metadata_transfer_q, _ = await declare(channel)
 
     await video_metadata_transfer_q.consume(
-        lambda message: handle_metadata_transfer_message(message, exchange)
+        lambda message: handle_metadata_transfer_message(message, exchange, container)
     )
 
     logger.info("RabbitMQ consumers started (prefetch=%d)", PREFETCH_COUNT)
