@@ -6,3 +6,6 @@ aio-pika==9.4.3
 qdrant-client[fastembed]>=1.14.2
 dependency-injector==4.49.1
 prisma>=0.15.0
+grpcio>=1.68
+grpcio-tools>=1.68
+python-jose==3.5.0

@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { readFileSync } from 'fs';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
   const bootstrapConfigService = new ConfigService();
@@ -24,7 +25,19 @@ async function bootstrap() {
                                                     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
                                                     snapshot: true,
                                                   });
+
   const configservice = app.get<ConfigService>(ConfigService);
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.GRPC,
+    options: {
+      package: 'video.metadata.v1',
+      protoPath: 'proto/video_metadata.proto',
+      url: configservice.get<string>('GRPC_URL') ?? 'localhost:50051',
+    },
+  });
+
+  await app.startAllMicroservices();
 
   app.use(cookieParser(configservice.get<string>('COOKIE_SECRET')));
   // app.use(helmet());
@@ -37,4 +50,5 @@ async function bootstrap() {
   const server_port = configservice.get('SERVER_PORT');
   await app.listen(server_port);
 }
+
 bootstrap();

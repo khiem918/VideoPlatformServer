@@ -1,25 +1,25 @@
-generator client {
-  provider        = "prisma-client-py"
-  interface       = "asyncio"
-  previewFeatures = ["multiSchema"]
-  recursive_type_depth = -1
-}
+// generator client {
+//   provider        = "prisma-client-py"
+//   interface       = "asyncio"
+//   previewFeatures = ["multiSchema"]
+//   recursive_type_depth = -1
+// }
 
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  schemas  = ["core"]
-}
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+//   schemas  = ["core"]
+// }
 
-model Hashtag {
-  id            String         @id @default(uuid())
-  normalized    String         @unique @map("normalized_tag")
-  count         BigInt         @default(0)
-  isCanoncial   Boolean        @default(false)
-  createdAt     DateTime       @default(now())
+// model Hashtag {
+//   id            String         @id @default(uuid())
+//   normalized    String         @unique @map("normalized_tag")
+//   count         BigInt         @default(0)
+//   isCanoncial   Boolean        @default(false)
+//   createdAt     DateTime       @default(now())
 
-  @@index([count(sort: Desc)])
-  @@index([createdAt(sort: Desc)])
-  @@map("hashtag")
-  @@schema("core")
-}
+//   @@index([count(sort: Desc)])
+//   @@index([createdAt(sort: Desc)])
+//   @@map("hashtag")
+//   @@schema("core")
+// }

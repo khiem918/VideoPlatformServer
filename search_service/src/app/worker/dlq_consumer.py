@@ -4,7 +4,6 @@ import logging
 import asyncio
 from functools import partial
 from src.infrastructure.queue.rabbitmq import get_mq_connection, declare
-from src.app.container import Container
 
 MAX_RETRIES = 3
 
@@ -54,7 +53,7 @@ async def handle_dead_letter_message(
             routing_key="video.metadata.trans",
         )
 
-async def start_dlq_consumer(container: Container):
+async def start_dlq_consumer():
     connection = await get_mq_connection()
     channel = await connection.channel()
 

@@ -1,20 +1,30 @@
-import src.app.container as container
 from src.domain.service.normalize import normalize_title, normalize_desc
+from src.infrastructure.ml_model.embeding_model import EmbeddingService
+from src.infrastructure.database.qdrant import QdrantService
+
 
 class MetadataProcessService:
-    
+
+    def __init__(self, embedding: EmbeddingService, qdrant: QdrantService):
+        self.embedding = embedding
+        self.qdrant = qdrant
+
     async def process(self, video_id: str, title: str, desc: str | None) -> None:
-        
+
         title = normalize_title(title)
-        
+
         if desc:
             desc = normalize_desc(desc)
 
-        title_vector = container.EmbeddingService.embed_dense(title) 
-        desc_vector = container.EmbeddingService.embed_dense(desc) if desc else None
-        sparse_vector = container.EmbeddingService.embed_sparse(title + " " + desc) 
+        title_vector = self.embedding.embed_dense(title)
+        desc_vector = self.embedding.embed_dense(desc) if desc else None
+        sparse_vector = self.embedding.embed_sparse(title + " " + (desc or ""))
 
-        await container.QdrantService.upsert_video_point(
+        """
+            not yet, insert connoncial tag into postgre
+        """
+
+        await self.qdrant.upsert_video_point(
             video_id=video_id,
             title_vector=title_vector,
             desc_vector=desc_vector,
@@ -23,19 +33,5 @@ class MetadataProcessService:
             desc=desc if desc else "",
         )
 
-        return 
-
         
 
-        
-
-        
-        
-
-        
-        
-
-
-
-
-    

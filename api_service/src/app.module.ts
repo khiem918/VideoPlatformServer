@@ -12,9 +12,7 @@ import { VideoProcessingModule } from './video-processing/video-processing.modul
 import { QueueModule } from './queue/queue.module';
 import { validateEnv } from './config/env.validation';
 import { VideoModule } from './video/video.module';
-import { EmbedModule } from './embed/embed.module';
 import { NotificationModule } from './notification/notification.module';
-import { SearchModule } from './search/search.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { DevtoolsModule } from '@nestjs/devtools-integration';
 
@@ -37,9 +35,7 @@ import { DevtoolsModule } from '@nestjs/devtools-integration';
     AuthModule,
     QueueModule,
     VideoModule,
-    EmbedModule,
     NotificationModule,
-    SearchModule,
     RabbitmqModule,
     DevtoolsModule.register({
       http: true,

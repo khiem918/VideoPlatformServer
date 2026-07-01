@@ -1,0 +1,5 @@
+Requirement already satisfied: grpcio in ./venv/lib/python3.14/site-packages (1.81.1)
+Requirement already satisfied: grpcio-tools in ./venv/lib/python3.14/site-packages (1.81.1)
+Requirement already satisfied: typing-extensions~=4.12 in ./venv/lib/python3.14/site-packages (from grpcio) (4.15.0)
+Requirement already satisfied: protobuf<7.0.0,>=6.33.5 in ./venv/lib/python3.14/site-packages (from grpcio-tools) (6.33.6)
+Requirement already satisfied: setuptools>=77.0.1 in ./venv/lib/python3.14/site-packages (from grpcio-tools) (81.0.0)
