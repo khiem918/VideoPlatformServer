@@ -2,7 +2,7 @@ import aio_pika
 import json
 import logging
 from src.infrastructure.queue.rabbitmq import get_mq_connection, declare
-from src.app.container import Container
+from src.app.container import container
 
 PREFETCH_COUNT = 1
 
@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 async def handle_metadata_transfer_message(
     message: aio_pika.IncomingMessage,
     exchange: aio_pika.Exchange,
-    container: Container,
 ) -> None:
     async with message.process(requeue=False):
         payload = json.loads(message.body.decode())
@@ -36,7 +35,7 @@ async def handle_metadata_transfer_message(
             routing_key="video.metadata.res",
         )
 
-async def start_consumer(container: Container):
+async def start_consumer():
     connection = await get_mq_connection()
     channel = await connection.channel()
 
@@ -45,7 +44,7 @@ async def start_consumer(container: Container):
     exchange, _, video_metadata_transfer_q, _ = await declare(channel)
 
     await video_metadata_transfer_q.consume(
-        lambda message: handle_metadata_transfer_message(message, exchange, container)
+        lambda message: handle_metadata_transfer_message(message, exchange)
     )
 
     logger.info("RabbitMQ consumers started (prefetch=%d)", PREFETCH_COUNT)
