@@ -45,14 +45,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: { userId: string; iat: number }) {
+  validate(payload: { userId: string; iat: number, exp: number })
+    : { userId: string; iat: number, exp: number }  
+  {
     if (!payload?.userId) {
       throw new UnauthorizedException('Invalid token payload');
+    }
+
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      throw new UnauthorizedException('Token has expired');
     }
 
     return {
       userId: payload.userId,
       iat: payload.iat,
+      exp: payload.exp,
     };
   }
 }

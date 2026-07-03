@@ -9,7 +9,11 @@ export class VideoMetaDataGrpcService {
         private readonly videoMetaDataRepository: VideoMetaDatarepository
     ) { }
 
-
+    /*
+    
+        return rule: only public video
+    
+    */
     async getVideoMetaData(videoId: string[]) {
         const video = await this.videoMetaDataRepository.getVideoMetaData(videoId);
 
