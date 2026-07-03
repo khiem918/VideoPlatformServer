@@ -2,17 +2,17 @@ import os
 from time import time
 from typing import Optional
 from typing import Optional
-from fastapi import Request, HTTPException, status
-from fastapi.security import HTTPBearer
+from fastapi import Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials   
 from jose import jwt
+from .exception import UnauthorizedException
 
-def decodeJWT(token: str) -> dict:
+def decodeJWT(token: str) -> Optional[dict]:
     try: 
         payload = jwt.decode(token, os.environ.get("JWT_SECRET"), algorithms=["HS256"])
-        return payload if payload["iat"] >= time.time() else None
+        return payload 
     except:
-        return {}
+        return None
 
 class JWTBearer(HTTPBearer):
     def __init__(self, auto_error: bool = True):
@@ -22,12 +22,12 @@ class JWTBearer(HTTPBearer):
         credentials: HTTPAuthorizationCredentials = await super(JWTBearer, self).__call__(request)
         if credentials:
             if not credentials.scheme == "Bearer":
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid authentication scheme.")
+                raise UnauthorizedException(detail="Invalid authentication scheme.")
             if not self.verify_jwt(credentials.credentials):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token or expired token.")
+                raise UnauthorizedException(detail="Invalid token or expired token.")
             return credentials.credentials
         else:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid authorization code.")
+            raise UnauthorizedException(detail="Invalid authorization code.")
 
     def verify_jwt(self, jwtoken: str) -> bool:
         is_token_valid: bool = False

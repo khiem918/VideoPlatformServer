@@ -127,22 +127,21 @@ class QdrantService:
 
     async def search_points(
             self, 
-            query_titledense_vector: list[float],
-            query_descdense_vector: list[float],
+            query_dense_vector: list[float],
             query_sparse_vector: SparseVector,
-            limit : int = 50,
+            limit : int = 30,
     ) -> list[models.ScoredPoint]:
         
         result = await self._client.query_points(
             collection_name=COLLECTION_NAME,
             prefetch=[
                 models.Prefetch(
-                    query=query_titledense_vector,
+                    query=query_dense_vector,
                     using=VECTOR_NAMES["titleDense"], 
                     limit=limit*2,
                 ),
                 models.Prefetch(
-                    query=query_descdense_vector,
+                    query=query_dense_vector,
                     using=VECTOR_NAMES["descDense"], 
                     limit=limit*2
                 ),

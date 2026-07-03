@@ -248,6 +248,7 @@ _pkginfo.txt
 # Others
 ClientBin/
 ~$*
+docs/guides/
 *~
 *.dbmdl
 *.dbproj.schemaview
@@ -504,6 +505,6 @@ generated/
 
 opencode.json
 
-NOTE.md
-
 .codegraph/
+
+.docs/*

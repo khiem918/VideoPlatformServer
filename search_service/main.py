@@ -19,6 +19,7 @@ async def lifespan(app: FastAPI):
     await container.qdrant.init_collection()
     await container.postgres.connect()
     await container.grpc_client.connect()
+    await container.redis_service.connect()
 
     app.state.container = container
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     await dlq_connection.close()
     await container.postgres.disconnect()
     await container.grpc_client.close()
+    await container.redis_service.disconnect()
 
 app = FastAPI(title="search service", lifespan=lifespan)
 
