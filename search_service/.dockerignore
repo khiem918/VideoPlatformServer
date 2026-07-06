@@ -1,0 +1,51 @@
+# Build context for search_service (Python)
+# Keep build context small
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.tox
+.nox
+dist
+build
+venv
+.venv
+env
+ENV
+
+# Prisma generated (re-generated inside image)
+prisma/migrations/**/migration.sql.bak
+
+# Stray artifact
+=1.68
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Docker files at this level
+Dockerfile
+.dockerignore
+docker-entrypoint.sh

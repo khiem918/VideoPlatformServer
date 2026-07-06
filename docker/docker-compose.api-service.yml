@@ -40,13 +40,27 @@ services:
     container_name: video-platform-rabbitmq
     restart: unless-stopped
     ports:
-      - "5672:5672"   
+      - "5672:5672"
       - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+
+  api_service:
+    image: ${ECR_REGISTRY}/api-service:latest
+    container_name: video-platform-api
+    restart: unless-stopped
+    env_file:
+      - .env.api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+      - rabbitmq
 
 volumes:
   pgdata:

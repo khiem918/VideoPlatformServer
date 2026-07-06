@@ -1,0 +1,43 @@
+version: 0.2
+
+# buildspec-api.yml — builds api_service Docker image, pushes to ECR, then
+# syncs the docker/ folder to S3 and tells EC2 to redeploy via SSM.
+#
+# Required env vars (set in CodeBuild project):
+#   AWS_DEFAULT_REGION   e.g. ap-southeast-1
+#   AWS_ACCOUNT_ID       12-digit account id
+#   ECR_REPO_NAME        "api-service"
+#   DEPLOY_S3_BUCKET     s3 bucket holding docker-compose files
+#   DEPLOY_S3_PREFIX     "compose" (default)
+#   EC2_INSTANCE_ID      i-xxxxxxxxxxxxxxxxx
+#
+# Webhook filter (set in CodeBuild console):
+#   HEAD_REF:   ^refs/heads/feat/CI-CD$
+#   FILE_PATH:  ^api_service/.*$
+
+phases:
+  pre_build:
+    commands:
+      - echo "[pre_build] region=$AWS_DEFAULT_REGION account=$AWS_ACCOUNT_ID"
+      - aws --version
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPO_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPO_NAME
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - echo "[pre_build] REPO_URI=$REPO_URI IMAGE_TAG=$IMAGE_TAG"
+
+  build:
+    commands:
+      - echo "[build] building api_service image"
+      - cd api_service
+      - docker build -t $REPO_URI:latest .
+      - docker tag $REPO_URI:latest $REPO_URI:$IMAGE_TAG
+
+  post_build:
+    commands:
+      - echo "[post_build] pushing image to ECR"
+      - docker push $REPO_URI:latest
+      - docker push $REPO_URI:$IMAGE_TAG
+      - echo "[post_build] syncing docker/ folder to s3://$DEPLOY_S3_BUCKET/$DEPLOY_S3_PREFIX/"
+      - aws s3 sync docker/ s3://$DEPLOY_S3_BUCKET/$DEPLOY_S3_PREFIX/ --delete
+      - echo "[post_build] triggering EC2 deploy via SSM"
+      - aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceids,Values=$EC2_INSTANCE_ID" --parameters '{"commands":["/app/deploy.sh api"]}'

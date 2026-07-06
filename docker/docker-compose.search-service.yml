@@ -12,5 +12,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/searchservicedata
 
+  search_service:
+    image: ${ECR_REGISTRY}/search-service:latest
+    container_name: video-platform-search
+    restart: unless-stopped
+    env_file:
+      - .env.search
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
 volumes:
   pgdata:
