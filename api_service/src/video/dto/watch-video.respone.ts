@@ -11,13 +11,13 @@ export class WatchVideoResponse {
     @Field(() => String)
     videoName!: string;
 
-    @Field(() => BigInt)
+    @Field(() => Int)
     videoView!: number;
 
-    @Field(() => BigInt)
+    @Field(() => Int)
     videoLike!: number;
 
-    @Field(() => BigInt)
+    @Field(() => Int)
     videoDislike!: number;
 
     @Field(() => String, { nullable: true })
@@ -35,7 +35,7 @@ export class WatchVideoResponse {
     @Field(() => String)
     ownerName!: string;
 
-    @Field(() => BigInt)
+    @Field(() => Int)
     subscriberCount!: number;
 
     @Field(() => Boolean)
@@ -63,10 +63,10 @@ export class WatchVideoUrlResponse {
 
 @ObjectType()
 export class LikeDislikeResponse {
-  @Field(() => BigInt)
+  @Field(() => Int)
   likeCount!: number;
 
-  @Field(() => BigInt)
+  @Field(() => Int)
   dislikeCount!: number; 
 }
 
@@ -75,6 +75,6 @@ export class SubscribeChannelResponse {
     @Field(() => Boolean)
     isSubscribe!: boolean;
     
-    @Field(() => BigInt )
+    @Field(() => Int )
     subscriberCount!: number;
 }

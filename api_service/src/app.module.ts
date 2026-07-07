@@ -14,6 +14,7 @@ import { validateEnv } from './config/env.validation';
 import { VideoModule } from './video/video.module';
 import { NotificationModule } from './notification/notification.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
+import { PublisherModule } from './rabbitmq/publisher.module';
 import { DevtoolsModule } from '@nestjs/devtools-integration';
 
 @Module({
@@ -37,6 +38,7 @@ import { DevtoolsModule } from '@nestjs/devtools-integration';
     VideoModule,
     NotificationModule,
     RabbitmqModule,
+    PublisherModule,
     DevtoolsModule.register({
       http: true,
       port: 3001,

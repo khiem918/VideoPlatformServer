@@ -31,10 +31,19 @@ export class QdrantService implements OnModuleInit {
   private readonly VECTOR_SIZE = 768;
 
   constructor() {
+    // Workaround for Node 18+ undici dispatcher conflict
+    // QdrantClient tries to inject its own dispatcher using a user-land undici
+    // which fails inside Node's native fetch. We hide process.versions.node
+    // temporarily so it doesn't create and inject the incompatible dispatcher.
+    const nodeVersion = process.versions.node;
+    Object.defineProperty(process.versions, 'node', { value: undefined, configurable: true });
+
     this.qdrantClient = new QdrantClient({
       url: process.env.QDRANT_URL || 'http://localhost:6333',
       checkCompatibility: false,
     });
+
+    Object.defineProperty(process.versions, 'node', { value: nodeVersion, configurable: true });
   }
 
   async onModuleInit() {

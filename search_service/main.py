@@ -1,12 +1,15 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
+
+load_dotenv(Path(__file__).resolve().with_name(".env"))
+
 from src.app.container import container
 from src.app.worker.consumer import start_consumer
 from src.app.worker.dlq_consumer import start_dlq_consumer
-
-load_dotenv("src/.env")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -46,7 +46,7 @@ type Mutation {
   signOut: Boolean!
   subscribeChannel(channelId: String!, subscribe: Boolean!): SubscribeChannelResponse!
   trackVideoWatchProgress(pauseAt: Int, videoId: String!): Boolean!
-  updateVideo(description: String, first_publish: Boolean, tags: [String!], title: String!, videoId: String!, visibility: String!): UserVideoResponse!
+  updateVideo(description: String, tags: [String!], title: String!, videoId: String!, visibility: String!): UserVideoResponse!
   updateVideoHistory(videoId: Int): Boolean!
 }
 
@@ -64,23 +64,6 @@ type Query {
   getWatchVideoUrl(videoId: String!): WatchVideoUrlResponse!
   hello: String!
   me: String!
-  searchVideos(limit: Int! = 20, offset: Int! = 0, query: String!): SearchVideosResponse!
-}
-
-type SearchVideoItem {
-  duration: Int!
-  id: String!
-  ownerName: String!
-  rawDesc: String
-  thumbnailUrl: String
-  updatedAt: DateTime!
-  videoName: String!
-  videoView: Int!
-}
-
-type SearchVideosResponse {
-  results: [SearchVideoItem!]!
-  total: Int!
 }
 
 input SignInInput {
@@ -116,23 +99,23 @@ type UserVideosListResponse {
 type WatchVideoResponse {
   createdAt: DateTime!
   desc: String
-  duration: Float!
+  duration: Int!
   id: String!
   isDisliked: Boolean!
   isLiked: Boolean!
   isSubscribe: Boolean!
   ownerId: String!
   ownerName: String!
-  subscriberCount: Float!
+  subscriberCount: Int!
   tags: [String!]
-  videoDislike: Float!
-  videoLike: Float!
+  videoDislike: Int!
+  videoLike: Int!
   videoName: String!
-  videoView: Float!
+  videoView: Int!
 }
 
 type WatchVideoUrlResponse {
-  expiresAt: Float!
+  expiresAt: Int!
   mpdUrl: String!
   signature: String!
 }

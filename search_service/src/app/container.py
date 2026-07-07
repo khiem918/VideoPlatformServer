@@ -1,5 +1,6 @@
-from VideoPlatformServer.search_service.src.domain.service.search import SearchService
-from VideoPlatformServer.search_service.src.infrastructure.redis.redis import RedisService
+from src.infrastructure.s3.s3_client import S3Client
+from src.domain.service.search import SearchService
+from src.infrastructure.redis.redis import RedisService
 from src.infrastructure.ml_model.embeding_model import EmbeddingService
 from src.infrastructure.database.qdrant import QdrantService
 from src.infrastructure.database.postgres import PostgresService
@@ -14,6 +15,7 @@ class Container:
         self.postgres = PostgresService()
         self.redis_service = RedisService()
         self.grpc_client = GrpcClient()
+        self.s3_client = S3Client()
         
         self.metadata_process = MetadataProcessService(
             embedding=self.embedding,
@@ -23,7 +25,9 @@ class Container:
         self.search_service = SearchService(
             embedding_service=self.embedding,
             qdrant_service=self.qdrant,
-            redis_service=self.redis_service
+            redis_service=self.redis_service,
+            grpc_service=self.grpc_client,
+            s3_client=self.s3_client
         )
 
 
