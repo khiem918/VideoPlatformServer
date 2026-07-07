@@ -17,13 +17,13 @@ export class UserVideoResponse {
   @Field(() => String, { nullable: true })
   thumbnailUrl?: string;
 
-  @Field(() => BigInt)
+  @Field(() => Int)
   videoView!: number;
 
-  @Field(() => BigInt)
+  @Field(() => Int)
   videoLike!: number;
 
-  @Field(() => BigInt)
+  @Field(() => Int)
   videoDislike!: number;
 
   @Field(() => String)

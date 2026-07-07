@@ -499,7 +499,7 @@ env/
 
 .generated/
 # Package locks and generated files
-package-lock.json
+# package-lock.json
 generated/
 
 
@@ -508,3 +508,5 @@ opencode.json
 .codegraph/
 
 .docs/*
+
+.=1.68

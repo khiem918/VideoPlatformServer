@@ -10,7 +10,7 @@ message VideoMetaData {
   string video_id = 1;
   string title = 2;
   optional string description = 3;
-  string thumb_url = 4;
+  string thumbnail_url = 4;
   int64 view = 5;
   int32 duration = 6;
   int32 date = 7;

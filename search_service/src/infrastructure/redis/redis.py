@@ -22,7 +22,7 @@ class RedisService:
     """
     
         define key name: 
-            - cache video's metadata: metadata:videoid
+            - cache video's metadata: meta:id
     
     """
     async def set(self, key: str, value: Any, expire: int = 3600):
@@ -38,14 +38,38 @@ class RedisService:
         await self._client.delete(key)
 
 
-    async def mget(self, keys: list[str]) -> list[Optional[Any]]:
-        results = await self._client.mget(keys)
-        return [json.loads(result) if result else None for result in results]
+    async def mget_with_ttl(self, keys: list[str]) -> list[dict[str, Any]]:
+        pipeline = self._client.pipeline()
+        pipeline.mget(keys) 
 
+        for key in keys:
+            pipeline.ttl(key)
 
-    async def set_keys_value(self, keys: list[str], value: Any, expire: int = 3600): 
+        results = await pipeline.execute()
+        values = results[0]
+        ttls = results[1:]
+
+        return [
+            {
+                "key": key,
+                "value": json.loads(value) if value else None,
+                "ttl": ttl,
+            }
+            for key, value, ttl in zip(keys, values, ttls)
+        ]
+
+    async def mset(self, key_value_pairs: list[tuple[str, dict]], expire: int = 3600):     
         pipeline = self._client.pipeline()
 
-        map(lambda x : pipeline.set(x, json.dumps(value), expire), keys)
+        for key, value in key_value_pairs:
+            pipeline.set(key, json.dumps(value), ex=expire)
+
+        await pipeline.execute()
+
+    async def mupdate(self, key_value_pairs: list[tuple[str, dict]], expire: int = 3600):
+        pipeline = self._client.pipeline()
+
+        for key, value in key_value_pairs:
+            pipeline.set(key, json.dumps(value), ex=expire)
 
         await pipeline.execute()
