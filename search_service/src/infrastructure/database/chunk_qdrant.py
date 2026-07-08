@@ -6,7 +6,7 @@ from qdrant_client.http import models
 logger = logging.getLogger(__name__)
 
 CHUNK_COLLECTION_NAME = "video_chunks"
-VECTOR_DIMENSION = 768
+VECTOR_DIMENSION = 1024
 
 CHUNK_VECTOR_NAMES = {
     "transcriptDense": "transcript",
