@@ -20,7 +20,7 @@ class S3Client:
             config=Config(signature_version="s3v4")
         )   
 
-    async def get_presigned_url(self, path: str, expiration: int = 3600) -> str:
+    def get_presigned_url(self, path: str, expiration: int = 3600) -> str:
         url = self._client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self._bucket, "Key": path},

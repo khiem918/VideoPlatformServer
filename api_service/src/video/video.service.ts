@@ -1,13 +1,26 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { S3Service } from 'src/s3/s3.service';
 import { VideoRepository } from './repository/video.repository';
 import { VideoProcessingQueueService } from '../video-processing/video-processing.queue';
 import { v4 as uuidv4 } from 'uuid';
-import { UploadVideoStatus, ProcessingType, VideoVisibility, VideoStatus } from '@prisma/client';
+import {
+  UploadVideoStatus,
+  ProcessingType,
+  VideoVisibility,
+  VideoStatus,
+} from '@prisma/client';
 import { QdrantService } from 'src/qdrant/qdrant.service';
-import { WatchVideoResponse, WatchVideoUrlResponse } from './dto/watch-video.respone';
+import {
+  WatchVideoResponse,
+  WatchVideoUrlResponse,
+} from './dto/watch-video.respone';
 import { PublisherService } from 'src/rabbitmq/publisher.service';
-
 
 @Injectable()
 export class VideoService {
@@ -30,15 +43,19 @@ export class VideoService {
     private readonly VideoProcessingQueueService: VideoProcessingQueueService,
     private readonly qdrantService: QdrantService,
     private readonly publisherService: PublisherService,
-  ) { }
-
+  ) {}
 
   async initUpload(
     userId: string,
     fileName: string,
     mimeType: string,
     fileSize: number,
-  ): Promise<{ videoId: string, uploadId: string; presignedUrl: string; r2Path: string }> {
+  ): Promise<{
+    videoId: string;
+    uploadId: string;
+    presignedUrl: string;
+    r2Path: string;
+  }> {
     if (!this.allowedMimeTypes.includes(mimeType)) {
       throw new BadRequestException(
         `Invalid video format. Allowed: ${this.allowedMimeTypes.join(', ')}`,
@@ -87,14 +104,23 @@ export class VideoService {
       throw new BadRequestException('Upload session is not pending');
     }
 
-    const isExistInR2 = await this.s3Service.fileExists(video.information.r2Path);
+    const isExistInR2 = await this.s3Service.fileExists(
+      video.information.r2Path,
+    );
     if (!isExistInR2) {
       throw new NotFoundException('Uploaded file not found in storage');
     }
 
     const [processing] = await Promise.all([
       this.videorepository.createVideoProcessing(videoId, ProcessingType.VIDEO),
-      this.videorepository.updateVideoInfo(videoId, undefined, undefined, undefined, undefined, UploadVideoStatus.UPLOADED),
+      this.videorepository.updateVideoInfo(
+        videoId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        UploadVideoStatus.UPLOADED,
+      ),
     ]);
 
     await this.VideoProcessingQueueService.addTranscodingJob({
@@ -115,7 +141,9 @@ export class VideoService {
     try {
       let directoryPath = `videos/${videoId}/`;
       if (video.videoUrl) {
-        const match = video.videoUrl.match(new RegExp(`(videos\\/[a-z0-9]+\\/[a-z0-9]+\\/${videoId})`, 'i'));
+        const match = video.videoUrl.match(
+          new RegExp(`(videos\\/[a-z0-9]+\\/[a-z0-9]+\\/${videoId})`, 'i'),
+        );
         if (match) {
           directoryPath = `${match[1]}/`;
         }
@@ -126,7 +154,6 @@ export class VideoService {
         await this.qdrantService.deleteVideoVector(videoId),
         await this.videorepository.deleteVideo(userId, videoId),
       ]);
-
     } catch (error) {
       console.error(`Failed to delete video from R2:`, error);
       throw new NotFoundException('Failed to delete video from storage');
@@ -142,15 +169,21 @@ export class VideoService {
 
         if (video.thumbnailUrl) {
           try {
-            video.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(video.thumbnailUrl, 3600);
+            video.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(
+              video.thumbnailUrl,
+              3600,
+            );
           } catch (error) {
-            console.error(`Failed to get presigned URL for thumbnail ${video.thumbnailUrl}:`, error);
+            console.error(
+              `Failed to get presigned URL for thumbnail ${video.thumbnailUrl}:`,
+              error,
+            );
           }
         }
 
         return {
           id: video.id,
-          videoName: isDraft ? "draft" : video.videoName,
+          videoName: isDraft ? 'draft' : video.videoName,
           duration: video.duration,
           videoUrl: isDraft ? null : video.videoUrl,
           thumbnailUrl: isDraft ? null : video.thumbnailUrl,
@@ -159,11 +192,12 @@ export class VideoService {
           videoDislike: Number(video.videoDislike),
           visibility: video.visibility,
           rawDesc: isDraft ? null : video.videoDesc,
-          tags: isDraft ? [] : video.videoHashtags?.map(vh => vh.displayTag),
+          tags: isDraft ? [] : video.videoHashtags?.map((vh) => vh.displayTag),
           createdAt: video.createdAt,
           updatedAt: video.updatedAt,
         };
-      }));
+      }),
+    );
 
     return {
       total: (await processedVideos).length,
@@ -194,9 +228,11 @@ export class VideoService {
                                               ||--- if video.status is AVAILABLE, then its visibility can be changed to PUBLIC or PRIVATE.     
     */
 
-    const visbilityUpadate = visibility ? undefined 
-                                        : video.videoStatus === VideoStatus.PROCESSING ? VideoVisibility.DRAFT 
-                                                                                        :  video.visibility;
+    const visbilityUpadate = visibility
+      ? undefined
+      : video.videoStatus === VideoStatus.PROCESSING
+        ? VideoVisibility.DRAFT
+        : video.visibility;
 
     const result = await this.videorepository.updateVideo(
       userId,
@@ -214,14 +250,20 @@ export class VideoService {
       result.id,
       title ? title : undefined,
       description ? description : undefined,
-      tags ? tags : undefined
+      tags ? tags : undefined,
     );
 
     if (result.thumbnailUrl) {
       try {
-        result.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(result.thumbnailUrl, 3600);
+        result.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(
+          result.thumbnailUrl,
+          3600,
+        );
       } catch (error) {
-        console.error(`Failed to get presigned URL for thumbnail ${result.thumbnailUrl}:`, error);
+        console.error(
+          `Failed to get presigned URL for thumbnail ${result.thumbnailUrl}:`,
+          error,
+        );
       }
     }
 
@@ -239,12 +281,17 @@ export class VideoService {
       tags: tags,
       createdAt: result.createdAt,
       updatedAt: result.updatedAt,
-    }
+    };
   }
 
-  async getWatchVideoMetadata(videoId: string, userId: string): Promise<WatchVideoResponse> {
-
-    const video = await this.videorepository.getVideoForWatching(userId, videoId);
+  async getWatchVideoMetadata(
+    videoId: string,
+    userId: string,
+  ): Promise<WatchVideoResponse> {
+    const video = await this.videorepository.getVideoForWatching(
+      userId,
+      videoId,
+    );
 
     if (!video || video.res1?.videoUrl === null) {
       throw new NotFoundException('Video not found or processing not complete');
@@ -269,18 +316,27 @@ export class VideoService {
       videoLike: Number(video.res1.videoLike),
       videoDislike: Number(video.res1.videoDislike),
       desc: video.res1.videoDesc ? video.res1.videoDesc : undefined,
-      tags: video.res1.videoHashtags?.map(vh => vh.displayTag) || [],
+      tags: video.res1.videoHashtags?.map((vh) => vh.displayTag) || [],
       ownerId: video.res1.userId,
-      ownerName: video.res1.owner?.userName ? video.res1.owner?.userName : video.res1.userId,
+      ownerName: video.res1.owner?.userName
+        ? video.res1.owner?.userName
+        : video.res1.userId,
       createdAt: video.res1.createdAt,
       subscriberCount: Number(video.res1?.owner?.subscribeCount) || 0,
       isSubscribe: video.res3 ? true : false,
       isLiked: video.res2 ? (video.res2.isLike === true ? true : false) : false,
-      isDisliked: video.res2 ? (video.res2.isLike === false ? true : false) : false,
+      isDisliked: video.res2
+        ? video.res2.isLike === false
+          ? true
+          : false
+        : false,
     };
   }
 
-  async getWatchVideoUrl(userId: string, videoId: string): Promise<WatchVideoUrlResponse> {
+  async getWatchVideoUrl(
+    userId: string,
+    videoId: string,
+  ): Promise<WatchVideoUrlResponse> {
     const video = await this.videorepository.findVideo(videoId);
 
     if (!video || video.videoUrl === null) {
@@ -307,22 +363,26 @@ export class VideoService {
     };
   }
 
-  async getVideoComments(videoId: string, cursor?: { createdAt: Date; id: string }) {
-    const comments = await this.videorepository.getVideoComments(videoId, cursor);
-    return comments.map(c => ({
+  async getVideoComments(
+    videoId: string,
+    cursor?: { createdAt: Date; id: string },
+  ) {
+    const comments = await this.videorepository.getVideoComments(
+      videoId,
+      cursor,
+    );
+    return comments.map((c) => ({
       id: c.id.toString(),
       content: c.content,
       createdAt: c.createdAt,
       likeCount: c.likeCount,
       replyCount: c.replyCount,
       ownerName: c.user.userName ? c.user.userName : c.user.id,
-    }))
-  };
-
+    }));
+  }
 
   async commentOnVideo(videoId: string, userId: string, content: string) {
     try {
-
       const video = await this.videorepository.findVideo(videoId, userId);
       if (!video) {
         throw new NotFoundException('Video not found');
@@ -335,18 +395,27 @@ export class VideoService {
       if (video.visibility === 'DRAFT') {
         throw new ForbiddenException('Cannot comment on unpublished video');
       }
-      const comment = await this.videorepository.createComment(videoId, userId, content);
+      const comment = await this.videorepository.createComment(
+        videoId,
+        userId,
+        content,
+      );
 
       return {
         id: comment.id.toString(),
         content: comment.content,
         createdAt: comment.createdAt,
-        ownerName: comment.user.userName ? comment.user.userName : comment.user.id,
+        ownerName: comment.user.userName
+          ? comment.user.userName
+          : comment.user.id,
         likeCount: 0,
         replyCount: 0,
       };
     } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ForbiddenException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ForbiddenException
+      ) {
         throw error;
       }
       console.error(`Error checking video visibility for commenting:`, error);
@@ -357,7 +426,6 @@ export class VideoService {
   async updateVideoHistory(userId: string, videoId: string, pauseAt?: number) {
     await this.videorepository.updateHistory(userId, videoId, pauseAt);
   }
-
 
   async likeOrDislikeVideo(userId: string, videoId: string, like: boolean) {
     const video = await this.videorepository.findVideo(videoId, userId);
@@ -373,33 +441,51 @@ export class VideoService {
       throw new ForbiddenException('Cannot like/dislike unpublished video');
     }
 
-    const res = await this.videorepository.likeOrDislikeVideo(userId, videoId, like);
+    const res = await this.videorepository.likeOrDislikeVideo(
+      userId,
+      videoId,
+      like,
+    );
     if (!res) {
       throw new NotFoundException('Like/dislike operation failed');
     }
 
     return {
       likeCount: Number(res.videoLike),
-      dislikeCount: Number(res.videoDislike)
+      dislikeCount: Number(res.videoDislike),
     };
   }
 
-  async subscribeChannel(userId: string, channelId: string, subscribe: boolean) {
+  async subscribeChannel(
+    userId: string,
+    channelId: string,
+    subscribe: boolean,
+  ) {
     if (userId === channelId) {
       throw new BadRequestException('Cannot subscribe to your own channel');
     }
 
-    const result = await this.videorepository.subscribeChannel(userId, channelId, subscribe);
+    const result = await this.videorepository.subscribeChannel(
+      userId,
+      channelId,
+      subscribe,
+    );
     if (!result) {
-      throw new NotFoundException('Subscription operation failed or channel not found');
+      throw new NotFoundException(
+        'Subscription operation failed or channel not found',
+      );
     }
     return {
       subscriberCount: Number(result.subscribeCount),
-      isSubscribe: subscribe
+      isSubscribe: subscribe,
     };
   }
 
-  async trackVideoWatchProgress(userId: string, videoId: string, pauseAt?: number) {
+  async trackVideoWatchProgress(
+    userId: string,
+    videoId: string,
+    pauseAt?: number,
+  ) {
     const video = await this.videorepository.findVideo(videoId, userId);
     if (!video) {
       throw new NotFoundException('Video not found');
@@ -408,7 +494,9 @@ export class VideoService {
       throw new ForbiddenException('Cannot track progress of private video');
     }
     if (video.visibility === 'DRAFT') {
-      throw new ForbiddenException('Cannot track progress of unpublished video');
+      throw new ForbiddenException(
+        'Cannot track progress of unpublished video',
+      );
     }
     await this.videorepository.updateHistory(userId, videoId, pauseAt);
   }

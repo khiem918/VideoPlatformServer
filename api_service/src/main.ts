@@ -6,6 +6,7 @@ import { readFileSync } from 'fs';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { join } from 'path';
 
 async function bootstrap() {
   const bootstrapConfigService = new ConfigService();
@@ -32,7 +33,7 @@ async function bootstrap() {
     transport: Transport.GRPC,
     options: {
       package: 'video.metadata.v1',
-      protoPath: 'proto/video_metadata.proto',
+      protoPath: join(process.cwd(), '../proto/video_metadata.proto'),
       url: configservice.get<string>('GRPC_URL') ?? 'localhost:50051',
     },
   });

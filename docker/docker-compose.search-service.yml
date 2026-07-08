@@ -12,5 +12,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/searchservicedata
 
+  redis:
+    image: redis:7-alpine
+    container_name: video-platform-search-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  redis_data:
