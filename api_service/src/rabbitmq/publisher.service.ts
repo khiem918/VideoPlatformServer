@@ -5,29 +5,32 @@ import { EXCHANGE } from './rabbitmq.module';
 
 @Injectable()
 export class PublisherService {
-    constructor(
-        private readonly amqpConnection: AmqpConnection,
-    ) {}
+  constructor(private readonly amqpConnection: AmqpConnection) {}
 
-    async transferVideoMetadata(videoId: string, title ? :string, description ? : string, hashtags ? : string[]) : Promise<string> {
-        const correlationId = videoId; 
-        const payload : TransferVideoMetadata = {
-                                                correlationId,
-                                                videoId,
-                                                ...title && { title },
-                                                ...description && { description },
-                                                ...hashtags && { hashtags }
-                                            };
+  async transferVideoMetadata(
+    videoId: string,
+    title?: string,
+    description?: string,
+    hashtags?: string[],
+  ): Promise<string> {
+    const correlationId = videoId;
+    const payload: TransferVideoMetadata = {
+      correlationId,
+      videoId,
+      ...(title && { title }),
+      ...(description && { description }),
+      ...(hashtags && { hashtags }),
+    };
 
-        await this.amqpConnection.publish(
-            EXCHANGE,
-            'video.metadata.trans',
-            payload,
-            {
-                persistent: true,
-            },
-        );            
+    await this.amqpConnection.publish(
+      EXCHANGE,
+      'video.metadata.trans',
+      payload,
+      {
+        persistent: true,
+      },
+    );
 
-        return correlationId;
-    }
+    return correlationId;
+  }
 }

@@ -15,11 +15,10 @@ import { NotificationModule } from 'src/notification/notification.module';
     PrismaModule,
     QueueModule,
     NotificationModule,
-    
+
     BullModule.registerQueue({
       name: process.env.QUEUE_NAME || 'video-processing',
     }),
-
   ],
   providers: [
     VideoProcessingHandler,

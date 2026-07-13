@@ -38,15 +38,6 @@ export const DLX_EXCHANGE = 'video.processing.dlx';
           },
 
           {
-            name: 'video.metadata.response',
-            exchange: EXCHANGE,
-            routingKey: 'video.metadata.res',
-            options: {
-              durable: true,
-            },
-          },
-
-          {
             name: 'video.metadata.dead-letter',
             exchange: DLX_EXCHANGE,
             routingKey: '#',

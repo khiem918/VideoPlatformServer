@@ -1,7 +1,8 @@
-import os
-import aio_pika 
+import aio_pika
 
-MQ_URL = os.getenv("MQ_URL", "amqp://guest:guest@localhost:5672")
+from src.core.config import config
+
+MQ_URL = config.MQ_URL
 
 EXCHANGE = "video.processing"
 DLX_EXCHANGE = "video.processing.dlx"

@@ -15,7 +15,7 @@ import { VideoModule } from './video/video.module';
 import { NotificationModule } from './notification/notification.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { PublisherModule } from './rabbitmq/publisher.module';
-import { DevtoolsModule } from '@nestjs/devtools-integration';
+import { VideoMetaDataGrpcModule } from './grpc/server/video-metadata/video-metadata.module';
 
 @Module({
   imports: [
@@ -39,10 +39,7 @@ import { DevtoolsModule } from '@nestjs/devtools-integration';
     NotificationModule,
     RabbitmqModule,
     PublisherModule,
-    DevtoolsModule.register({
-      http: true,
-      port: 3001,
-    }),
+    VideoMetaDataGrpcModule,
   ],
   controllers: [],
   providers: [S3Service],

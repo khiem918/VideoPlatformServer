@@ -21,11 +21,15 @@ export class S3Service {
   private readonly logger = new Logger(S3Service.name);
 
   constructor(private readonly configService: ConfigService) {
-    const accessKeyId = this.configService.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID') || '';
-    const secretAccessKey = this.configService.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY') || '';
-    const endpoint = this.configService.get<string>('CLOUDFLARE_R2_ENDPOINT') || '';
+    const accessKeyId =
+      this.configService.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID') || '';
+    const secretAccessKey =
+      this.configService.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY') || '';
+    const endpoint =
+      this.configService.get<string>('CLOUDFLARE_R2_ENDPOINT') || '';
     const region = this.configService.get<string>('CLOUDFLARE_R2_REGION') || '';
-    const bucketName = this.configService.get<string>('CLOUDFLARE_R2_BUCKET_NAME') || '';
+    const bucketName =
+      this.configService.get<string>('CLOUDFLARE_R2_BUCKET_NAME') || '';
 
     this.bucketName = bucketName;
 
@@ -121,7 +125,6 @@ export class S3Service {
     }
   }
 
-
   async fileExists(r2Path: string): Promise<boolean> {
     try {
       const command = new HeadObjectCommand({
@@ -138,7 +141,6 @@ export class S3Service {
       throw error;
     }
   }
-
 
   async getFileStream(r2Path: string): Promise<Readable> {
     try {
@@ -170,8 +172,10 @@ export class S3Service {
     }
   }
 
-
-  async getPresignedDownloadUrl(r2Path: string, expiresIn: number = 3600): Promise<string> {
+  async getPresignedDownloadUrl(
+    r2Path: string,
+    expiresIn: number = 3600,
+  ): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
@@ -179,7 +183,9 @@ export class S3Service {
       });
       return await getSignedUrl(this.s3Client, command, { expiresIn });
     } catch (error: any) {
-      this.logger.error(`Error generating download presigned URL: ${error.message}`);
+      this.logger.error(
+        `Error generating download presigned URL: ${error.message}`,
+      );
       throw new InternalServerErrorException('Failed to generate download URL');
     }
   }
@@ -187,7 +193,6 @@ export class S3Service {
   async getDownloadUrl(r2Path: string): Promise<string> {
     return `${this.configService.get<string>('R2_WORKER_URL')}/${r2Path}`;
   }
-
 
   async deleteDirectory(prefix: string): Promise<void> {
     try {
@@ -227,10 +232,16 @@ export class S3Service {
         continuationToken = listResponse.NextContinuationToken;
       }
 
-      this.logger.log(`Successfully deleted directory contents for prefix: ${normalizedPrefix}`);
+      this.logger.log(
+        `Successfully deleted directory contents for prefix: ${normalizedPrefix}`,
+      );
     } catch (error: any) {
-      this.logger.error(`Failed to delete directory contents for prefix ${prefix}: ${error.message}`);
-      throw new InternalServerErrorException('Failed to delete directory contents');
+      this.logger.error(
+        `Failed to delete directory contents for prefix ${prefix}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to delete directory contents',
+      );
     }
   }
 
@@ -242,12 +253,11 @@ export class S3Service {
 
     if (!secret_key) {
       this.logger.error('Missing R2_SIGN_SECRET in configuration');
-      throw new InternalServerErrorException('Missing R2_SIGN_SECRET in configuration');
+      throw new InternalServerErrorException(
+        'Missing R2_SIGN_SECRET in configuration',
+      );
     }
 
-    return createHmac('sha256', secret_key)
-      .update(data)
-      .digest('hex');
+    return createHmac('sha256', secret_key).update(data).digest('hex');
   }
-
 }

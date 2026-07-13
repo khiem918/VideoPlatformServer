@@ -28,7 +28,6 @@ export class TranscodingDataDto {
   mimeType!: string;
 }
 
-
 export interface TranscodingResponse {
   jobId: string;
   inforId: string;
@@ -43,4 +42,4 @@ export interface TranscodedVideoPaths {
   manifestPath: string;
   thumbnailPath: string;
   metadataPath: string;
-};
+}

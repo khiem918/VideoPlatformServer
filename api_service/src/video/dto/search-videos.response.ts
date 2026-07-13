@@ -24,8 +24,7 @@ export class SearchVideoItem {
   updatedAt: Date;
 
   @Field(() => String)
-  ownerName : string;
-
+  ownerName: string;
 }
 
 @ObjectType()
@@ -36,4 +35,3 @@ export class SearchVideosResponse {
   @Field(() => Int)
   total: number;
 }
-

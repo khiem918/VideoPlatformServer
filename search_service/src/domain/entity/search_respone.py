@@ -3,7 +3,8 @@ from typing import TypedDict
 
 class SearchResponseList(BaseModel):
     data: list[SearchResponse]
-
+    cursor: int | None = None
+    
 class SearchResponse(BaseModel):
     video_id: str
     title: str

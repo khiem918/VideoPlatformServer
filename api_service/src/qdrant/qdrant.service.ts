@@ -1,10 +1,6 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { QdrantClient } from '@qdrant/js-client-rest';
-import {
-  VECTOR_NAMES,
-  VideoPayload,
-  VideoPoint,
-} from './type/qdrant.types';
+import { VECTOR_NAMES, VideoPayload, VideoPoint } from './type/qdrant.types';
 
 export interface VectorSearchParams {
   denseVector: number[];
@@ -36,14 +32,20 @@ export class QdrantService implements OnModuleInit {
     // which fails inside Node's native fetch. We hide process.versions.node
     // temporarily so it doesn't create and inject the incompatible dispatcher.
     const nodeVersion = process.versions.node;
-    Object.defineProperty(process.versions, 'node', { value: undefined, configurable: true });
+    Object.defineProperty(process.versions, 'node', {
+      value: undefined,
+      configurable: true,
+    });
 
     this.qdrantClient = new QdrantClient({
       url: process.env.QDRANT_URL || 'http://localhost:6333',
       checkCompatibility: false,
     });
 
-    Object.defineProperty(process.versions, 'node', { value: nodeVersion, configurable: true });
+    Object.defineProperty(process.versions, 'node', {
+      value: nodeVersion,
+      configurable: true,
+    });
   }
 
   async onModuleInit() {
@@ -68,15 +70,15 @@ export class QdrantService implements OnModuleInit {
               distance: 'Cosine',
             },
           },
-          hnsw_config: { 
-            m: 32, 
+          hnsw_config: {
+            m: 32,
             ef_construction: 200,
             full_scan_threshold: 2000,
             on_disk: false,
-          }, 
+          },
           optimizers_config: {
             memmap_threshold: 20000,
-          }
+          },
         });
       } else {
         this.logger.log(`Collection ${this.COLLECTION_NAME} already exists.`);
@@ -88,7 +90,10 @@ export class QdrantService implements OnModuleInit {
   }
 
   private async ensurePayloadIndexes() {
-    const indexes: { field_name: string; field_schema: 'keyword' | 'integer' }[] = [
+    const indexes: {
+      field_name: string;
+      field_schema: 'keyword' | 'integer';
+    }[] = [
       { field_name: 'videoId', field_schema: 'keyword' },
       { field_name: 'userOwner', field_schema: 'keyword' },
       { field_name: 'createdAt', field_schema: 'integer' },
@@ -116,7 +121,8 @@ export class QdrantService implements OnModuleInit {
     try {
       const vector: Record<string, number[]> = {
         [VECTOR_NAMES.titleDense]: point.vectors.titleDense,
-        [VECTOR_NAMES.descDense]: point.vectors.descDense || point.vectors.titleDense,
+        [VECTOR_NAMES.descDense]:
+          point.vectors.descDense || point.vectors.titleDense,
       };
 
       await this.qdrantClient.upsert(this.COLLECTION_NAME, {
@@ -155,7 +161,7 @@ export class QdrantService implements OnModuleInit {
         using: VECTOR_NAMES.titleDense,
         limit: prefetchCap,
         ...(filter ? { filter } : {}),
-      },  
+      },
       {
         query: denseVector,
         using: VECTOR_NAMES.descDense,
@@ -171,13 +177,15 @@ export class QdrantService implements OnModuleInit {
         limit,
         with_payload: true,
         ...(filter ? { filter } : {}),
-        ...(scoreThreshold !== undefined ? { score_threshold: scoreThreshold } : {}),
+        ...(scoreThreshold !== undefined
+          ? { score_threshold: scoreThreshold }
+          : {}),
       });
 
       return response.points.map((point) => ({
         id: String(point.id),
         score: point.score,
-        payload: (point.payload ?? {}) as Partial<VideoPayload>,
+        payload: point.payload ?? {},
       }));
     } catch (error) {
       this.logger.error('Vector search failed', error);

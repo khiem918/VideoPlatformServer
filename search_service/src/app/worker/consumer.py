@@ -21,7 +21,7 @@ async def handle_metadata_transfer_message(
 
         logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}")
         
-        await container.metadata_process.process(video_id, title, desc)
+        await container.video.process_metadata(video_id, title, desc)
 
         await exchange.publish(
             aio_pika.Message(

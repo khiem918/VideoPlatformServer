@@ -18,12 +18,14 @@ export class AuthService {
     private readonly AuthRepository: AuthRepository,
     private readonly redisService: RedisService,
     private readonly jwtService: JwtService,
-    private readonly config : ConfigService,
+    private readonly config: ConfigService,
   ) {}
 
+  
   private async hashToken(token: string): Promise<string> {
     return hash(token, 10);
   }
+
 
   async signIn(userEmail: string): Promise<{
     userId: string;
@@ -73,6 +75,7 @@ export class AuthService {
       throw new InternalServerErrorException('Sign in failed');
     }
   }
+
 
   async rotateToken(
     userId: string,
@@ -155,6 +158,7 @@ export class AuthService {
       throw new InternalServerErrorException('Token rotation failed');
     }
   }
+
 
   async signOut(userId: string, sessionId: string): Promise<void> {
     try {

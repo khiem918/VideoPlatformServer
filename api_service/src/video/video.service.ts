@@ -21,6 +21,7 @@ import {
   WatchVideoUrlResponse,
 } from './dto/watch-video.respone';
 import { PublisherService } from 'src/rabbitmq/publisher.service';
+import { GrpcClientService } from 'src/grpc/client/grpc-client.service';
 
 @Injectable()
 export class VideoService {
@@ -43,6 +44,7 @@ export class VideoService {
     private readonly VideoProcessingQueueService: VideoProcessingQueueService,
     private readonly qdrantService: QdrantService,
     private readonly publisherService: PublisherService,
+    private readonly grpcClientService: GrpcClientService,
   ) {}
 
   async initUpload(
@@ -52,7 +54,6 @@ export class VideoService {
     fileSize: number,
   ): Promise<{
     videoId: string;
-    uploadId: string;
     presignedUrl: string;
     r2Path: string;
   }> {
@@ -68,7 +69,6 @@ export class VideoService {
     }
 
     const videoId = uuidv4();
-    const videoUploadId = uuidv4();
 
     const { presignedUrl, r2Path } = await this.s3Service.getPresignedUploadUrl(
       fileName,
@@ -87,7 +87,6 @@ export class VideoService {
 
     return {
       videoId: videoId,
-      uploadId: videoUploadId,
       presignedUrl,
       r2Path,
     };
@@ -150,12 +149,13 @@ export class VideoService {
       }
 
       await Promise.all([
-        await this.s3Service.deleteDirectory(directoryPath),
-        await this.qdrantService.deleteVideoVector(videoId),
-        await this.videorepository.deleteVideo(userId, videoId),
+        this.s3Service.deleteDirectory(directoryPath),
+        this.qdrantService.deleteVideoVector(videoId),
+        this.videorepository.deleteVideo(userId, videoId),
+        this.grpcClientService.deleteVideo(videoId),
       ]);
     } catch (error) {
-      console.error(`Failed to delete video from R2:`, error);
+      this.logger.error(`Failed to delete video ${videoId}`, error);
       throw new NotFoundException('Failed to delete video from storage');
     }
   }

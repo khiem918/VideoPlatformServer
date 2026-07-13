@@ -50,4 +50,3 @@ export class UserVideosListResponse {
   @Field(() => [UserVideoResponse])
   videos!: UserVideoResponse[];
 }
-

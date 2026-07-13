@@ -1,0 +1,24 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra"
+filterwarnings = [
+    "ignore:coroutine .* was never awaited:RuntimeWarning",
+    "ignore::DeprecationWarning:pytest_asyncio.*",
+    "ignore:Please use `import python_multipart` instead.:PendingDeprecationWarning:starlette.*",
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:starlette.*",
+    "ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning:fastapi.*",
+    "ignore:The 'app' shortcut is now deprecated.*:DeprecationWarning:httpx.*",
+    "ignore:Qdrant client version .* is incompatible with server version.*:UserWarning",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/infrastructure/grpc/generated/*",
+]
+
+[tool.coverage.report]
+show_missing = true

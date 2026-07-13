@@ -1,9 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from src.app.api.v1.routes import routers
+from fastapi.middleware.cors import CORSMiddleware
+from src.core.config import config
 
 load_dotenv(Path(__file__).resolve().with_name(".env"))
 
@@ -23,6 +25,7 @@ async def lifespan(app: FastAPI):
     await container.postgres.connect()
     await container.grpc_client.connect()
     await container.redis_service.connect()
+    await container.grpc_server.connect()
 
     app.state.container = container
 
@@ -36,9 +39,18 @@ async def lifespan(app: FastAPI):
     await container.postgres.disconnect()
     await container.grpc_client.close()
     await container.redis_service.disconnect()
+    await container.grpc_server.disconnect()
 
 app = FastAPI(title="search service", lifespan=lifespan)
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+app.include_router(routers, prefix="/api/v1")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[str(origin) for origin in config.CORS_ORIGINS],
+    allow_credentials=True, 
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+

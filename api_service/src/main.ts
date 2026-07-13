@@ -6,7 +6,7 @@ import { readFileSync } from 'fs';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { join } from 'path';
+import { GRPC_PACKAGE, GRPC_PROTO_PATH } from './grpc/constants';
 
 async function bootstrap() {
   const bootstrapConfigService = new ConfigService();
@@ -21,19 +21,19 @@ async function bootstrap() {
         }
       : undefined;
 
-  const app = await NestFactory.create(AppModule, { 
-                                                    httpsOptions,
-                                                    logger: ['log', 'error', 'warn', 'debug', 'verbose'],
-                                                    snapshot: true,
-                                                  });
+  const app = await NestFactory.create(AppModule, {
+    httpsOptions,
+    logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+    snapshot: true,
+  });
 
   const configservice = app.get<ConfigService>(ConfigService);
 
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.GRPC,
     options: {
-      package: 'video.metadata.v1',
-      protoPath: join(process.cwd(), '../proto/video_metadata.proto'),
+      package: GRPC_PACKAGE,
+      protoPath: GRPC_PROTO_PATH,
       url: configservice.get<string>('GRPC_URL') ?? 'localhost:50051',
     },
   });

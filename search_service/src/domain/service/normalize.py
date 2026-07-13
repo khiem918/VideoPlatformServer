@@ -1,6 +1,7 @@
 import re
 import unidecode
 import emoji
+import hashlib
 
 _URL_RE = re.compile(
     r'(?:https?://|ftp://|www\.)\S+|'
@@ -31,7 +32,7 @@ def normalize_desc(text: str) -> str:
     return text.strip()
 
 
-def normalize_title(text: str) -> str: 
+def standard_normalize(text: str) -> str: 
     if not text:
         return ""
 
@@ -48,18 +49,23 @@ def normalize_title(text: str) -> str:
     return text.strip()
 
 
-def normalize_search_query(text: str) -> str:
+def normalize_query_to_id(text: str) -> str:
     if not text:
         return ""
 
-    text = emoji.replace_emoji(text, replace=' ')
+    text = emoji.replace_emoji(text, replace='-')
 
     text = text.lower()
 
     text = unidecode.unidecode(text)
 
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    text = re.sub(r'[^a-z0-9\s]', '-', text)
 
-    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'[ \t]+', '-', text)
 
     return text.strip()
+
+
+def hashing_md5(message: str) -> str:
+    return hashlib.md5(message.encode('utf-8')).hexdigest()
+    

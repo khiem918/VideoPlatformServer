@@ -7,20 +7,16 @@ import { NotificationResolver } from './notification.resolver';
 import { RedisNotifyService } from './redis.service';
 
 @Module({
-    imports : [
+  imports: [],
+  providers: [
+    NotificationService,
+    NotificationRepository,
+    NotificationResolver,
+    NotificationConsumer,
+    RedisNotifyService,
+  ],
+  controllers: [NotificationController],
 
-    ], 
-    providers: [
-        NotificationService, 
-        NotificationRepository, 
-        NotificationResolver, 
-        NotificationConsumer,
-        RedisNotifyService,
-    ], 
-    controllers: [
-        NotificationController,
-    ],
-    
-    exports : [NotificationService],
+  exports: [NotificationService],
 })
 export class NotificationModule {}

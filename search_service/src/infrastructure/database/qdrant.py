@@ -1,8 +1,8 @@
-import os 
 import logging
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import SparseVector, Modifier
+from src.core.config import config
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ VECTOR_NAMES = {
 class QdrantService:
     def __init__(self):
         self._client = AsyncQdrantClient(
-            url=os.getenv("QDRANT_URL", "http://localhost:6333")
+            url=config.QDRANT_URL
         )
 
     async def init_collection(self): 
@@ -159,6 +159,14 @@ class QdrantService:
 
         return result.points
 
+    async def delete_video_point(self, video_id: str) -> None:
+        await self._client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=models.PointIdsList(
+                points=[video_id]
+            ), 
+            wait=True
+        )
 
 
-        
+

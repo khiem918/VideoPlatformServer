@@ -1,15 +1,14 @@
-import os
 from time import time
 from typing import Optional
-from typing import Optional
 from fastapi import Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials   
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt
+from .config import config
 from .exception import UnauthorizedException
 
 def decodeJWT(token: str) -> Optional[dict]:
-    try: 
-        payload = jwt.decode(token, os.environ.get("JWT_SECRET"), algorithms=["HS256"])
+    try:
+        payload = jwt.decode(token, config.JWT_SECRET, algorithms=["HS256"])
         return payload 
     except:
         return None

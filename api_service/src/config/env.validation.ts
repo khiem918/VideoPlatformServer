@@ -70,9 +70,9 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   MAX_FILE_SIZE!: number;
 
-  @IsNotEmpty()  
+  @IsNotEmpty()
   @IsString()
-  QUEUE_NAME! : string;
+  QUEUE_NAME!: string;
 
   @IsNotEmpty()
   @IsString()
@@ -97,6 +97,14 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   RABBITMQ_URI!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  GRPC_URL!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  SEARCH_SERVICE_GRPC_URL!: string;
 }
 
 export function validateEnv(

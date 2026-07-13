@@ -1,65 +1,64 @@
-import { Field, ObjectType, Int } from "@nestjs/graphql";
+import { Field, ObjectType, Int } from '@nestjs/graphql';
 
 @ObjectType()
 export class WatchVideoResponse {
-    @Field(() => String)
-    id! : string;
+  @Field(() => String)
+  id!: string;
 
-    @Field(() => Int)
-    duration!: number;
+  @Field(() => Int)
+  duration!: number;
 
-    @Field(() => String)
-    videoName!: string;
+  @Field(() => String)
+  videoName!: string;
 
-    @Field(() => Int)
-    videoView!: number;
+  @Field(() => Int)
+  videoView!: number;
 
-    @Field(() => Int)
-    videoLike!: number;
+  @Field(() => Int)
+  videoLike!: number;
 
-    @Field(() => Int)
-    videoDislike!: number;
+  @Field(() => Int)
+  videoDislike!: number;
 
-    @Field(() => String, { nullable: true })
-    desc? : string;
+  @Field(() => String, { nullable: true })
+  desc?: string;
 
-    @Field(() => [String], { nullable: true })
-    tags?: string[];
+  @Field(() => [String], { nullable: true })
+  tags?: string[];
 
-    @Field(() => Date)
-    createdAt!: Date;
+  @Field(() => Date)
+  createdAt!: Date;
 
-    @Field(() => String)
-    ownerId!: string;
+  @Field(() => String)
+  ownerId!: string;
 
-    @Field(() => String)
-    ownerName!: string;
+  @Field(() => String)
+  ownerName!: string;
 
-    @Field(() => Int)
-    subscriberCount!: number;
+  @Field(() => Int)
+  subscriberCount!: number;
 
-    @Field(() => Boolean)
-    isSubscribe!: boolean;
+  @Field(() => Boolean)
+  isSubscribe!: boolean;
 
-    @Field(() => Boolean)
-    isLiked!: boolean;
-    
-    @Field(() => Boolean)
-    isDisliked!: boolean;
+  @Field(() => Boolean)
+  isLiked!: boolean;
+
+  @Field(() => Boolean)
+  isDisliked!: boolean;
 }
 
 @ObjectType()
 export class WatchVideoUrlResponse {
-    @Field(() => String)
-    mpdUrl!: string;
+  @Field(() => String)
+  mpdUrl!: string;
 
-    @Field(() => String)
-    signature!: string; 
+  @Field(() => String)
+  signature!: string;
 
-    @Field(() => Int)
-    expiresAt!: number; 
+  @Field(() => Int)
+  expiresAt!: number;
 }
-
 
 @ObjectType()
 export class LikeDislikeResponse {
@@ -67,14 +66,14 @@ export class LikeDislikeResponse {
   likeCount!: number;
 
   @Field(() => Int)
-  dislikeCount!: number; 
+  dislikeCount!: number;
 }
 
 @ObjectType()
 export class SubscribeChannelResponse {
-    @Field(() => Boolean)
-    isSubscribe!: boolean;
-    
-    @Field(() => Int )
-    subscriberCount!: number;
+  @Field(() => Boolean)
+  isSubscribe!: boolean;
+
+  @Field(() => Int)
+  subscriberCount!: number;
 }

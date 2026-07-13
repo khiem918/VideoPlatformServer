@@ -6,31 +6,38 @@ import { TransferDataRepository } from './repository/transferdata.repository';
 
 @Injectable()
 export class ConsumerService {
-    constructor(
-        private readonly transferDataRepository: TransferDataRepository,
-    ) { }
+  constructor(
+    private readonly transferDataRepository: TransferDataRepository,
+  ) {}
 
-    @RabbitSubscribe({
-        exchange: EXCHANGE,
-        routingKey: 'video.metadata.res',
-        queue: 'video.metadata.response',
-    })
-    async handleVideoMetadataRespone(message: TransferVideoMetaDataResponse): Promise<void> {
-        if (message.status === 'successed') {
-
-            await this.transferDataRepository.updateProcessingStatus(message.correlationId, 'successed');
-            return;
-
-        }
-
-        if (message.status === 'failed') {
-
-            await this.transferDataRepository.updateProcessingStatus(message.correlationId, 'failed', message.error);
-            return;
-            
-        }
-
+  @RabbitSubscribe({
+    exchange: EXCHANGE,
+    routingKey: 'video.metadata.res',
+    queue: 'video.metadata.response',
+    queueOptions: {
+      durable: true,
+      deadLetterExchange: 'video.processing.dlx',
+      deadLetterRoutingKey: 'video.metadata.res',
+    },
+  })
+  async handleVideoMetadataRespone(
+    message: TransferVideoMetaDataResponse,
+  ): Promise<void> {
+    if (message.status === 'successed') {
+      await this.transferDataRepository.updateProcessingStatus(
+        message.correlationId,
+        'successed',
+      );
+      return;
     }
 
+    if (message.status === 'failed') {
+      await this.transferDataRepository.updateProcessingStatus(
+        message.correlationId,
+        'failed',
+        message.error,
+      );
+      return;
+    }
+  }
 }
-

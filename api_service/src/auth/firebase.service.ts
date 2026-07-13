@@ -7,7 +7,7 @@ import { DecodedIdToken, getAuth } from 'firebase-admin/auth';
 export class FirebaseService implements OnModuleInit {
   private app!: App;
 
-  constructor(private readonly config: ConfigService) { }
+  constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
     if (getApps().length) {

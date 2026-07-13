@@ -102,14 +102,20 @@ export class AuthResolver {
         secure: true,
         sameSite: 'lax',
         signed: true,
-        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
+        maxAge: parseInt(
+          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
+          10,
+        ),
       });
       res.cookie('SSID', newSessionId, {
         httpOnly: true,
         secure: true,
         sameSite: 'lax',
         signed: true,
-        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
+        maxAge: parseInt(
+          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
+          10,
+        ),
       });
     }
     return { user_id: user.userId, accessToken: newAccessToken };
@@ -136,14 +142,20 @@ export class AuthResolver {
         secure: true,
         sameSite: 'strict',
         signed: true,
-        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
+        maxAge: parseInt(
+          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
+          10,
+        ),
       });
       res.cookie('SSID', newSessionId, {
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
         signed: true,
-        maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
+        maxAge: parseInt(
+          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
+          10,
+        ),
       });
     }
 
@@ -168,6 +180,4 @@ export class AuthResolver {
     res.clearCookie('SSID');
     return true;
   }
-
-
 }

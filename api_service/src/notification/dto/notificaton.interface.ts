@@ -1,6 +1,6 @@
-export interface NotificationEvent { 
-    userId: string;
-    type: string;
-    payload: string;
-    id: string;
+export interface NotificationEvent {
+  userId: string;
+  type: string;
+  payload: string;
+  id: string;
 }

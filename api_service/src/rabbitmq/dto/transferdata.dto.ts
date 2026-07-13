@@ -1,14 +1,14 @@
-import { IsString, IsNotEmpty } from "class-validator/types/decorator/decorators";
+import { IsString, IsNotEmpty } from 'class-validator';
 
 export class TransferVideoMetaDataResponse {
-    @IsString()
-    @IsNotEmpty()
-    correlationId!: string;
-    
-    @IsString()
-    @IsNotEmpty()
-    status!: 'successed' | 'failed'; 
+  @IsString()
+  @IsNotEmpty()
+  correlationId!: string;
 
-    @IsString()
-    error?: string;
+  @IsString()
+  @IsNotEmpty()
+  status!: 'successed' | 'failed';
+
+  @IsString()
+  error?: string;
 }

@@ -13,7 +13,6 @@ import { UploadMetaStatus, UploadVideoStatus } from '@prisma/client';
 
 @Injectable()
 export class VideoProcessingService {
-
   private readonly logger = new Logger(VideoProcessingService.name);
   private readonly tempDir = '/tmp/video-processing';
 
@@ -31,14 +30,13 @@ export class VideoProcessingService {
     }
   }
 
-
-  async transcodeVideo(data: TranscodingDataDto): Promise<TranscodedVideoPaths> {
-
+  async transcodeVideo(
+    data: TranscodingDataDto,
+  ): Promise<TranscodedVideoPaths> {
     const { inforId, processingId, r2Path, mimeType } = data;
     const workDir = path.join(this.tempDir, inforId);
 
     try {
-
       const inputPath = await this.downloadVideoFromR2(
         r2Path,
         workDir,
@@ -50,10 +48,7 @@ export class VideoProcessingService {
 
       const dashOutputDir = path.join(workDir, 'dash');
 
-      await this.ffmpegService.transcodeToDASH(
-        inputPath,
-        dashOutputDir,
-      );
+      await this.ffmpegService.transcodeToDASH(inputPath, dashOutputDir);
 
       const thumbsDir = path.join(workDir, 'thumb');
       await fs.promises.mkdir(thumbsDir, { recursive: true });
@@ -80,11 +75,7 @@ export class VideoProcessingService {
         'utf8',
       );
 
-      const uploadResult = await this.uploadToR2(
-        workDir,
-        processingId,
-        r2Path,
-      );
+      const uploadResult = await this.uploadToR2(workDir, processingId, r2Path);
 
       /* 
      
@@ -93,13 +84,14 @@ export class VideoProcessingService {
                   - handle logic: if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE
       */
 
-      const {videoId, videoStatus, metaStatus} = await this.repository.completeVideoProcessing(
-        inforId,
-        processingId,
-        uploadResult.manifestPath,
-        uploadResult.thumbnailPath,
-        videoDuration,
-      );
+      const { videoId, videoStatus, metaStatus } =
+        await this.repository.completeVideoProcessing(
+          inforId,
+          processingId,
+          uploadResult.manifestPath,
+          uploadResult.thumbnailPath,
+          videoDuration,
+        );
 
       await this.triggerVideoStatus(videoId, videoStatus, metaStatus);
 
@@ -108,9 +100,8 @@ export class VideoProcessingService {
       );
 
       return uploadResult;
-
     } catch (error) {
-      await this.recordFailure( inforId, processingId, error);
+      await this.recordFailure(inforId, processingId, error);
 
       if (error instanceof InvalidVideoException) {
         throw error;
@@ -122,7 +113,7 @@ export class VideoProcessingService {
 
       throw new TranscodingFailedException(
         `Transcoding failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-         inforId,
+        inforId,
         true,
       );
     } finally {
@@ -147,14 +138,13 @@ export class VideoProcessingService {
       await pipeline(videoStream, writeStream);
 
       return inputPath;
-
     } catch (error) {
       throw error instanceof TranscodingFailedException
         ? error
         : new TranscodingFailedException(
-          `R2 download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          r2Path.split('/')[0],
-        );
+            `R2 download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            r2Path.split('/')[0],
+          );
     }
   }
 
@@ -163,13 +153,14 @@ export class VideoProcessingService {
     processingId: string,
     sourceR2Path: string,
   ): Promise<TranscodedVideoPaths> {
-
     const videoId = this.s3Service.extractVideoIdFromR2Path(sourceR2Path);
 
     const files = await this.getFilesRecursive(localOutputDir);
 
     const artifactFiles = files.filter((file) => {
-      const relativePath = path.relative(localOutputDir, file).replace(/\\/g, '/');
+      const relativePath = path
+        .relative(localOutputDir, file)
+        .replace(/\\/g, '/');
       return (
         relativePath.startsWith('dash/') ||
         relativePath.startsWith('thumb/') ||
@@ -190,7 +181,9 @@ export class VideoProcessingService {
 
     await Promise.all(
       artifactFiles.map(async (file) => {
-        const relativePath = path.relative(localOutputDir, file).replace(/\\/g, '/');
+        const relativePath = path
+          .relative(localOutputDir, file)
+          .replace(/\\/g, '/');
         const fileBuffer = await fs.promises.readFile(file);
         const mimeType = this.getMimeTypeByPath(relativePath);
         const r2Path = this.s3Service.buildVideoPath(videoId, relativePath);
@@ -268,21 +261,22 @@ export class VideoProcessingService {
     return results;
   }
 
-
-  private async recordFailure(inforId: string, processingId: string, error: unknown): Promise<void> {
+  private async recordFailure(
+    inforId: string,
+    processingId: string,
+    error: unknown,
+  ): Promise<void> {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error';
 
     try {
+      await this.repository.recordFailure(inforId, processingId, errorMessage);
 
-      await this.repository.recordFailure( inforId, processingId, errorMessage);
-     
-      this.logger.error(`Recorded failure for video ${inforId}: ${errorMessage}`);
-
+      this.logger.error(
+        `Recorded failure for video ${inforId}: ${errorMessage}`,
+      );
     } catch (dbError) {
-
       this.logger.error(`Failed to record failure for ${inforId}`, dbError);
-
     }
   }
 
@@ -298,7 +292,6 @@ export class VideoProcessingService {
       );
     }
   }
-
 
   private getFileExtension(mimeType: string): string {
     const mimeToExt: Record<string, string> = {
@@ -343,15 +336,22 @@ export class VideoProcessingService {
   /*
   if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE & video.visibility = PUBLIC  
   */
-  private triggerVideoStatus(videoId: string, videoStatus: UploadVideoStatus, metaStatus: UploadMetaStatus) {
-      if (videoStatus == UploadVideoStatus.PROCESSED && metaStatus == UploadMetaStatus.PROCESSED) { 
-         try { 
-          this.repository.publicVideo(videoId);
-         }
-          catch (error) { 
-            this.logger.error(`Failed to update video status to AVAILABLE for video ${videoId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-         }
+  private triggerVideoStatus(
+    videoId: string,
+    videoStatus: UploadVideoStatus,
+    metaStatus: UploadMetaStatus,
+  ) {
+    if (
+      videoStatus == UploadVideoStatus.PROCESSED &&
+      metaStatus == UploadMetaStatus.PROCESSED
+    ) {
+      try {
+        this.repository.publicVideo(videoId);
+      } catch (error) {
+        this.logger.error(
+          `Failed to update video status to AVAILABLE for video ${videoId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
       }
+    }
   }
 }
-

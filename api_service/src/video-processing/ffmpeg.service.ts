@@ -85,7 +85,7 @@ export class FFmpegService {
         outputOptions.push(`-b:v:${i}`, q.bitrate);
         outputOptions.push(`-s:v:${i}`, `${q.w}x${q.h}`);
       });
-      
+
       outputOptions.push('-g', '48');
       outputOptions.push('-keyint_min', '48');
       outputOptions.push('-sc_threshold', '0');

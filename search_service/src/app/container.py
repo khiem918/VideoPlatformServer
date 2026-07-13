@@ -4,8 +4,9 @@ from src.infrastructure.redis.redis import RedisService
 from src.infrastructure.ml_model.embeding_model import EmbeddingService
 from src.infrastructure.database.qdrant import QdrantService
 from src.infrastructure.database.postgres import PostgresService
-from src.domain.service.metadata_process import MetadataProcessService
 from src.infrastructure.grpc.grpc_client import GrpcClient
+from src.domain.service.video import Video
+from src.infrastructure.grpc.grpc_server import GrpcServer
 
 class Container:
     def __init__(self):
@@ -17,9 +18,10 @@ class Container:
         self.grpc_client = GrpcClient()
         self.s3_client = S3Client()
         
-        self.metadata_process = MetadataProcessService(
+        self.video = Video(
             embedding=self.embedding,
             qdrant=self.qdrant,
+            redis=self.redis_service
         )
         
         self.search_service = SearchService(
@@ -30,5 +32,6 @@ class Container:
             s3_client=self.s3_client
         )
 
+        self.grpc_server = GrpcServer()
 
 container = Container()

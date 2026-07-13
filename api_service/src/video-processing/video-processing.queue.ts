@@ -17,23 +17,23 @@ export class VideoProcessingQueueService {
   ) {}
 
   async addTranscodingJob(data: TranscodingDataDto): Promise<string> {
-      const job = await this.queue.add('transcode-video', data, {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 5000,
-        },
-        removeOnComplete: true,
-        removeOnFail: true,           /// retry by cronjob 
-      });
+    const job = await this.queue.add('transcode-video', data, {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 5000,
+      },
+      removeOnComplete: true,
+      removeOnFail: true, /// retry by cronjob
+    });
 
-      this.logger.log(
-        `Added transcoding job for inforId: ${data.inforId}, processingId: ${data.processingId}, jobId: ${job.id}`,
-      );
-      
-      job.updateProgress(5);
+    this.logger.log(
+      `Added transcoding job for inforId: ${data.inforId}, processingId: ${data.processingId}, jobId: ${job.id}`,
+    );
 
-      return job.id as string;
+    job.updateProgress(5);
+
+    return job.id as string;
   }
 
   async getJobStatus(jobId: string): Promise<TranscodingResponse | null> {
@@ -49,8 +49,7 @@ export class VideoProcessingQueueService {
 
       const progress =
         typeof job.progress === 'function'
-          ? 
-            (job.progress() as number | null)
+          ? (job.progress() as number | null)
           : (job.progress as unknown as number | null);
 
       return {
@@ -62,22 +61,18 @@ export class VideoProcessingQueueService {
         startedAt: job.processedOn ? new Date(job.processedOn) : new Date(),
         completedAt: job.finishedOn ? new Date(job.finishedOn) : undefined,
       };
-
     } catch (error) {
-
       this.logger.error(
         `Failed to get job status for ${jobId}`,
         error instanceof Error ? error.stack : error,
       );
 
       throw error;
-
     }
   }
 
   async removeJob(jobId: string): Promise<void> {
     try {
-
       const job = await this.queue.getJob(jobId);
 
       if (!job) {
@@ -88,16 +83,13 @@ export class VideoProcessingQueueService {
       await job.remove();
 
       this.logger.log(`Removed job: ${jobId}`);
-
     } catch (error) {
-
       this.logger.error(
         `Failed to remove job ${jobId}`,
         error instanceof Error ? error.stack : error,
       );
 
       throw error;
-
     }
   }
 }
