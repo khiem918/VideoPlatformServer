@@ -9,6 +9,10 @@ class SearchResponse(BaseModel):
     view: int
     date: int
     channel: str    
+    start: float
+    end: float
+    matched_text: str
+    score: float
 
 class SearchResponseList(BaseModel):
     data: list[SearchResponse]
@@ -21,3 +25,4 @@ class VideoMetadata(TypedDict):
     view: int
     date: int
     channel: str
+    visibility: str

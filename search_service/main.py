@@ -10,7 +10,8 @@ load_dotenv(Path(__file__).resolve().with_name(".env"))
 from src.app.container import container
 from src.app.worker.consumer import start_consumer
 from src.app.worker.dlq_consumer import start_dlq_consumer
-from src.app.worker.semantic_worker import start_semantic_worker  
+from src.app.worker.semantic_worker import start_semantic_worker 
+from src.app.api.v1.routes import routers
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ async def lifespan(app: FastAPI):
     await container.redis_service.disconnect()
 
 app = FastAPI(title="search service", lifespan=lifespan)
+app.include_router(routers)
 
 @app.get("/health")
 def health_check():

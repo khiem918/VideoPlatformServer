@@ -28,7 +28,7 @@ class Container:
 
         self.search_service = SearchService(
             embedding_service=self.embedding,
-            qdrant_service=self.qdrant,
+            chunk_qdrant_service=self.chunk_qdrant,
             redis_service=self.redis_service,
             grpc_service=self.grpc_client,
             s3_client=self.s3_client,
