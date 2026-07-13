@@ -10,6 +10,7 @@
 *.userosscache
 *.sln.docstates
 *.env
+docker/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -248,6 +249,7 @@ _pkginfo.txt
 # Others
 ClientBin/
 ~$*
+docs/guides/
 *~
 *.dbmdl
 *.dbproj.schemaview
@@ -498,5 +500,14 @@ env/
 
 .generated/
 # Package locks and generated files
-package-lock.json
+# package-lock.json
 generated/
+
+
+opencode.json
+
+.codegraph/
+
+.docs/*
+
+.=1.68

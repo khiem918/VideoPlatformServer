@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package video.metadata.v1;
+
+/*
+   Get video metadata. Client: search_service. Server: api_service.
+*/
+message GetVideoMetaDataRequest {
+  repeated string video_id = 1;
+}
+
+message VideoMetaData {
+  string video_id = 1;
+  string title = 2;
+  optional string description = 3;
+  string thumbnail_url = 4;
+  int64 view = 5;
+  int32 duration = 6;
+  int32 date = 7;
+  string channel = 8;
+  string visibility = 9;
+}
+
+message GetVideoMetaDataResponse {
+  repeated VideoMetaData video_metadata = 1;
+}
+
+service VideoMetaDataService {
+  rpc GetVideoMetaData(GetVideoMetaDataRequest) returns (GetVideoMetaDataResponse);
+}
+
+/*
+   Delete video. Client: api_service. Server: search_service.
+*/
+message GetDeleteVideoRequest {
+  string video_id = 1;
+}
+
+enum DeleteVideoStatus {
+  DELETE_VIDEO_STATUS_UNSPECIFIED = 0;
+  DELETE_VIDEO_STATUS_FAILED = 1;
+  DELETE_VIDEO_STATUS_SUCCEEDED = 2;
+}
+
+message GetDeleteVideoResponse {
+  DeleteVideoStatus status = 1;
+}
+
+service DeleteVideoService {
+  rpc GetDeleteVideo(GetDeleteVideoRequest) returns (GetDeleteVideoResponse);
+}

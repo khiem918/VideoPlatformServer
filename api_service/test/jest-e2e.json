@@ -1,0 +1,17 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(jose)/)"
+  ],
+  "moduleNameMapper": {
+    "^nanoid$": "<rootDir>/../src/__mocks__/nanoid.ts",
+    "^uuid$": "<rootDir>/../src/__mocks__/uuid.ts",
+    "^src/(.*)$": "<rootDir>/../src/$1"
+  }
+}

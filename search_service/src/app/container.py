@@ -1,0 +1,37 @@
+from src.infrastructure.s3.s3_client import S3Client
+from src.domain.service.search import SearchService
+from src.infrastructure.redis.redis import RedisService
+from src.infrastructure.ml_model.embeding_model import EmbeddingService
+from src.infrastructure.database.qdrant import QdrantService
+from src.infrastructure.database.postgres import PostgresService
+from src.infrastructure.grpc.grpc_client import GrpcClient
+from src.domain.service.video import Video
+from src.infrastructure.grpc.grpc_server import GrpcServer
+
+class Container:
+    def __init__(self):
+        
+        self.embedding = EmbeddingService()
+        self.qdrant = QdrantService()
+        self.postgres = PostgresService()
+        self.redis_service = RedisService()
+        self.grpc_client = GrpcClient()
+        self.s3_client = S3Client()
+        
+        self.video = Video(
+            embedding=self.embedding,
+            qdrant=self.qdrant,
+            redis=self.redis_service
+        )
+        
+        self.search_service = SearchService(
+            embedding_service=self.embedding,
+            qdrant_service=self.qdrant,
+            redis_service=self.redis_service,
+            grpc_service=self.grpc_client,
+            s3_client=self.s3_client
+        )
+
+        self.grpc_server = GrpcServer()
+
+container = Container()
