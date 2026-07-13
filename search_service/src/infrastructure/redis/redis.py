@@ -7,7 +7,7 @@ from typing import Optional, Any
 class RedisService:
     def __init__(self):
         self._client: Redis = Redis.from_url(
-            os.getenv("REDIS_URL", "redis://localhost:5438"),
+            os.getenv("REDIS_URL", "redis://localhost:6380"),
             decode_responses=True,
         )
         

@@ -1,9 +1,6 @@
 from pydantic import BaseModel
 from typing import TypedDict 
 
-class SearchResponseList(BaseModel):
-    data: list[SearchResponse]
-
 class SearchResponse(BaseModel):
     video_id: str
     title: str
@@ -12,6 +9,9 @@ class SearchResponse(BaseModel):
     view: int
     date: int
     channel: str    
+
+class SearchResponseList(BaseModel):
+    data: list[SearchResponse]
 
 class VideoMetadata(TypedDict):
     video_id: str

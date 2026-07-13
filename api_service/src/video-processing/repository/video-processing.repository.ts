@@ -15,6 +15,7 @@ export class VideoProcessingRepository {
     duration: number,
   ): Promise<{
     videoId: string,
+    userId: string,
     videoStatus: UploadVideoStatus,
     metaStatus: UploadMetaStatus
   }> {
@@ -31,14 +32,14 @@ export class VideoProcessingRepository {
         },
       });
 
-      await tx.video.update({
+      const video = await tx.video.update({           // ⬅ đổi tên biến để lấy kết quả
         where: { id: info.videoId },
         data: {
           videoUrl: videoUrl,
           thumbnailUrl: thumbnailUrl,
           duration: duration,
         },
-      })
+      });
 
       await tx.videoProcessing.update({
         where: { id: videoProcessingId },
@@ -50,6 +51,7 @@ export class VideoProcessingRepository {
 
       return {
         videoId: info.videoId,
+        userId: video.userId,
         videoStatus: info.videoStatus,
         metaStatus: info.metaStatus,
       };

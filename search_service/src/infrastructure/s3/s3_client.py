@@ -1,7 +1,7 @@
 import os
 import boto3
 from botocore.config import Config 
-
+import asyncio
 
 class S3Client:     
     def __init__(self):
@@ -27,3 +27,19 @@ class S3Client:
             ExpiresIn=expiration,
         )
         return url
+    
+    async def download_file(self, r2_path: str, local_path: str) -> None:
+        """
+        Download file từ Cloudflare R2 về đường dẫn local.
+        boto3 download_file là blocking → chạy trong thread pool
+        để không block event loop async.
+
+        Args:
+            r2_path:    đường dẫn file trên R2 (giá trị từ job.r2Path)
+            local_path: đường dẫn local để lưu file về
+        """
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: self._client.download_file(self._bucket, r2_path, local_path),
+        )

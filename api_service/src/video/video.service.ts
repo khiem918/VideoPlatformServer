@@ -248,6 +248,8 @@ export class VideoService {
 
     await this.publisherService.transferVideoMetadata(
       result.id,
+      userId,
+      result.visibility,
       title ? title : undefined,
       description ? description : undefined,
       tags ? tags : undefined,

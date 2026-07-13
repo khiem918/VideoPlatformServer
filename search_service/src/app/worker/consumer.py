@@ -17,11 +17,14 @@ async def handle_metadata_transfer_message(
         correlation_id = payload.get('correlationId')
         video_id = payload.get('videoId')
         title = payload.get('title')
-        desc = payload.get('desc')
+        desc = payload.get('description')
+        user_id = payload.get('userId')
+        visibility = payload.get('visibility')
+        hashtags = payload.get('hashtags')
 
         logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}")
         
-        await container.metadata_process.process(video_id, title, desc)
+        await container.metadata_process.process(video_id, title, desc, user_id=user_id, visibility=visibility,)
 
         await exchange.publish(
             aio_pika.Message(

@@ -10,6 +10,7 @@ import { TranscodingFailedException } from './exceptions/transcoding-failed.exce
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
 import { TranscodedVideoPaths } from './dto/transcodingdata.dto';
 import { UploadMetaStatus, UploadVideoStatus } from '@prisma/client';
+import { SemanticQueueService } from '../semantic-search/semantic-search.queue';
 
 @Injectable()
 export class VideoProcessingService {
@@ -21,6 +22,7 @@ export class VideoProcessingService {
     private readonly ffmpegService: FFmpegService,
     private readonly repository: VideoProcessingRepository,
     private readonly s3Service: S3Service,
+    private readonly semanticQueueService: SemanticQueueService,
   ) {
     this.ensureTempDir();
   }
@@ -93,7 +95,7 @@ export class VideoProcessingService {
                   - handle logic: if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE
       */
 
-      const {videoId, videoStatus, metaStatus} = await this.repository.completeVideoProcessing(
+      const {videoId, userId, videoStatus, metaStatus} = await this.repository.completeVideoProcessing(
         inforId,
         processingId,
         uploadResult.manifestPath,
@@ -102,6 +104,17 @@ export class VideoProcessingService {
       );
 
       await this.triggerVideoStatus(videoId, videoStatus, metaStatus);
+
+      if (videoStatus === UploadVideoStatus.PROCESSED && metaStatus === UploadMetaStatus.PROCESSED) {
+        await this.semanticQueueService.addSemanticIndexingJob({
+          inforId,
+          processingId,
+          videoId,
+          userId,
+          r2Path: data.r2Path,
+          mimeType: data.mimeType,
+        });
+      }
 
       this.logger.log(
         `Completed transcoding for video ${inforId}, manifest: ${uploadResult.manifestPath}, thumbnail: ${uploadResult.thumbnailPath}`,

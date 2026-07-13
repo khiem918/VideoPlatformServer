@@ -8,7 +8,7 @@ from qdrant_client.http.models import SparseVector, Modifier
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "videos"
-VECTOR_DEMENSION = 768
+VECTOR_DIMENSION = 1024
 
 VECTOR_NAMES = { 
     "titleDense": "title", 
@@ -32,11 +32,11 @@ class QdrantService:
                 collection_name=COLLECTION_NAME,
                 vectors_config={
                     VECTOR_NAMES["titleDense"]: models.VectorParams(
-                                                    size=VECTOR_DEMENSION, 
+                                                    size=VECTOR_DIMENSION, 
                                                     distance=models.Distance.COSINE
                                                 ),
                     VECTOR_NAMES["descDense"]: models.VectorParams(
-                                                    size=VECTOR_DEMENSION, 
+                                                    size=VECTOR_DIMENSION, 
                                                     distance=models.Distance.COSINE
                                             ),
                     }, 
@@ -65,12 +65,16 @@ class QdrantService:
         else: 
 
             logger.info(f"Collection '{COLLECTION_NAME}' already exists.")
+            
+        await self._ensure_payload_indexes()
 
         
     async def _ensure_payload_indexes(self):
         indexes = [
             ("title", models.PayloadSchemaType.KEYWORD),
             ("desc", models.PayloadSchemaType.KEYWORD),
+            ("user_id", models.PayloadSchemaType.KEYWORD),
+            ("visibility", models.PayloadSchemaType.KEYWORD),
         ]
 
         for field_name, field_type in indexes:
@@ -91,7 +95,9 @@ class QdrantService:
         desc_vector: list[float] | None, 
         sparse_vector: SparseVector,
         title: str, 
-        desc: str | None, 
+        desc: str | None,
+        user_id: str | None = None,
+        visibility: str | None = None,
     ) -> None:
         vector = {}
 
@@ -107,6 +113,10 @@ class QdrantService:
         payload["title"] = title
         if desc:
             payload["desc"] = desc
+        if user_id:
+            payload["user_id"] = user_id
+        if visibility:
+            payload["visibility"] = visibility
 
         await self._client.upsert(
             collection_name=COLLECTION_NAME,

@@ -1,5 +1,6 @@
 import os
 import logging
+import uuid
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 
@@ -89,7 +90,7 @@ class ChunkQdrantService:
 
         points = [
             models.PointStruct(
-                id=f"{chunk['video_id']}_{i}",
+                id=str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{chunk['video_id']}_{i}")),
                 vector={
                     CHUNK_VECTOR_NAMES["transcriptDense"]: vector,
                 },
@@ -99,7 +100,7 @@ class ChunkQdrantService:
                     "start":      chunk["start"],
                     "end":        chunk["end"],
                     "text":       chunk["text"],
-                    "source":     chunk["source"],   # 'audio' | 'caption'
+                    "source":     chunk["source"],
                     "createdAt":  chunk["created_at"],
                 },
             )
