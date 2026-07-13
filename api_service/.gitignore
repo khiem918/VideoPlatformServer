@@ -56,3 +56,7 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+
+# Stray artifacts (shell globbing from unquoted 'pip install package=X.Y' or 'npm install package@X.Y')
+=*
+

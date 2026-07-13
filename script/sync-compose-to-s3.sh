@@ -8,9 +8,9 @@ set -euo pipefail
 BUCKET="${DEPLOY_S3_BUCKET:-videoplatform-deploy-artifacts-dsk}"
 PREFIX="${DEPLOY_S3_PREFIX:-compose}"
 
-if [[ "$BUCKET" == *"PLACEHOLDER"* ]]; then
+if [[ "$BUCKET" == *"PLACEHOLDER"* || "$BUCKET" == *"XXXX"* ]]; then
   echo "ERROR: set DEPLOY_S3_BUCKET env var to your real bucket name" >&2
-  echo "  export DEPLOY_S3_BUCKET=videoplatform-deploy-artifacts-XXXX" >&2
+  echo "  export DEPLOY_S3_BUCKET=videoplatform-deploy-artifacts-dsk" >&2
   exit 1
 fi
 

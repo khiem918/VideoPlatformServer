@@ -42,6 +42,10 @@ Thumbs.db
 # Prisma generated artifacts (re-generated inside image)
 prisma/migrations/**/migration.sql.bak
 
+# Stray artifact (shell globbing from unquoted 'pip install package=X.Y' or 'npm install package@X.Y')
+=1.68
+=*
+
 # Docker files at this level
 Dockerfile
 .dockerignore

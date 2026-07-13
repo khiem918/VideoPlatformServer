@@ -12,6 +12,29 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/searchservicedata
 
+  redis:
+    image: redis:7-alpine
+    container_name: video-platform-search-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.6
+    container_name: video-platform-search-qdrant
+    restart: unless-stopped
+    ports:
+      - "6335:6333"
+      - "6336:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__HTTP_PORT: 6333
+      QDRANT__SERVICE__GRPC_PORT: 6334
+
   search_service:
     image: ${ECR_REGISTRY}/search-service:latest
     container_name: video-platform-search
@@ -20,8 +43,15 @@ services:
       - .env.search
     ports:
       - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
     depends_on:
       - postgres
+      - redis
+      - qdrant
 
 volumes:
   pgdata:
+  redis_data:
+  qdrant_storage:
