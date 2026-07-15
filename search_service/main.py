@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
 
     container.embedding.load_model()
-    container.transcription.load_model()                          
+    container.transcription.load_model()      
+    container.caption.load_model()                    
 
     # Init collections + connections
     await container.qdrant.init_collection()

@@ -9,6 +9,7 @@ from src.domain.service.metadata_process import MetadataProcessService
 from src.infrastructure.grpc.grpc_client import GrpcClient
 from src.domain.service.transcription_service import TranscriptionService      
 from src.domain.service.video_processing_service import VideoProcessingService
+from src.domain.service.caption_service import CaptionService
 
 class Container:
     def __init__(self):
@@ -20,6 +21,7 @@ class Container:
         self.redis_service = RedisService()
         self.grpc_client   = GrpcClient()
         self.s3_client     = S3Client()
+        self.caption       = CaptionService()
 
         self.metadata_process = MetadataProcessService(
             embedding=self.embedding,
@@ -41,6 +43,7 @@ class Container:
             embedding=self.embedding,    
             chunk_qdrant=self.chunk_qdrant,
             s3_client=self.s3_client,    
+            caption=self.caption,
         )
 
 

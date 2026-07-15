@@ -6,6 +6,8 @@ from src.domain.service.transcription_service import TranscriptionService
 from src.infrastructure.ml_model.embeding_model import EmbeddingService
 from src.infrastructure.database.chunk_qdrant import ChunkQdrantService
 from src.infrastructure.s3.s3_client import S3Client
+from src.domain.service.caption_service import CaptionService
+
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ SUPPORTED_MIME_TYPES = {
     "video/quicktime",
     "video/x-msvideo",
 }
-
+CAPTION_WINDOW_SECONDS = int(os.getenv("CAPTION_WINDOW_SECONDS", 25))
 
 class VideoProcessingService:
     def __init__(
@@ -25,11 +27,13 @@ class VideoProcessingService:
         embedding: EmbeddingService,
         chunk_qdrant: ChunkQdrantService,
         s3_client: S3Client,
+        caption: CaptionService,
     ):
         self.transcription  = transcription
         self.embedding      = embedding
         self.chunk_qdrant   = chunk_qdrant
         self.s3_client             = s3_client
+        self.caption               = caption
 
     # ─────────────────────────────────────────────
     # Pipeline chính
@@ -71,21 +75,40 @@ class VideoProcessingService:
             logger.info(f"Downloaded video: {r2_path} → {video_path}")
 
             # Bước 2: Extract audio bằng ffmpeg
-            self._extract_audio(video_path, audio_path)
-            logger.info(f"Extracted audio: {audio_path}")
+            audio_extracted = True
+            try:
+                self._extract_audio(video_path, audio_path)
+                logger.info(f"Extracted audio: {audio_path}")
+            except RuntimeError as e:
+                logger.info(f"Video {infor_id} không có audio track ({e}) → chuyển sang BLIP caption fallback")
+                audio_extracted = False
 
             # Bước 3: Whisper → chunks
-            chunks = self.transcription.process_audio_file(
-                audio_path=audio_path,
-                video_id=infor_id,
-                user_owner=user_owner,
-                created_at=int(time.time()),
-            )
+            chunks = None
+            if audio_extracted:
+                chunks = self.transcription.process_audio_file(
+                    audio_path=audio_path,
+                    video_id=infor_id,
+                    user_owner=user_owner,
+                    created_at=int(time.time()),
+                )
 
             if chunks is None:
                 logger.info(
                     f"Video {infor_id} không có lời nói rõ ràng "
                     f"→ fallback caption (chưa implement, bỏ qua)"
+                )
+                chunks = await self._generate_caption_chunks(
+                    video_path=video_path,
+                    tmpdir=tmpdir,
+                    video_id=infor_id,
+                    user_owner=user_owner,
+                )
+                
+            if not chunks:
+                logger.warning(
+                    f"Video {infor_id} không có audio lẫn frame hợp lệ "
+                    f"→ bỏ qua, không index được"
                 )
                 return
 
@@ -126,8 +149,129 @@ class VideoProcessingService:
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg failed: {result.stderr}")
 
+    def _extract_frames(self, video_path: str, output_dir: str, duration: float) -> list[dict]:
+        """
+        Trích frame từ video theo khoảng thời gian cố định (CAPTION_WINDOW_SECONDS).
+        Mỗi frame lấy tại điểm giữa mỗi cửa sổ thời gian.
+
+        Args:
+            video_path: đường dẫn video local đã download
+            output_dir: thư mục lưu frame ảnh
+            duration:   tổng thời lượng video (giây), dùng để tính số frame cần lấy
+
+        Returns:
+            list[dict]: mỗi dict gồm { frame_path, start, end }
+        """
+        import subprocess
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        frames = []
+        start = 0.0
+
+        while start < duration:
+            end = min(start + CAPTION_WINDOW_SECONDS, duration)
+            midpoint = (start + end) / 2
+
+            frame_path = os.path.join(output_dir, f"frame_{len(frames)}.jpg")
+
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-ss", str(midpoint),
+                    "-i", video_path,
+                    "-vframes", "1",
+                    "-q:v", "2",   # chất lượng JPEG cao (thang 2-31, càng thấp càng nét)
+                    frame_path,
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            if result.returncode == 0 and os.path.exists(frame_path):
+                frames.append({
+                    "frame_path": frame_path,
+                    "start": start,
+                    "end": end,
+                })
+            else:
+                logger.warning(f"Không trích được frame tại {midpoint}s: {result.stderr}")
+
+            start = end
+
+        return frames
+    
+    def _get_video_duration(self, video_path: str) -> float:
+        """
+        Lấy thời lượng video (giây) bằng ffprobe.
+        Cần thiết để tính số frame trích cho BLIP caption fallback.
+        """
+        import subprocess
+
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                video_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode != 0:
+            raise RuntimeError(f"ffprobe failed: {result.stderr}")
+
+        return float(result.stdout.strip())
+    
     async def _embed_chunks(self, texts: list[str]) -> list[list[float]]:
         return [await self.embedding.embed_dense(text) for text in texts]
+    
+    async def _generate_caption_chunks(
+        self,
+        video_path: str,
+        tmpdir: str,
+        video_id: str,
+        user_owner: str,
+    ) -> list[dict]:
+        """
+        Sinh chunk từ BLIP caption khi video không có lời nói rõ ràng.
+        Format chunk giống hệt bên audio, chỉ khác source='caption'.
+        """
+        duration = self._get_video_duration(video_path)
+        frames_dir = os.path.join(tmpdir, "frames")
+
+        frames = self._extract_frames(video_path, frames_dir, duration)
+
+        if not frames:
+            logger.warning(f"Không trích được frame nào cho video {video_id}")
+            return []
+
+        chunks = []
+        created_at = int(time.time())
+
+        for frame in frames:
+            try:
+                caption = self.caption.generate_caption(frame["frame_path"])
+            except Exception as e:
+                logger.warning(f"Lỗi sinh caption cho frame {frame['frame_path']}: {e}")
+                continue
+
+            if not caption or not caption.strip():
+                continue
+
+            chunks.append({
+                "text":       caption.strip(),
+                "start":      frame["start"],
+                "end":        frame["end"],
+                "video_id":   video_id,
+                "user_owner": user_owner,
+                "source":     "caption",
+                "created_at": created_at,
+            })
+
+        logger.info(f"Video {video_id}: sinh được {len(chunks)}/{len(frames)} caption hợp lệ")
+        return chunks
 
     def _mime_to_ext(self, mime_type: str) -> str:
         mapping = {
