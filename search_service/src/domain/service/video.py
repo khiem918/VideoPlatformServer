@@ -18,9 +18,9 @@ class Video:
         if desc:
             desc = normalize_desc(desc)
 
-        title_vector = self.embedding.embed_dense(title)
-        desc_vector = self.embedding.embed_dense(desc) if desc else None
-        sparse_vector = self.embedding.embed_sparse(title + " " + (desc or ""))
+        title_vector = await self.embedding.embed_dense(title)
+        desc_vector = await self.embedding.embed_dense(desc) if desc else None
+        sparse_vector = await self.embedding.embed_sparse(title + " " + (desc or ""))
 
         """
             not yet, insert connoncial tag into postgre

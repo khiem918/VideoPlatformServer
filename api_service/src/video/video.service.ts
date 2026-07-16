@@ -228,11 +228,10 @@ export class VideoService {
                                               ||--- if video.status is AVAILABLE, then its visibility can be changed to PUBLIC or PRIVATE.     
     */
 
-    const visbilityUpadate = visibility
-      ? undefined
-      : video.videoStatus === VideoStatus.PROCESSING
+    const visbilityUpadate =
+      video.videoStatus === VideoStatus.PROCESSING
         ? VideoVisibility.DRAFT
-        : video.visibility;
+        : (visibility ?? video.visibility);
 
     const result = await this.videorepository.updateVideo(
       userId,

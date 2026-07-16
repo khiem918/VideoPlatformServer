@@ -50,22 +50,16 @@ export class EnvironmentVariables {
   COOKIE_SECRET!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_REGION!: string;
+  S3_REGION!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_ACCESS_KEY_ID!: string;
+  S3_ACCESS_KEY_ID!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_SECRET_ACCESS_KEY!: string;
+  S3_SECRET_ACCESS_KEY!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_BUCKET_NAME!: string;
-
-  @IsOptional()
-  CLOUDFLARE_R2_ENDPOINT?: string;
-
-  @IsOptional()
-  CLOUDFLARE_R2_FORCE_PATH_STYLE?: boolean;
+  BUCKET_NAME!: string;
 
   @IsNotEmpty()
   MAX_FILE_SIZE!: number;

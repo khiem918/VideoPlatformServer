@@ -22,14 +22,14 @@ export class S3Service {
 
   constructor(private readonly configService: ConfigService) {
     const accessKeyId =
-      this.configService.get<string>('CLOUDFLARE_R2_ACCESS_KEY_ID') || '';
+      this.configService.get<string>('S3_ACCESS_KEY_ID') || '';
     const secretAccessKey =
-      this.configService.get<string>('CLOUDFLARE_R2_SECRET_ACCESS_KEY') || '';
+      this.configService.get<string>('S3_SECRET_ACCESS_KEY') || '';
     const endpoint =
-      this.configService.get<string>('CLOUDFLARE_R2_ENDPOINT') || '';
-    const region = this.configService.get<string>('CLOUDFLARE_R2_REGION') || '';
+      this.configService.get<string>('S3_ENDPOINT') || '';
+    const region = this.configService.get<string>('S3_REGION') || '';
     const bucketName =
-      this.configService.get<string>('CLOUDFLARE_R2_BUCKET_NAME') || '';
+      this.configService.get<string>('BUCKET_NAME') || '';
 
     this.bucketName = bucketName;
 
