@@ -66,7 +66,7 @@ describe('VideoRepository', () => {
         videoId: 'video-1',
         fileName: 'file.mp4',
         fileSize: 100,
-        r2Path: 'r2/path',
+        objectPath: 'r2/path',
         mimeType: 'video/mp4',
         videoStatus: UploadVideoStatus.PENDING,
       },

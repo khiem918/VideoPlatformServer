@@ -61,6 +61,12 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   BUCKET_NAME!: string;
 
+  @IsOptional()
+  CLOUDFLARE_R2_ENDPOINT?: string;
+
+  @IsOptional()
+  CLOUDFLARE_R2_FORCE_PATH_STYLE?: boolean;
+
   @IsNotEmpty()
   MAX_FILE_SIZE!: number;
 
@@ -99,6 +105,22 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   SEARCH_SERVICE_GRPC_URL!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFRONT_DOMAIN_NAME!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFRONT_KEY_PAIR_ID!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFRONT_PRIVATE_KEY!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  COOKIE_DOMAIN!: string;
 }
 
 export function validateEnv(

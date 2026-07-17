@@ -146,7 +146,7 @@ sequenceDiagram
     S3-->>API: presignedUrl
     
     API->>API: Create VideoUpload record (status: PENDING)
-    API-->>Client: { videoId, uploadId, presignedUrl, r2Path }
+    API-->>Client: { videoId, uploadId, presignedUrl, objectPath }
     
     Client->>S3: PUT {presignedUrl}<br/>+ file bytes
     S3-->>Client: 200 OK
@@ -157,7 +157,7 @@ sequenceDiagram
     API->>API: Create VideoProcessing record (type: VIDEO)
     API->>API: Update VideoUpload (status: UPLOADED)
     
-    API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, r2Path, mimeType }
+    API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, objectPath, mimeType }
     BullMQ-->>API: Job ID returned
     API-->>Client: ✓ Upload complete, transcoding started
     

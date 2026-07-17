@@ -39,7 +39,7 @@ export class FFmpegService {
           resolve();
         })
         .on('error', (error) => {
-          this.logger.error(`Thumbnail extraction failed: ${error.message}`);
+          this.logger.error(`Thumbnail extraction failed: ${error}`);
           reject(error);
         })
         .run();
@@ -106,7 +106,7 @@ export class FFmpegService {
             resolve();
           })
           .on('error', (error) => {
-            this.logger.error(`DASH transcoding failed: ${error.message}`);
+            this.logger.error(`DASH transcoding failed: ${error}`);
             reject(error);
           })
           .run();
@@ -114,7 +114,7 @@ export class FFmpegService {
 
       return { manifest: manifestPath };
     } catch (error) {
-      this.logger.error(`DASH transcoding failed: ${error.message}`);
+      this.logger.error(`DASH transcoding failed: ${error}`);
       throw error;
     }
   }
@@ -153,7 +153,7 @@ export class FFmpegService {
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
         if (err) {
-          this.logger.error(`Failed to probe video metadata: ${err.message}`);
+          this.logger.error(`Failed to probe video metadata: ${err}`);
           reject(err);
           return;
         }
@@ -188,7 +188,7 @@ export class FFmpegService {
     try {
       await fs.promises.rm(dirPath, { recursive: true, force: true });
     } catch (error) {
-      this.logger.error(`Cleanup failed: ${error.message}`);
+      this.logger.error(`Cleanup failed: ${error}`);
     }
   }
 }

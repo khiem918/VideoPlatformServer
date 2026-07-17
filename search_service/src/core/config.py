@@ -41,6 +41,11 @@ class Config(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["*"]
 
+    CLOUDFRONT_DOMAIN_NAME: str = os.getenv("CLOUDFRONT_DOMAIN_NAME")
+
+
+
+    
 @lru_cache
 def get_config() -> Config:
     return Config()

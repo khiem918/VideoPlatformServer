@@ -17,7 +17,7 @@ export class VideoRepository {
     videoId: string,
     fileName: string,
     fileSize: number,
-    r2Path: string,
+    objectPath: string,
     mimeType: string,
   ) {
     return await this.prisma.$transaction(async (tx) => {
@@ -33,7 +33,7 @@ export class VideoRepository {
           videoId: videoId,
           fileName: fileName,
           fileSize: fileSize,
-          r2Path: r2Path,
+          objectPath: objectPath,
           mimeType: mimeType,
           videoStatus: UploadVideoStatus.PENDING,
         },
@@ -46,7 +46,7 @@ export class VideoRepository {
     mimeType?: string,
     fileName?: string,
     fileSize?: number,
-    r2Path?: string,
+    objectPath?: string,
     videoStatus?: UploadVideoStatus,
     videoMetaStatus?: UploadVideoStatus,
   ) {
@@ -56,7 +56,7 @@ export class VideoRepository {
         ...(mimeType !== undefined && { mimeType: mimeType }),
         ...(fileName !== undefined && { fileName: fileName }),
         ...(fileSize !== undefined && { fileSize: fileSize }),
-        ...(r2Path !== undefined && { r2Path: r2Path }),
+        ...(objectPath !== undefined && { objectPath: objectPath }),
         ...(videoStatus !== undefined && { videoStatus: videoStatus }),
         ...(videoMetaStatus !== undefined && {
           videoMetaStatus: videoMetaStatus,

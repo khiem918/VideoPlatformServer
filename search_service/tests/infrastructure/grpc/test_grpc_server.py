@@ -14,10 +14,9 @@ from src.infrastructure.grpc.grpc_server import (  # noqa: E402
 )
 
 
-class TestGrpcServerConstructionBug:
-    def test_bug_init_raises_attribute_error_for_undefined_grpc_server_url(self):
-        with pytest.raises(AttributeError, match="GRPC_SERVER_URL"):
-            GrpcServer()
+class TestGrpcServerConstruction:
+    def test_init_does_not_raise(self):
+        GrpcServer()
 
 
 class TestDeleteVideoServicerBug:

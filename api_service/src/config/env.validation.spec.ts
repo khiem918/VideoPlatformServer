@@ -15,10 +15,10 @@ describe('validateEnv', () => {
       FIREBASE_CLIENT_EMAIL: 'client@example.com',
       FIREBASE_PRIVATE_KEY: 'private-key',
       COOKIE_SECRET: 'cookie-secret',
-      CLOUDFLARE_R2_REGION: 'auto',
-      CLOUDFLARE_R2_ACCESS_KEY_ID: 'access-key',
-      CLOUDFLARE_R2_SECRET_ACCESS_KEY: 'secret-key',
-      CLOUDFLARE_R2_BUCKET_NAME: 'bucket',
+      S3_REGION: 'auto',
+      S3_ACCESS_KEY_ID: 'access-key',
+      S3_SECRET_ACCESS_KEY: 'secret-key',
+      BUCKET_NAME: 'bucket',
       MAX_FILE_SIZE: 1073741824,
       QUEUE_NAME: 'video-processing',
       QUEUE_HOST: 'localhost',
@@ -29,6 +29,10 @@ describe('validateEnv', () => {
       RABBITMQ_URI: 'amqp://localhost',
       GRPC_URL: 'localhost:5000',
       SEARCH_SERVICE_GRPC_URL: 'localhost:5001',
+      CLOUDFRONT_DOMAIN_NAME: 'cdn.example.com',
+      CLOUDFRONT_KEY_PAIR_ID: 'key-pair-id',
+      CLOUDFRONT_PRIVATE_KEY: 'private-key',
+      COOKIE_DOMAIN: '.example.com',
     };
   }
 

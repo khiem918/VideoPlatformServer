@@ -203,7 +203,7 @@ describe('Update video metadata (e2e)', () => {
         mimeType: 'video/mp4',
         fileName: `${videoId}.mp4`,
         fileSize: 1024,
-        r2Path: `videos/${videoId}/original.mp4`,
+        objectPath: `videos/${videoId}/original.mp4`,
       },
     });
     seededVideoIds.push(videoId);

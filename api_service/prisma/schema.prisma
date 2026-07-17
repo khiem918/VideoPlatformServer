@@ -75,8 +75,8 @@ model Video {
   videoDislike      BigInt            @default(0) @map("video_dislike")
   userId            String            @map("user_owner")
   owner             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  videoUrl          String            @default("") @map("video_url_storage") @db.VarChar(1000)
-  thumbnailUrl      String            @default("") @map("thumbnail_url") @db.VarChar(1000)
+  videoPath         String            @default("") @map("video_url_storage") @db.VarChar(1000)
+  thumbnailPath     String            @default("") @map("thumbnail_url") @db.VarChar(1000)
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   visibility        VideoVisibility   @default(DRAFT) @map("video_visibility")
@@ -84,7 +84,7 @@ model Video {
   videoDesc         String?           @map("video_desc")
   comments          Comment[]
   likeVideos        LikeVideo[]
-  information        VideoInformation?
+  information       VideoInformation?
   videoHashtags     VideoHashtag[]
   watchHistory      WatchHistory[]
   videoStatus       VideoStatus?      @map("video_status")
@@ -104,7 +104,7 @@ model VideoInformation {
   mimeType       String            @map("mime_type")
   fileName       String            @map("file_name")
   fileSize       BigInt            @map("file_size")
-  r2Path         String            @unique @map("r2_path") // Original video's path
+  objectPath     String            @unique @map("object_path") 
   videoStatus    UploadVideoStatus @default(PENDING) @map("video_status")
   metaUpdatedAt  DateTime          @default(now()) @map("meta_updated_at")
   videoUpdatedAt DateTime          @default(now()) @map("video_updated_at")
@@ -124,7 +124,7 @@ model VideoProcessing {
   status         ProcessingStatus @default(PROCESSING) @map("status")
   errorMessage   String?          @map("error_message")
   completedAt    DateTime?        @map("completed_at")
-  startedAt      DateTime?         @map("started_at")
+  startedAt      DateTime?        @map("started_at")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   processingType ProcessingType   @map("processing_type")
@@ -226,7 +226,7 @@ enum ProcessingStatus {
   PROCESSING
   COMPLETED
   FAILED
-  DEAD 
+  DEAD
 
   @@schema("core")
 }

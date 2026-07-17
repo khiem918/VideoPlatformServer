@@ -113,7 +113,5 @@ type WatchVideoResponse {
 }
 
 type WatchVideoUrlResponse {
-  expiresAt: Int!
   mpdUrl: String!
-  signature: String!
 }

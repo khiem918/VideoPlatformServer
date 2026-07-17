@@ -48,7 +48,7 @@ class TestArrangePresignUrlResult:
 
         result = search_service._arrange_presign_url_result(result_metadata, ["a"])
 
-        s3_client.get_presigned_url.assert_called_once_with("videos/a/thumb.jpg")
+        s3_client.generate_public_resource_url.assert_called_once_with("videos/a/thumb.jpg")
         assert (
             result[0]["thumbnail_url"]
             == "https://cdn.example.test/videos/a/thumb.jpg"

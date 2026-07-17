@@ -12,26 +12,27 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { InternalServerErrorException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { ConfigService } from '@nestjs/config';
-import { createHash, createHmac } from 'crypto';
+import { getSignedCookies } from '@aws-sdk/cloudfront-signer';
 
 @Injectable()
 export class S3Service {
-  private readonly s3Client: S3Client;
-  private readonly bucketName: string;
   private readonly logger = new Logger(S3Service.name);
 
-  constructor(private readonly configService: ConfigService) {
-    const accessKeyId =
-      this.configService.get<string>('S3_ACCESS_KEY_ID') || '';
-    const secretAccessKey =
-      this.configService.get<string>('S3_SECRET_ACCESS_KEY') || '';
-    const endpoint =
-      this.configService.get<string>('S3_ENDPOINT') || '';
-    const region = this.configService.get<string>('S3_REGION') || '';
-    const bucketName =
-      this.configService.get<string>('BUCKET_NAME') || '';
+  private readonly s3Client: S3Client;
+  private readonly bucketName: string;
+  private readonly cloudfrontDomainName: string;
+  private readonly keyPairId: string;
+  private readonly privateKey: string;
 
-    this.bucketName = bucketName;
+  constructor(private readonly configService: ConfigService) {
+
+    const accessKeyId = this.configService.get<string>('S3_ACCESS_KEY_ID') || '';
+    const secretAccessKey = this.configService.get<string>('S3_SECRET_ACCESS_KEY') || '';
+    const region = this.configService.get<string>('S3_REGION') || '';
+    this.bucketName = this.configService.get<string>('BUCKET_NAME') || '';
+    this.cloudfrontDomainName = this.configService.get<string>('CLOUDFRONT_DOMAIN_NAME') || '';
+    this.keyPairId = this.configService.get<string>('CLOUDFRONT_KEY_PAIR_ID') || '';
+    this.privateKey = Buffer.from(this.configService.get<string>('CLOUDFRONT_PRIVATE_KEY') || '', 'base64').toString('utf-8') || '';
 
     this.s3Client = new S3Client({
       region: region,
@@ -39,63 +40,59 @@ export class S3Service {
         accessKeyId: accessKeyId,
         secretAccessKey: secretAccessKey,
       },
-      endpoint: endpoint,
     });
+
   }
 
-  buildVideoPath(videoId: string, relativePath: string): string {
-    const shard = this.buildVideoShard(videoId);
-    return `videos/${shard}/${videoId}/${relativePath.replace(/^\/+/, '')}`;
+  buildPrivateOriginalPath(videoId: string, fileName: string): string {
+    return `private/user/${videoId}/original/${fileName.replace(/^\/+/, '')}`;
   }
 
-  buildVideoPrefix(videoId: string): string {
-    const shard = this.buildVideoShard(videoId);
-    return `videos/${shard}/${videoId}/`;
+  buildPrivateSegmentPath(videoId: string, relativePath: string): string {
+    return `private/user/${videoId}/segment/${relativePath.replace(/^\/+/, '')}`;
   }
 
-  buildVideoPrefixFromR2Path(r2Path: string): string {
-    const parts = r2Path.replace(/^\/+/, '').split('/');
+  buildPublicThumbnailPath(videoId: string, fileName: string): string {
+    return `public/user/${videoId}/thumbnail/${fileName.replace(/^\/+/, '')}`;
+  }
 
-    if (parts.length < 4 || parts[0] !== 'videos') {
-      throw new Error(`Invalid R2 video path: ${r2Path}`);
+  buildPrivatePrefix(videoId: string): string {
+    return `private/user/${videoId}/`;
+  }
+
+  buildPublicPrefix(videoId: string): string {
+    return `public/user/${videoId}/`;
+  }
+
+  parseVideoIdFromPrivatePath(objectPath: string): string {
+    const parts = objectPath.replace(/^\/+/, '').split('/');
+
+    if (parts.length < 3 || parts[0] !== 'private' || parts[1] !== 'user') {
+      throw new Error(`Invalid private object path: ${objectPath}`);
     }
 
-    return `${parts[0]}/${parts[1]}/${parts[2]}/${parts[3]}/`;
-  }
-
-  extractVideoIdFromR2Path(r2Path: string): string {
-    const parts = r2Path.replace(/^\/+/, '').split('/');
-
-    if (parts.length < 4 || parts[0] !== 'videos') {
-      throw new Error(`Invalid R2 video path: ${r2Path}`);
-    }
-
-    return parts[3];
-  }
-
-  private buildVideoShard(videoId: string): string {
-    const hash = createHash('md5').update(videoId).digest('hex');
-    return `${hash.slice(0, 2)}/${hash.slice(2, 4)}`;
+    return parts[2];
   }
 
   async getPresignedUploadUrl(
     fileName: string,
     videoId: string,
     mimeType: string,
-  ): Promise<{ presignedUrl: string; r2Path: string }> {
+  ): Promise<{ presignedUrl: string; objectPath: string }> {
     try {
-      const r2Path = this.buildVideoPath(videoId, `original/${fileName}`);
-      this.logger.debug(`Generating presigned URL for R2 path: ${r2Path}`);
+      const objectPath = this.buildPrivateOriginalPath(videoId, fileName);
+
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
-        Key: r2Path,
+        Key: objectPath,
         ContentType: mimeType,
       });
 
       const presignedUrl = await getSignedUrl(this.s3Client, command, {
         expiresIn: 1800,
       });
-      return { presignedUrl, r2Path };
+
+      return { presignedUrl, objectPath };
     } catch (error) {
       this.logger.error('Error generating presigned URL', error);
       throw new InternalServerErrorException(
@@ -106,34 +103,34 @@ export class S3Service {
 
   async uploadFile(
     fileBuffer: Buffer,
-    r2Path: string,
+    objectPath: string,
     mimeType: string,
   ): Promise<string> {
     try {
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
-        Key: r2Path,
+        Key: objectPath,
         Body: fileBuffer,
         ContentType: mimeType,
       });
       await this.s3Client.send(command);
-      this.logger.log(`File uploaded successfully: ${r2Path}`);
-      return r2Path;
-    } catch (error) {
+      this.logger.log(`File uploaded successfully: ${objectPath}`);
+      return objectPath;
+    } catch (error : any) {
       this.logger.error(`Failed to upload file: ${error.message}`);
       throw error;
     }
   }
 
-  async fileExists(r2Path: string): Promise<boolean> {
+  async fileExists(objectPath: string): Promise<boolean> {
     try {
       const command = new HeadObjectCommand({
         Bucket: this.bucketName,
-        Key: r2Path,
+        Key: objectPath,
       });
       await this.s3Client.send(command);
       return true;
-    } catch (error) {
+    } catch (error : any) {
       if (error.name === 'NotFound') {
         return false;
       }
@@ -142,44 +139,44 @@ export class S3Service {
     }
   }
 
-  async getFileStream(r2Path: string): Promise<Readable> {
+  async getFileStream(objectPath: string): Promise<Readable> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
-        Key: r2Path,
+        Key: objectPath,
       });
 
       const response = await this.s3Client.send(command);
       return response.Body as Readable;
-    } catch (error: any) {
+    } catch (error : any) {
       this.logger.error(`Failed to download file: ${error.message}`);
       throw error;
     }
   }
 
-  async getFileBuffer(r2Path: string): Promise<Buffer> {
+  async getFileBuffer(objectPath: string): Promise<Buffer> {
     try {
-      const stream = await this.getFileStream(r2Path);
+      const stream = await this.getFileStream(objectPath);
 
       const chunks: Buffer[] = [];
       for await (const chunk of stream) {
         chunks.push(Buffer.from(chunk));
       }
       return Buffer.concat(chunks);
-    } catch (error: any) {
+    } catch (error : any) {
       this.logger.error(`Failed to read file into buffer: ${error.message}`);
       throw error;
     }
   }
 
   async getPresignedDownloadUrl(
-    r2Path: string,
+    objectPath: string,
     expiresIn: number = 3600,
   ): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
-        Key: r2Path,
+        Key: objectPath,
       });
       return await getSignedUrl(this.s3Client, command, { expiresIn });
     } catch (error: any) {
@@ -190,10 +187,12 @@ export class S3Service {
     }
   }
 
+  /*
+    need to change
+  */
   async getDownloadUrl(r2Path: string): Promise<string> {
     return `${this.configService.get<string>('R2_WORKER_URL')}/${r2Path}`;
   }
-
   async deleteDirectory(prefix: string): Promise<void> {
     try {
       const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
@@ -245,19 +244,32 @@ export class S3Service {
     }
   }
 
-  async signUrl(expiresIn: number = 3600): Promise<string> {
-    const secret_key = this.configService.get<string>('R2_SIGN_SECRET');
-    const key = this.configService.get<string>('WORKER_KEY');
+  async generateCookieToGetVideo(path: string) {
+    const normalizedPath = path.replace(/^\/+/, '');
+    const resourceUrl = `https://${this.cloudfrontDomainName}/${normalizedPath}`;
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    const data = `${key}:${expiresIn}`;
+    try {
+      const cookies = getSignedCookies({
+        url: resourceUrl,
+        keyPairId: this.keyPairId,
+        privateKey: this.privateKey,
+        dateLessThan: expiresAt,
+      });
 
-    if (!secret_key) {
-      this.logger.error('Missing R2_SIGN_SECRET in configuration');
-      throw new InternalServerErrorException(
-        'Missing R2_SIGN_SECRET in configuration',
-      );
+      return {
+        url: resourceUrl,
+        cookies: cookies,
+      };
+
+    } catch (error) {
+      this.logger.error(`Failed to generate signed cookies for path ${path}: ${error}`);
+      throw new InternalServerErrorException('Failed to generate signed cookies for cloudfront');
     }
-
-    return createHmac('sha256', secret_key).update(data).digest('hex');
   }
+
+  generatePublicResourceUrl(path: string) {
+    return `https://${this.cloudfrontDomainName}/public/user/${path}`;
+  }
+
 }

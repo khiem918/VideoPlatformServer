@@ -30,52 +30,47 @@ export class VideoProcessingService {
     }
   }
 
+  /**
+   * Transcodes a video to DASH format with thumbnail extraction and metadata generation.
+   * @param data - Transcoding parameters including video path, processing ID, and MIME type
+   * @returns Paths to the generated manifest and thumbnail files
+   * @throws {InvalidVideoException} If the video is invalid or corrupted
+   * @throws {TranscodingFailedException} If transcoding or upload fails
+   */
   async transcodeVideo(
     data: TranscodingDataDto,
   ): Promise<TranscodedVideoPaths> {
-    const { inforId, processingId, r2Path, mimeType } = data;
+    const { inforId, processingId, objectPath, mimeType } = data;
     const workDir = path.join(this.tempDir, inforId);
 
     try {
-      const inputPath = await this.downloadVideoFromR2(
-        r2Path,
+      // Download video from object storage to temporary working directory
+      const inputPath = await this.downloadVideoFromObjectStorage(
+        objectPath,
         workDir,
         mimeType,
       );
 
+      // Extract video metadata and calculate duration for processing
       const metadata = await this.ffmpegService.getVideoMetadata(inputPath);
       const videoDuration = Math.max(1, Math.floor(metadata.duration));
 
+      // Transcode video to DASH format for adaptive streaming
       const dashOutputDir = path.join(workDir, 'dash');
-
       await this.ffmpegService.transcodeToDASH(inputPath, dashOutputDir);
 
+      // Extract and generate thumbnail from video
       const thumbsDir = path.join(workDir, 'thumb');
       await fs.promises.mkdir(thumbsDir, { recursive: true });
-
       const thumbnailPath = path.join(thumbsDir, '0.jpg');
       await this.ffmpegService.extractThumbnail(inputPath, thumbnailPath);
 
-      const metadataPath = path.join(workDir, 'meta.json');
-
-      await fs.promises.writeFile(
-        metadataPath,
-        JSON.stringify(
-          {
-            processingId,
-            originalPath: data.r2Path,
-            manifest: 'dash/manifest.mpd',
-            thumbnails: ['thumb/0.jpg'],
-            video: metadata,
-            generatedAt: new Date().toISOString(),
-          },
-          null,
-          2,
-        ),
-        'utf8',
+      // Upload transcoded files to object storage
+      const uploadResult = await this.uploadToObjectStorage(
+        workDir,
+        processingId,
+        data.objectPath,
       );
-
-      const uploadResult = await this.uploadToR2(workDir, processingId, r2Path);
 
       /* 
      
@@ -93,6 +88,7 @@ export class VideoProcessingService {
           videoDuration,
         );
 
+      // Trigger status update if all metadata is ready
       await this.triggerVideoStatus(videoId, videoStatus, metaStatus);
 
       this.logger.log(
@@ -101,6 +97,7 @@ export class VideoProcessingService {
 
       return uploadResult;
     } catch (error) {
+      // Record processing failure for error tracking and monitoring
       await this.recordFailure(inforId, processingId, error);
 
       if (error instanceof InvalidVideoException) {
@@ -117,12 +114,13 @@ export class VideoProcessingService {
         true,
       );
     } finally {
+      // Clean up temporary files regardless of success or failure
       await this.cleanupTempFiles(workDir);
     }
   }
 
-  private async downloadVideoFromR2(
-    r2Path: string,
+  private async downloadVideoFromObjectStorage(
+    objectPath: string,
     workDir: string,
     mimeType: string,
   ): Promise<string> {
@@ -132,7 +130,7 @@ export class VideoProcessingService {
       const extension = this.getFileExtension(mimeType);
       const inputPath = path.join(workDir, `input${extension}`);
 
-      const videoStream = await this.s3Service.getFileStream(r2Path);
+      const videoStream = await this.s3Service.getFileStream(objectPath);
       const writeStream = fs.createWriteStream(inputPath);
 
       await pipeline(videoStream, writeStream);
@@ -143,28 +141,29 @@ export class VideoProcessingService {
         ? error
         : new TranscodingFailedException(
             `R2 download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            r2Path.split('/')[0],
+            objectPath.split('/')[0],
           );
     }
   }
 
-  private async uploadToR2(
+  private async uploadToObjectStorage(
     localOutputDir: string,
     processingId: string,
-    sourceR2Path: string,
+    sourceObjectPath: string,
   ): Promise<TranscodedVideoPaths> {
-    const videoId = this.s3Service.extractVideoIdFromR2Path(sourceR2Path);
+    const videoId =
+      this.s3Service.parseVideoIdFromPrivatePath(sourceObjectPath);
 
+    // Collect every file produced by the transcoding step.
     const files = await this.getFilesRecursive(localOutputDir);
 
+    // Keep only the artifacts that must be uploaded back to object storage.
     const artifactFiles = files.filter((file) => {
       const relativePath = path
         .relative(localOutputDir, file)
         .replace(/\\/g, '/');
       return (
-        relativePath.startsWith('dash/') ||
-        relativePath.startsWith('thumb/') ||
-        relativePath === 'meta.json'
+        relativePath.startsWith('dash/') || relativePath.startsWith('thumb/')
       );
     });
 
@@ -177,8 +176,8 @@ export class VideoProcessingService {
 
     let remoteManifestPath: string | null = null;
     let remoteThumbnailPath: string | null = null;
-    let remoteMetadataPath: string | null = null;
 
+    // Upload each artifact and capture the final remote paths for required outputs.
     await Promise.all(
       artifactFiles.map(async (file) => {
         const relativePath = path
@@ -186,11 +185,20 @@ export class VideoProcessingService {
           .replace(/\\/g, '/');
         const fileBuffer = await fs.promises.readFile(file);
         const mimeType = this.getMimeTypeByPath(relativePath);
-        const r2Path = this.s3Service.buildVideoPath(videoId, relativePath);
+
+        const objectPath = relativePath.startsWith('thumb/')
+          ? this.s3Service.buildPublicThumbnailPath(
+              videoId,
+              relativePath.replace(/^thumb\//, ''),
+            )
+          : this.s3Service.buildPrivateSegmentPath(
+              videoId,
+              relativePath.replace(/^dash\//, ''),
+            );
 
         const uploadedPath = await this.s3Service.uploadFile(
           fileBuffer,
-          r2Path,
+          objectPath,
           mimeType,
         );
 
@@ -201,13 +209,10 @@ export class VideoProcessingService {
         if (relativePath === 'thumb/0.jpg') {
           remoteThumbnailPath = uploadedPath;
         }
-
-        if (relativePath === 'meta.json') {
-          remoteMetadataPath = uploadedPath;
-        }
       }),
     );
 
+    // Fail fast if any required artifact was not uploaded successfully.
     if (!remoteManifestPath) {
       throw new TranscodingFailedException(
         'Manifest upload failed',
@@ -222,17 +227,10 @@ export class VideoProcessingService {
       );
     }
 
-    if (!remoteMetadataPath) {
-      throw new TranscodingFailedException(
-        'Metadata upload failed',
-        processingId,
-      );
-    }
-
+    // Return the uploaded paths for downstream persistence.
     return {
       manifestPath: remoteManifestPath,
       thumbnailPath: remoteThumbnailPath,
-      metadataPath: remoteMetadataPath,
     };
   }
 
@@ -336,17 +334,17 @@ export class VideoProcessingService {
   /*
   if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE & video.visibility = PUBLIC  
   */
-  private triggerVideoStatus(
+  private async triggerVideoStatus(
     videoId: string,
     videoStatus: UploadVideoStatus,
     metaStatus: UploadMetaStatus,
-  ) {
+  ): Promise<void> {
     if (
       videoStatus == UploadVideoStatus.PROCESSED &&
       metaStatus == UploadMetaStatus.PROCESSED
     ) {
       try {
-        this.repository.publicVideo(videoId);
+        await this.repository.publicVideo(videoId);
       } catch (error) {
         this.logger.error(
           `Failed to update video status to AVAILABLE for video ${videoId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
