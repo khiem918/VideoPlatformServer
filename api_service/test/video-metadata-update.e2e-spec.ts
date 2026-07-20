@@ -6,27 +6,37 @@
  * PublisherService.transferVideoMetadata (src/rabbitmq/publisher.service.ts)
  * -> RabbitMQ exchange `video.processing`, routing key `video.metadata.trans`.
  *
- * PREREQUISITES (live infrastructure required, no mocking of Postgres/RabbitMQ):
- *   1. Start Postgres + RabbitMQ: `docker/dev.sh start` (uses
+ * This suite is the single entry point for the whole update-metadata
+ * feature: after its own GraphQL/Postgres/RabbitMQ assertions in the
+ * happy-path test below, it spawns `pytest` on
+ * search_service/tests/e2e/test_video_metadata_update_e2e.py (which replays
+ * this suite's pinned wire-contract payload against the real consumer and
+ * real Qdrant, demonstrating the `desc` vs `description` field-name
+ * mismatch, bug #1, end-to-end) and fails if that pytest run doesn't pass.
+ * One command -- `npm run test:e2e -- video-metadata-update.e2e-spec.ts` --
+ * exercises and verifies both services.
+ *
+ * PREREQUISITES (live infrastructure required, no mocking of
+ * Postgres/RabbitMQ/Qdrant):
+ *   1. Start Postgres + RabbitMQ + Qdrant: `docker/dev.sh start` (uses
  *      `docker/docker-compose.api-service.yml`, Postgres on :5434, RabbitMQ on
  *      :5672).
  *   2. Ensure `api_service/.env` points at those services (DATABASE_URL,
  *      RABBITMQ_URI, JWT_SECRET) and Prisma migrations have been applied
  *      (`npx prisma migrate deploy`).
- *   3. Run with: `npm run test:e2e -- video-metadata-update.e2e-spec.ts`
- *
- * This suite pins the exact wire contract that `PublisherService` puts on the
- * `video.processing` exchange (message shape: `{ correlationId, videoId,
- * title, description, hashtags }`), so the Python search_service e2e suite
- * (search_service/tests/e2e/test_video_metadata_update_e2e.py) can replay the
- * same payload shape against the real consumer and demonstrate the
- * `desc` vs `description` field-name mismatch (bug #1) end-to-end.
+ *   3. `search_service/venv` must exist with its deps installed
+ *      (`search_service/.env` pointing MQ_URL/QDRANT_URL at the same
+ *      RabbitMQ/Qdrant) -- the happy-path test below shells out to it.
+ *   4. Run with: `npm run test:e2e -- video-metadata-update.e2e-spec.ts`
  *
  * A previously-present bug (#5: explicit visibility changes were silently
  * discarded) has been fixed in video.service.ts; see the "honors an
  * explicitly requested visibility change" test below for the regression
  * guard.
  */
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import * as path from 'path';
 import { randomUUID } from 'crypto';
 import * as amqp from 'amqplib';
 import * as jwt from 'jsonwebtoken';
@@ -41,6 +51,12 @@ import { VideoVisibility, VideoStatus } from '@prisma/client';
 const EXCHANGE = 'video.processing';
 const ROUTING_KEY = 'video.metadata.trans';
 const MESSAGE_WAIT_TIMEOUT_MS = 5000;
+
+const SEARCH_SERVICE_DIR = path.join(__dirname, '../../search_service');
+const SEARCH_SERVICE_PYTHON = path.join(SEARCH_SERVICE_DIR, 'venv/bin/python');
+const PYTEST_TIMEOUT_MS = 60 * 1000;
+
+const execFileAsync = promisify(execFile);
 
 interface TransferVideoMetadataMessage {
   correlationId: string;
@@ -179,6 +195,26 @@ describe('Update video metadata (e2e)', () => {
     return userId;
   }
 
+  // Single entry point for the search_service side of this feature: runs
+  // search_service's own pytest suite (which replays this suite's pinned
+  // wire-contract payload against the real consumer and real Qdrant) and
+  // fails this test if that run doesn't pass, instead of re-implementing
+  // its consumer/Qdrant assertions here.
+  async function runSearchServiceE2ePytest(): Promise<void> {
+    try {
+      await execFileAsync(
+        SEARCH_SERVICE_PYTHON,
+        ['-m', 'pytest', 'tests/e2e/test_video_metadata_update_e2e.py', '-q'],
+        { cwd: SEARCH_SERVICE_DIR, timeout: PYTEST_TIMEOUT_MS },
+      );
+    } catch (error: any) {
+      throw new Error(
+        'search_service pytest suite (test_video_metadata_update_e2e.py) failed:\n' +
+          `${error.stdout ?? ''}\n${error.stderr ?? error.message}`,
+      );
+    }
+  }
+
   async function seedVideo(
     userId: string,
     overrides: {
@@ -261,6 +297,9 @@ describe('Update video metadata (e2e)', () => {
       description: 'Updated description',
       hashtags: ['music', 'live'],
     });
+
+    // Verify the search_service side by running its own real suite.
+    await runSearchServiceE2ePytest();
   });
 
   it('forces visibility to DRAFT when the video is still PROCESSING, regardless of prior visibility', async () => {

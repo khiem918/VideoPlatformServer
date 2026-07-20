@@ -1,32 +1,50 @@
 /**
- * E2E tests for the full "upload a video" workflow, end to end, against a
- * real ~170MB 4K video file on disk.
+ * E2E tests for the full "upload a video, init and update its metadata"
+ * workflow, end to end, against a real ~170MB 4K video file on disk. This is
+ * the single, complete-flow suite for the init-and-update-metadata feature:
+ * input data all the way through finished processing, with no mocking of
+ * Postgres/Redis/RabbitMQ/S3/ffmpeg -- every assertion below is against
+ * actual results the real pipeline produced.
  *
  * Scope:
  *   Step 1: GraphQL `initUploadVideo` (src/video/video.resolver.ts) ->
  *   VideoService.initUpload -> S3Service.getPresignedUploadUrl -> a real
  *   HTTP PUT of the real file to the live S3/R2 bucket configured in
- *   api_service/.env -> GraphQL `completeUploadVideo` ->
- *   VideoService.completeUpload -> VideoProcessingQueueService enqueues a
- *   real BullMQ job on the `video-processing` queue, which the live
- *   `VideoProcessingHandler` (src/video-processing/video-processing.handler.ts,
- *   wired into this same AppModule) picks up and runs REAL ffmpeg
- *   transcoding + thumbnail extraction against the real uploaded file,
- *   re-uploading DASH segments and a thumbnail back to the same bucket.
+ *   api_service/.env.
  *
- *   Step 2: GraphQL `updateVideo` -> VideoService.updateVideo ->
- *   PublisherService.transferVideoMetadata -> RabbitMQ exchange
- *   `video.processing`, routing key `video.metadata.trans`. This suite pins
- *   the exact wire-contract payload api_service puts on that exchange
- *   (`{ correlationId, videoId, title, description, hashtags }`), the same
- *   contract search_service/tests/e2e/test_video_upload_workflow_e2e.py
- *   replays against the real consumer to verify data handling on the
- *   search_service side.
+ *   Step 2: GraphQL `updateVideo` (pre-processing, before transcoding
+ *   starts) -> VideoService.updateVideo -> PublisherService.transferVideoMetadata
+ *   -> RabbitMQ exchange `video.processing`, routing key
+ *   `video.metadata.trans`.
+ *
+ *   Step 3: GraphQL `completeUploadVideo` -> VideoService.completeUpload ->
+ *   VideoProcessingQueueService enqueues a real BullMQ job on the
+ *   `video-processing` queue, which the live `VideoProcessingHandler`
+ *   (src/video-processing/video-processing.handler.ts, wired into this same
+ *   AppModule) picks up and runs REAL ffmpeg transcoding + thumbnail
+ *   extraction against the real uploaded file, re-uploading DASH segments
+ *   and a thumbnail back to the same bucket.
+ *
+ *   Step 4: GraphQL `updateVideo` again (post-processing, after transcoding
+ *   finishes) -> the same RabbitMQ wire contract a second time. This suite
+ *   pins the exact wire-contract payload api_service puts on that exchange
+ *   at both updates (`{ correlationId, videoId, title, description,
+ *   hashtags }`).
+ *
+ *   Step 5: this suite is the single entry point for the whole feature --
+ *   after its own GraphQL/Postgres/RabbitMQ assertions above, it spawns
+ *   `pytest` on search_service/tests/e2e/test_video_upload_workflow_e2e.py
+ *   (which replays the same two pinned payloads against the real consumer
+ *   and real Qdrant, in the same order, asserting the second message
+ *   upserts the same Qdrant point rather than creating a duplicate) and
+ *   fails this test if that pytest run doesn't pass. One command --
+ *   `npm run test:e2e -- video-upload-workflow.e2e-spec.ts` -- exercises
+ *   and verifies both services.
  *
  * PREREQUISITES (live infrastructure required, no mocking of
  * Postgres/Redis/RabbitMQ/S3):
- *   1. Start Postgres + Redis + RabbitMQ: `docker/dev.sh start` (uses
- *      `docker/docker-compose.api-service.yml`).
+ *   1. Start Postgres + Redis + RabbitMQ + Qdrant: `docker/dev.sh start`
+ *      (uses `docker/docker-compose.api-service.yml`).
  *   2. `api_service/.env` must point at those services (DATABASE_URL,
  *      REDIS_HOST/PORT, RABBITMQ_URI, JWT_SECRET) AND at a real, reachable
  *      S3-compatible bucket (S3_*, BUCKET_NAME) -- this suite performs a
@@ -34,14 +52,31 @@
  *      migrations must be applied (`npx prisma migrate deploy`).
  *   3. The fixture video below must exist on disk locally; this suite is
  *      not meant to run in CI without it.
- *   4. Run with: `npm run test:e2e -- video-upload-workflow.e2e-spec.ts`
+ *   4. search_service/venv must exist with its deps installed
+ *      (`search_service/.env` pointing MQ_URL/QDRANT_URL at the same
+ *      RabbitMQ/Qdrant) -- Step 5 above shells out to it.
+ *   5. Run with: `npm run test:e2e -- video-upload-workflow.e2e-spec.ts`
  *      Real ffmpeg transcoding of a ~3 minute 4K clip can take several
  *      minutes; the suite raises Jest's timeout accordingly.
+ *
+ * Bug documented (observed, not fixed): `VideoInformation.metaStatus` is
+ * never transitioned to PROCESSED anywhere in the codebase (see
+ * VideoProcessingRepository.completeVideoProcessing, which reads back the
+ * untouched pre-existing value instead of setting one). VideoProcessingService's
+ * private `triggerVideoStatus()` only calls `repository.publicVideo()` (which
+ * sets `Video.videoStatus = AVAILABLE`) when `videoStatus === PROCESSED &&
+ * metaStatus === PROCESSED` -- a condition that can therefore never be true.
+ * `Video.videoStatus` never reaches AVAILABLE even after real transcoding
+ * finishes successfully, and the `VideoStatus.PROCESSING` DRAFT-lock branch
+ * in VideoService.updateVideo (video.service.ts:222-225) is permanently
+ * unreachable -- see the assertion after Step 3 below.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { randomUUID } from 'crypto';
 import * as amqp from 'amqplib';
 import * as jwt from 'jsonwebtoken';
@@ -52,7 +87,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { S3Service } from 'src/s3/s3.service';
-import { UploadVideoStatus } from '@prisma/client';
+import { UploadVideoStatus, VideoVisibility } from '@prisma/client';
 
 const VIDEO_FILE_PATH =
   '/home/khiem918/Documents/Project/VideoPlatformServer/3MinutesofOppenheimerin4K _IMAX_2160p.mp4';
@@ -63,6 +98,12 @@ const ROUTING_KEY = 'video.metadata.trans';
 const MESSAGE_WAIT_TIMEOUT_MS = 5000;
 const TRANSCODE_POLL_INTERVAL_MS = 3000;
 const TRANSCODE_TIMEOUT_MS = 10 * 60 * 1000;
+
+const SEARCH_SERVICE_DIR = path.join(__dirname, '../../search_service');
+const SEARCH_SERVICE_PYTHON = path.join(SEARCH_SERVICE_DIR, 'venv/bin/python');
+const PYTEST_TIMEOUT_MS = 60 * 1000;
+
+const execFileAsync = promisify(execFile);
 
 jest.setTimeout(15 * 60 * 1000);
 
@@ -114,6 +155,26 @@ function putFileToPresignedUrl(
     req.on('error', reject);
     fs.createReadStream(filePath).pipe(req);
   });
+}
+
+// Single entry point for the search_service side of this workflow: runs
+// search_service's own pytest suite (which replays this suite's two pinned
+// wire-contract payloads against the real consumer and real Qdrant) and
+// fails this test if that run doesn't pass, instead of re-implementing its
+// consumer/Qdrant assertions here.
+async function runSearchServiceE2ePytest(): Promise<void> {
+  try {
+    await execFileAsync(
+      SEARCH_SERVICE_PYTHON,
+      ['-m', 'pytest', 'tests/e2e/test_video_upload_workflow_e2e.py', '-q'],
+      { cwd: SEARCH_SERVICE_DIR, timeout: PYTEST_TIMEOUT_MS },
+    );
+  } catch (error: any) {
+    throw new Error(
+      'search_service pytest suite (test_video_upload_workflow_e2e.py) failed:\n' +
+        `${error.stdout ?? ''}\n${error.stderr ?? error.message}`,
+    );
+  }
 }
 
 const INIT_UPLOAD_MUTATION = `
@@ -326,7 +387,50 @@ describe('Upload video workflow (e2e)', () => {
       s3Service.fileExists(infoAfterUpload!.objectPath),
     ).resolves.toBe(true);
 
-    // --- Step 1b: complete upload, letting the live BullMQ worker run real ffmpeg transcoding ---
+    // --- Step 2: pre-processing metadata update, before transcoding starts ---
+    const preProcessingMessage = waitForMessage();
+
+    const preTitle = 'Oppenheimer 4K IMAX clip (uploading)';
+    const preDescription =
+      'Description set immediately after upload, before transcoding starts.';
+    const preTags = ['oppenheimer', 'imax', 'pre-processing'];
+
+    const preUpdateResponse = await request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        query: UPDATE_VIDEO_MUTATION,
+        variables: {
+          videoId,
+          title: preTitle,
+          tags: preTags,
+          description: preDescription,
+          visibility: 'PUBLIC',
+        },
+      })
+      .expect(200);
+
+    expect(preUpdateResponse.body.errors).toBeUndefined();
+    expect(preUpdateResponse.body.data.updateVideo).toMatchObject({
+      id: videoId,
+      videoName: preTitle,
+      rawDesc: preDescription,
+      // Honored immediately: Video.videoStatus is still null here (never
+      // PROCESSING), so the DRAFT-lock branch in updateVideo never engages.
+      visibility: 'PUBLIC',
+      tags: preTags,
+    });
+
+    const preMessage = await preProcessingMessage;
+    expect(preMessage).toEqual({
+      correlationId: videoId,
+      videoId,
+      title: preTitle,
+      description: preDescription,
+      hashtags: preTags,
+    });
+
+    // --- Step 3: complete upload, letting the live BullMQ worker run real ffmpeg transcoding ---
     const completeResponse = await request(app.getHttpServer())
       .post('/graphql')
       .set('Authorization', `Bearer ${token}`)
@@ -355,8 +459,19 @@ describe('Upload video workflow (e2e)', () => {
       s3Service.fileExists(processedVideo!.thumbnailPath),
     ).resolves.toBe(true);
 
-    // --- Step 2: metadata update, pinning the wire contract search_service consumes ---
-    const messagePromise = waitForMessage();
+    // Real transcoding doesn't clobber the metadata set in Step 2.
+    expect(processedVideo?.videoName).toBe(preTitle);
+    expect(processedVideo?.videoDesc).toBe(preDescription);
+    expect(processedVideo?.visibility).toBe(VideoVisibility.PUBLIC);
+
+    // Bug documented (observed, not fixed -- see module docstring):
+    // processing finished successfully (videoStatus PROCESSED above), but
+    // Video.videoStatus never becomes AVAILABLE because
+    // VideoInformation.metaStatus is never transitioned to PROCESSED.
+    expect(processedVideo?.videoStatus).toBeNull();
+
+    // --- Step 4: post-processing metadata update, pinning the wire contract search_service consumes ---
+    const postProcessingMessage = waitForMessage();
 
     const title = 'Oppenheimer 4K IMAX clip';
     const description =
@@ -368,7 +483,7 @@ describe('Upload video workflow (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({
         query: UPDATE_VIDEO_MUTATION,
-        variables: { videoId, title, tags, description, visibility: 'PUBLIC' },
+        variables: { videoId, title, tags, description, visibility: 'PRIVATE' },
       })
       .expect(200);
 
@@ -377,11 +492,14 @@ describe('Upload video workflow (e2e)', () => {
       id: videoId,
       videoName: title,
       rawDesc: description,
-      visibility: 'PUBLIC',
+      // Still honored immediately: per the assertion above,
+      // Video.videoStatus never reached AVAILABLE either, so the
+      // DRAFT-lock branch stays unreachable here too.
+      visibility: 'PRIVATE',
       tags,
     });
 
-    const message = await messagePromise;
+    const message = await postProcessingMessage;
     expect(message).toEqual({
       correlationId: videoId,
       videoId,
@@ -389,5 +507,16 @@ describe('Upload video workflow (e2e)', () => {
       description,
       hashtags: tags,
     });
+
+    const videoAfterSecondUpdate = await prisma.video.findUnique({
+      where: { id: videoId },
+    });
+    expect(videoAfterSecondUpdate?.videoName).toBe(title);
+    expect(videoAfterSecondUpdate?.visibility).toBe(VideoVisibility.PRIVATE);
+    // The real transcoded asset survives a metadata-only update.
+    expect(videoAfterSecondUpdate?.videoPath).toBe(processedVideo?.videoPath);
+
+    // --- Step 5: verify the search_service side by running its own real suite ---
+    await runSearchServiceE2ePytest();
   });
 });

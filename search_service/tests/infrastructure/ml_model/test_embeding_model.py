@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock
 
-import pytest
-
 from src.infrastructure.ml_model.embeding_model import (
     DENSE_MODEL,
     SPARSE_MODEL,
@@ -76,20 +74,28 @@ class TestLoadModel:
         dense_cls.assert_called_once()
 
 
-class TestEmbedMethodsBug:
-    async def test_bug_embed_dense_raises_type_error_because_await_list_is_invalid(
-        self,
-    ):
+class TestEmbedMethods:
+    """
+    FIXED (previously bug): embed_dense/embed_sparse/embed_query used to
+    `await list(self._dense_model.embed(...))`, but fastembed's `.embed()`
+    returns a plain sync generator, not an awaitable -- raising
+    `TypeError: 'list' object can't be awaited` on every call (see
+    src/infrastructure/ml_model/embeding_model.py). Fixed by running the
+    sync/CPU-bound `.embed()` call via `asyncio.to_thread` instead of
+    awaiting it directly.
+    """
+
+    async def test_embed_dense_returns_dense_vector_as_list(self):
         service = EmbeddingService()
         service._dense_model = MagicMock()
         service._dense_model.embed.return_value = [FakeVector([0.1, 0.2])]
 
-        with pytest.raises(TypeError, match="object can't be awaited"):
-            await service.embed_dense("some text")
+        result = await service.embed_dense("some text")
 
-    async def test_bug_embed_sparse_raises_type_error_because_await_list_is_invalid(
-        self,
-    ):
+        assert result == [0.1, 0.2]
+        service._dense_model.embed.assert_called_once_with(["passage: some text"])
+
+    async def test_embed_sparse_returns_sparse_vector(self):
         service = EmbeddingService()
         service._sparse_model = MagicMock()
         sparse_result = MagicMock()
@@ -97,15 +103,17 @@ class TestEmbedMethodsBug:
         sparse_result.values.tolist.return_value = [0.5, 0.6]
         service._sparse_model.embed.return_value = [sparse_result]
 
-        with pytest.raises(TypeError, match="object can't be awaited"):
-            await service.embed_sparse("some query")
+        result = await service.embed_sparse("some query")
 
-    async def test_bug_embed_query_raises_type_error_because_await_list_is_invalid(
-        self,
-    ):
+        assert result.indices == [0, 1]
+        assert result.values == [0.5, 0.6]
+
+    async def test_embed_query_returns_dense_vector_as_list(self):
         service = EmbeddingService()
         service._dense_model = MagicMock()
         service._dense_model.embed.return_value = [FakeVector([0.3, 0.4])]
 
-        with pytest.raises(TypeError, match="object can't be awaited"):
-            await service.embed_query("some query")
+        result = await service.embed_query("some query")
+
+        assert result == [0.3, 0.4]
+        service._dense_model.embed.assert_called_once_with(["query: some query"])

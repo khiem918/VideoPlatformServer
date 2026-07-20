@@ -1,31 +1,42 @@
 """
-E2E test for the "upload video workflow" -- search_service side of the
-dataflow.
+E2E test for the "upload video, init and update its metadata" workflow --
+search_service side of the dataflow.
 
-This is the search_service half of the two-part upload-workflow e2e suite;
-the api_service half is
+This is the search_service half of the two-part init-and-update-metadata e2e
+suite; the api_service half is
 api_service/test/video-upload-workflow.e2e-spec.ts, which drives a real
-S3/R2 upload of a real video file plus real ffmpeg transcoding, then calls
-`updateVideo` and pins the exact wire-contract payload
-PublisherService.transferVideoMetadata puts on the `video.processing`
-exchange (routing key `video.metadata.trans`):
+S3/R2 upload of a real video file plus real ffmpeg transcoding, and calls
+`updateVideo` TWICE -- once before transcoding starts (pre-processing) and
+once after it finishes (post-processing) -- pinning the exact wire-contract
+payload PublisherService.transferVideoMetadata puts on the `video.processing`
+exchange (routing key `video.metadata.trans`) at each call:
     { correlationId, videoId, title, description, hashtags }
 
-This suite replays that same real payload shape directly onto the real
-exchange (no mocking of RabbitMQ/Qdrant), pulls it back off the real
-`video.metadata.transfer` queue, and drives the real
+That TS suite is the single entry point for this feature: after its own
+GraphQL assertions, it spawns `pytest` on this file as a subprocess and
+asserts on this suite's pass/fail result, so there is one command
+(`npm run test:e2e -- video-upload-workflow.e2e-spec.ts`) that exercises and
+verifies both services. This file still uses the exact real wire-contract
+payloads pinned by that TS suite (see PRE_PROCESSING_*/UPLOAD_WORKFLOW_*
+below) so the two stay in lockstep by construction.
+
+This suite replays both of those real payloads, in the same order, directly
+onto the real exchange (no mocking of RabbitMQ/Qdrant), pulling each back off
+the real `video.metadata.transfer` queue and driving the real
 `handle_metadata_transfer_message` (src/app/worker/consumer.py) against a
-real Qdrant instance via a real `Video` + `QdrantService` pair -- proving
-the dataflow from api_service to search_service and asserting what actually
-lands in Qdrant (data handling), not just that a message was delivered.
+real Qdrant instance via a real `Video` + `QdrantService` pair -- proving the
+dataflow from api_service to search_service reaches a *finished* state: the
+second (post-processing) message must upsert the same Qdrant point in place
+with the updated title, not create a duplicate.
 
 PREREQUISITES (live infrastructure required, no mocking of RabbitMQ/Qdrant):
     - RabbitMQ and Qdrant must be running, e.g. via `docker/dev.sh start`
       (uses docker/docker-compose.api-service.yml: RabbitMQ on :5672, Qdrant
       on :6333).
     - `search_service/.env` must point MQ_URL / QDRANT_URL at those services.
-    - Run with:
+    - Run standalone with:
       `venv/bin/python -m pytest tests/e2e/test_video_upload_workflow_e2e.py`
+      or let the api_service suite trigger it as described above.
 
 `asyncio_mode = "auto"` is configured in search_service/pyproject.toml, so
 plain `async def test_...` methods are collected automatically -- see
@@ -72,8 +83,13 @@ GET_TIMEOUT_SECONDS = 5
 FAKE_TITLE_VECTOR = [0.1] * 768
 FAKE_SPARSE_VECTOR = SparseVector(indices=[0, 1], values=[0.5, 0.25])
 
-# Same real payload the api_service e2e suite pins for this workflow (see
-# api_service/test/video-upload-workflow.e2e-spec.ts's "Step 2" assertion).
+# Same real payloads the api_service e2e suite pins for this workflow (see
+# api_service/test/video-upload-workflow.e2e-spec.ts's Step 2 and Step 4
+# assertions).
+PRE_PROCESSING_TITLE = "Oppenheimer 4K IMAX clip (uploading)"
+PRE_PROCESSING_DESCRIPTION = (
+    "Description set immediately after upload, before transcoding starts."
+)
 UPLOAD_WORKFLOW_TITLE = "Oppenheimer 4K IMAX clip"
 UPLOAD_WORKFLOW_DESCRIPTION = (
     "A 3 minute 4K IMAX excerpt from Oppenheimer, used as the "
@@ -153,36 +169,37 @@ async def _publish_and_pull(exchange, transfer_queue, payload: dict):
 
 
 class TestVideoUploadWorkflowEndToEnd:
-    async def test_real_upload_metadata_payload_propagates_title_but_drops_description(
+    async def test_pre_and_post_processing_updates_upsert_the_same_point_with_final_title(
         self, real_video_service, mq_topology, qdrant_cleanup
     ):
         """
-        Replays the exact wire-contract payload the api_service upload
-        workflow publishes for a real uploaded video (real `description`
-        key, matching PublisherService.transferVideoMetadata), and asserts
-        what actually lands in Qdrant for that video: the dataflow from
-        api_service reaches search_service and the title is embedded and
-        upserted, but -- per bug #1, observed here rather than fixed -- the
-        description is silently dropped because consumer.py only reads
-        `payload.get('desc')`.
+        Replays both real wire-contract payloads the api_service upload
+        workflow publishes for a real uploaded video -- a pre-processing
+        metadata update (before transcoding starts) and a post-processing
+        one (after it finishes) -- and asserts what actually lands in
+        Qdrant: the dataflow from api_service reaches search_service and
+        the *second* message upserts the same point in place with the
+        final title, not a duplicate. Per bug #1 (observed here rather than
+        fixed), the description is silently dropped on both messages
+        because consumer.py only reads `payload.get('desc')`.
         """
         real_video, _real_qdrant = real_video_service
         exchange, transfer_queue = mq_topology
         video_id = f"e2e-upload-workflow-{uuid.uuid4()}"
         qdrant_cleanup.append(video_id)
 
-        payload = {
+        pre_payload = {
             "correlationId": video_id,
             "videoId": video_id,
-            "title": UPLOAD_WORKFLOW_TITLE,
+            "title": PRE_PROCESSING_TITLE,
             # Real api_service wire shape (see
             # api_service/src/rabbitmq/interface/transferdata.interface.ts):
             # the key is `description`, not `desc`.
-            "description": UPLOAD_WORKFLOW_DESCRIPTION,
-            "hashtags": ["oppenheimer", "imax", "4k"],
+            "description": PRE_PROCESSING_DESCRIPTION,
+            "hashtags": ["oppenheimer", "imax", "pre-processing"],
         }
 
-        message = await _publish_and_pull(exchange, transfer_queue, payload)
+        pre_message = await _publish_and_pull(exchange, transfer_queue, pre_payload)
 
         # Forward path works end-to-end when the field name matches: RabbitMQ
         # -> parse -> await embed -> Qdrant upsert. The response leg still
@@ -190,26 +207,52 @@ class TestVideoUploadWorkflowEndToEnd:
         # tests/app/worker/test_consumer.py), so this suite doesn't
         # re-verify that mechanism here.
         with pytest.raises(TypeError):
-            await handle_metadata_transfer_message(message, exchange)
-
-        # Regression guard: the embedding mocks are AsyncMock, so this only
-        # passes if process_metadata actually awaited them.
-        real_video.embedding.embed_dense.assert_awaited()
-        real_video.embedding.embed_sparse.assert_awaited()
+            await handle_metadata_transfer_message(pre_message, exchange)
 
         verification_client = AsyncQdrantClient(url=config.QDRANT_URL)
-        points = await verification_client.retrieve(
+        points_after_pre = await verification_client.retrieve(
+            collection_name=COLLECTION_NAME,
+            ids=[video_id],
+            with_payload=True,
+        )
+        assert len(points_after_pre) == 1
+        assert points_after_pre[0].payload["title"] == PRE_PROCESSING_TITLE.lower()
+        # Data handling: description does NOT propagate. This is bug #1 --
+        # consumer.py never finds a `desc` key in the real payload, so
+        # src/infrastructure/database/qdrant.py omits the `desc` field
+        # entirely rather than storing an empty/incorrect value.
+        assert "desc" not in points_after_pre[0].payload
+
+        post_payload = {
+            "correlationId": video_id,
+            "videoId": video_id,
+            "title": UPLOAD_WORKFLOW_TITLE,
+            "description": UPLOAD_WORKFLOW_DESCRIPTION,
+            "hashtags": ["oppenheimer", "imax", "4k"],
+        }
+
+        post_message = await _publish_and_pull(exchange, transfer_queue, post_payload)
+
+        with pytest.raises(TypeError):
+            await handle_metadata_transfer_message(post_message, exchange)
+
+        # Regression guard: the embedding mocks are AsyncMock, so this only
+        # passes if process_metadata actually awaited them on both messages.
+        assert real_video.embedding.embed_dense.await_count == 2
+        assert real_video.embedding.embed_sparse.await_count == 2
+
+        points_after_post = await verification_client.retrieve(
             collection_name=COLLECTION_NAME,
             ids=[video_id],
             with_payload=True,
         )
 
-        assert len(points) == 1
+        # Same point id upserted in place -- the post-processing message
+        # did not create a duplicate point for this video.
+        assert len(points_after_post) == 1
+        assert points_after_post[0].id == points_after_pre[0].id
         # Data handling: title propagates end-to-end (lowercased/normalized,
-        # matching src/domain/service/video.py's process_metadata).
-        assert points[0].payload["title"] == UPLOAD_WORKFLOW_TITLE.lower()
-        # Data handling: description does NOT propagate. This is bug #1 --
-        # consumer.py never finds a `desc` key in the real payload, so
-        # src/infrastructure/database/qdrant.py omits the `desc` field
-        # entirely rather than storing an empty/incorrect value.
-        assert "desc" not in points[0].payload
+        # matching src/domain/service/video.py's process_metadata) and
+        # reflects the final, post-processing update.
+        assert points_after_post[0].payload["title"] == UPLOAD_WORKFLOW_TITLE.lower()
+        assert "desc" not in points_after_post[0].payload
