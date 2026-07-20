@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { pipeline } from 'stream/promises';
+import pLimit from 'p-limit';
 import { S3Service } from 'src/s3/s3.service';
 import { FFmpegService } from './ffmpeg.service';
 import { VideoProcessingRepository } from './repository/video-processing.repository';
@@ -14,7 +15,8 @@ import { UploadMetaStatus, UploadVideoStatus } from '@prisma/client';
 @Injectable()
 export class VideoProcessingService {
   private readonly logger = new Logger(VideoProcessingService.name);
-  private readonly tempDir = '/tmp/video-processing';
+  private readonly tempDir = '/tmp/video-streaming-system/processing';
+  private readonly maxConcurrentUploads = 4;
 
   constructor(
     private readonly ffmpegService: FFmpegService,
@@ -74,7 +76,7 @@ export class VideoProcessingService {
 
       /* 
      
-      Using for processing successfully::
+        Using for processing successfully::
                   - update : video.uploadvideostatus = COMPLETED
                   - handle logic: if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE
       */
@@ -140,9 +142,9 @@ export class VideoProcessingService {
       throw error instanceof TranscodingFailedException
         ? error
         : new TranscodingFailedException(
-            `R2 download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            objectPath.split('/')[0],
-          );
+          `Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          objectPath.split('/')[0],
+        );
     }
   }
 
@@ -177,39 +179,41 @@ export class VideoProcessingService {
     let remoteManifestPath: string | null = null;
     let remoteThumbnailPath: string | null = null;
 
-    // Upload each artifact and capture the final remote paths for required outputs.
-    await Promise.all(
-      artifactFiles.map(async (file) => {
-        const relativePath = path
-          .relative(localOutputDir, file)
-          .replace(/\\/g, '/');
-        const fileBuffer = await fs.promises.readFile(file);
-        const mimeType = this.getMimeTypeByPath(relativePath);
+    const limit = pLimit(this.maxConcurrentUploads);
 
-        const objectPath = relativePath.startsWith('thumb/')
-          ? this.s3Service.buildPublicThumbnailPath(
+    await Promise.all(
+      artifactFiles.map((file) =>
+        limit(async () => {
+          const relativePath = path
+            .relative(localOutputDir, file)
+            .replace(/\\/g, '/');
+          const mimeType = this.getMimeTypeByPath(relativePath);
+
+          const objectPath = relativePath.startsWith('thumb/')
+            ? this.s3Service.buildPublicThumbnailPath(
               videoId,
               relativePath.replace(/^thumb\//, ''),
             )
-          : this.s3Service.buildPrivateSegmentPath(
+            : this.s3Service.buildPrivateSegmentPath(
               videoId,
               relativePath.replace(/^dash\//, ''),
             );
 
-        const uploadedPath = await this.s3Service.uploadFile(
-          fileBuffer,
-          objectPath,
-          mimeType,
-        );
+          const uploadedPath = await this.s3Service.uploadFileStream(
+            file,
+            objectPath,
+            mimeType,
+          );
 
-        if (relativePath === 'dash/manifest.mpd') {
-          remoteManifestPath = uploadedPath;
-        }
+          if (relativePath === 'dash/manifest.mpd') {
+            remoteManifestPath = uploadedPath;
+          }
 
-        if (relativePath === 'thumb/0.jpg') {
-          remoteThumbnailPath = uploadedPath;
-        }
-      }),
+          if (relativePath === 'thumb/0.jpg') {
+            remoteThumbnailPath = uploadedPath;
+          }
+        }),
+      ),
     );
 
     // Fail fast if any required artifact was not uploaded successfully.

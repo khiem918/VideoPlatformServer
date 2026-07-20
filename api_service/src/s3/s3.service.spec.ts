@@ -22,6 +22,20 @@ jest.mock('@aws-sdk/cloudfront-signer', () => ({
   getSignedCookies: (...args: unknown[]) => mockGetSignedCookies(...args),
 }));
 
+const mockUploadDone = jest.fn();
+const mockUploadCtor = jest.fn();
+jest.mock('@aws-sdk/lib-storage', () => ({
+  Upload: jest.fn().mockImplementation((...args: unknown[]) => {
+    mockUploadCtor(...args);
+    return { done: mockUploadDone };
+  }),
+}));
+
+const mockCreateReadStream = jest.fn();
+jest.mock('fs', () => ({
+  createReadStream: (...args: unknown[]) => mockCreateReadStream(...args),
+}));
+
 import { S3Service } from './s3.service';
 
 describe('S3Service', () => {
@@ -145,6 +159,42 @@ describe('S3Service', () => {
     });
   });
 
+  describe('uploadFileStream', () => {
+    it('streams the file from disk and returns the object path', async () => {
+      mockCreateReadStream.mockReturnValue('fake-read-stream');
+      mockUploadDone.mockResolvedValue({});
+
+      const result = await service.uploadFileStream(
+        '/tmp/dash/segment-1.m4s',
+        'private/user/video-1/segment/segment-1.m4s',
+        'video/iso.segment',
+      );
+
+      expect(result).toBe('private/user/video-1/segment/segment-1.m4s');
+      expect(mockCreateReadStream).toHaveBeenCalledWith(
+        '/tmp/dash/segment-1.m4s',
+      );
+      expect(mockUploadCtor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            Key: 'private/user/video-1/segment/segment-1.m4s',
+            Body: 'fake-read-stream',
+            ContentType: 'video/iso.segment',
+          }),
+        }),
+      );
+    });
+
+    it('rethrows when the upload fails', async () => {
+      mockCreateReadStream.mockReturnValue('fake-read-stream');
+      mockUploadDone.mockRejectedValue(new Error('upload failed'));
+
+      await expect(
+        service.uploadFileStream('/tmp/file.mp4', 'path', 'video/mp4'),
+      ).rejects.toThrow('upload failed');
+    });
+  });
+
   describe('fileExists', () => {
     it('returns true when the head request succeeds', async () => {
       mockSend.mockResolvedValue({});
@@ -186,17 +236,6 @@ describe('S3Service', () => {
       );
     });
 
-    it('reads the stream into a single buffer', async () => {
-      async function* generate() {
-        yield Buffer.from('hello ');
-        yield Buffer.from('world');
-      }
-      mockSend.mockResolvedValue({ Body: generate() });
-
-      const result = await service.getFileBuffer('path');
-
-      expect(result.toString()).toBe('hello world');
-    });
   });
 
   describe('getPresignedDownloadUrl', () => {

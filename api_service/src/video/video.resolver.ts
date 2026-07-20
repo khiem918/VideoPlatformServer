@@ -135,7 +135,7 @@ export class VideoResolver {
       httpOnly: true,
       secure: true,
       sameSite: 'strict' as const,
-      domain: this.config.get<string>('COOKIE_DOMAIN'),
+      domain: this.config.get<string>('CDN_DOMAIN'),
       path: '/private/',
       maxAge: 5 * 60 * 1000,
     };

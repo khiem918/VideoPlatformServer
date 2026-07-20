@@ -32,7 +32,7 @@ describe('validateEnv', () => {
       CLOUDFRONT_DOMAIN_NAME: 'cdn.example.com',
       CLOUDFRONT_KEY_PAIR_ID: 'key-pair-id',
       CLOUDFRONT_PRIVATE_KEY: 'private-key',
-      COOKIE_DOMAIN: '.example.com',
+      CDN_DOMAIN: 'cdn.example.com',
     };
   }
 

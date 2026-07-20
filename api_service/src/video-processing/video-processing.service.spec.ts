@@ -14,7 +14,6 @@ jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn(),
     writeFile: jest.fn(),
-    readFile: jest.fn(),
     readdir: jest.fn(),
     rm: jest.fn(),
   },
@@ -31,7 +30,6 @@ const fsMocks = fs as unknown as {
   promises: {
     mkdir: jest.Mock;
     writeFile: jest.Mock;
-    readFile: jest.Mock;
     readdir: jest.Mock;
     rm: jest.Mock;
   };
@@ -70,7 +68,7 @@ describe('VideoProcessingService', () => {
       parseVideoIdFromPrivatePath: jest.fn(),
       buildPrivateSegmentPath: jest.fn(),
       buildPublicThumbnailPath: jest.fn(),
-      uploadFile: jest.fn(),
+      uploadFileStream: jest.fn(),
     } as unknown as jest.Mocked<S3Service>;
 
     service = new VideoProcessingService(ffmpegService, repository, s3Service);
@@ -95,7 +93,6 @@ describe('VideoProcessingService', () => {
       }
       return [];
     });
-    fsMocks.promises.readFile.mockResolvedValue(Buffer.from('data'));
   }
 
   describe('transcodeVideo', () => {
@@ -123,8 +120,8 @@ describe('VideoProcessingService', () => {
         (videoId: string, relativePath: string) =>
           `public/user/${videoId}/thumbnail/${relativePath}`,
       );
-      s3Service.uploadFile.mockImplementation(
-        async (_buffer: Buffer, objectPath: string) => objectPath,
+      s3Service.uploadFileStream.mockImplementation(
+        async (_filePath: string, objectPath: string) => objectPath,
       );
       repository.completeVideoProcessing.mockResolvedValue({
         videoId: 'video-1',
@@ -182,8 +179,8 @@ describe('VideoProcessingService', () => {
         (videoId: string, relativePath: string) =>
           `public/user/${videoId}/thumbnail/${relativePath}`,
       );
-      s3Service.uploadFile.mockImplementation(
-        async (_buffer: Buffer, objectPath: string) => objectPath,
+      s3Service.uploadFileStream.mockImplementation(
+        async (_filePath: string, objectPath: string) => objectPath,
       );
       repository.completeVideoProcessing.mockResolvedValue({
         videoId: 'video-2',

@@ -7,9 +7,11 @@ import {
   ListObjectsV2Command,
   DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { Logger } from '@nestjs/common';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { InternalServerErrorException } from '@nestjs/common';
+import * as fs from 'fs';
 import { Readable } from 'stream';
 import { ConfigService } from '@nestjs/config';
 import { getSignedCookies } from '@aws-sdk/cloudfront-signer';
@@ -44,25 +46,31 @@ export class S3Service {
 
   }
 
+  
   buildPrivateOriginalPath(videoId: string, fileName: string): string {
     return `private/user/${videoId}/original/${fileName.replace(/^\/+/, '')}`;
   }
+
 
   buildPrivateSegmentPath(videoId: string, relativePath: string): string {
     return `private/user/${videoId}/segment/${relativePath.replace(/^\/+/, '')}`;
   }
 
+
   buildPublicThumbnailPath(videoId: string, fileName: string): string {
     return `public/user/${videoId}/thumbnail/${fileName.replace(/^\/+/, '')}`;
   }
+
 
   buildPrivatePrefix(videoId: string): string {
     return `private/user/${videoId}/`;
   }
 
+
   buildPublicPrefix(videoId: string): string {
     return `public/user/${videoId}/`;
   }
+
 
   parseVideoIdFromPrivatePath(objectPath: string): string {
     const parts = objectPath.replace(/^\/+/, '').split('/');
@@ -73,6 +81,7 @@ export class S3Service {
 
     return parts[2];
   }
+
 
   async getPresignedUploadUrl(
     fileName: string,
@@ -101,6 +110,7 @@ export class S3Service {
     }
   }
 
+
   async uploadFile(
     fileBuffer: Buffer,
     objectPath: string,
@@ -122,6 +132,31 @@ export class S3Service {
     }
   }
 
+  async uploadFileStream(
+    filePath: string,
+    objectPath: string,
+    mimeType: string,
+  ): Promise<string> {
+    try {
+      const upload = new Upload({
+        client: this.s3Client,
+        params: {
+          Bucket: this.bucketName,
+          Key: objectPath,
+          Body: fs.createReadStream(filePath),
+          ContentType: mimeType,
+        },
+      });
+      await upload.done();
+      this.logger.log(`File uploaded successfully: ${objectPath}`);
+      return objectPath;
+    } catch (error: any) {
+      this.logger.error(`Failed to upload file: ${error.message}`);
+      throw error;
+    }
+  }
+
+
   async fileExists(objectPath: string): Promise<boolean> {
     try {
       const command = new HeadObjectCommand({
@@ -139,6 +174,7 @@ export class S3Service {
     }
   }
 
+
   async getFileStream(objectPath: string): Promise<Readable> {
     try {
       const command = new GetObjectCommand({
@@ -154,21 +190,7 @@ export class S3Service {
     }
   }
 
-  async getFileBuffer(objectPath: string): Promise<Buffer> {
-    try {
-      const stream = await this.getFileStream(objectPath);
-
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream) {
-        chunks.push(Buffer.from(chunk));
-      }
-      return Buffer.concat(chunks);
-    } catch (error : any) {
-      this.logger.error(`Failed to read file into buffer: ${error.message}`);
-      throw error;
-    }
-  }
-
+  
   async getPresignedDownloadUrl(
     objectPath: string,
     expiresIn: number = 3600,
@@ -187,12 +209,7 @@ export class S3Service {
     }
   }
 
-  /*
-    need to change
-  */
-  async getDownloadUrl(r2Path: string): Promise<string> {
-    return `${this.configService.get<string>('R2_WORKER_URL')}/${r2Path}`;
-  }
+
   async deleteDirectory(prefix: string): Promise<void> {
     try {
       const normalizedPrefix = prefix.endsWith('/') ? prefix : `${prefix}/`;
@@ -244,6 +261,7 @@ export class S3Service {
     }
   }
 
+
   async generateCookieToGetVideo(path: string) {
     const normalizedPath = path.replace(/^\/+/, '');
     const resourceUrl = `https://${this.cloudfrontDomainName}/${normalizedPath}`;
@@ -267,6 +285,7 @@ export class S3Service {
       throw new InternalServerErrorException('Failed to generate signed cookies for cloudfront');
     }
   }
+
 
   generatePublicResourceUrl(path: string) {
     return `https://${this.cloudfrontDomainName}/public/user/${path}`;
