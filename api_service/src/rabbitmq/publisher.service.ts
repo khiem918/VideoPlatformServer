@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
+import { Options } from 'amqplib';
 import { TransferVideoMetadata } from './interface/transferdata.interface';
 import { EXCHANGE } from './rabbitmq.module';
+
+type PublishOptionsWithTimeout = Options.Publish & { timeout?: number };
+
+const PUBLISH_TIMEOUT_MS = 10_000;
 
 @Injectable()
 export class PublisherService {
@@ -28,7 +33,8 @@ export class PublisherService {
       payload,
       {
         persistent: true,
-      },
+        timeout: PUBLISH_TIMEOUT_MS,
+      } as PublishOptionsWithTimeout,
     );
 
     return correlationId;

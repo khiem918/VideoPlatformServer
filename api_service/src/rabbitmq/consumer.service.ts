@@ -23,19 +23,18 @@ export class ConsumerService {
   async handleVideoMetadataRespone(
     message: TransferVideoMetaDataResponse,
   ): Promise<void> {
-    if (message.status === 'successed') {
-      await this.transferDataRepository.updateProcessingStatus(
+    if (message.status === 'succeeded') {
+      await this.transferDataRepository.updateMetaProcessingStatus(
         message.correlationId,
-        'successed',
+        'succeeded',
       );
       return;
     }
 
     if (message.status === 'failed') {
-      await this.transferDataRepository.updateProcessingStatus(
+      await this.transferDataRepository.updateMetaProcessingStatus(
         message.correlationId,
         'failed',
-        message.error,
       );
       return;
     }

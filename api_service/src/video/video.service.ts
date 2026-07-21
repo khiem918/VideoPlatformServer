@@ -11,6 +11,7 @@ import { VideoProcessingQueueService } from '../video-processing/video-processin
 import { v4 as uuidv4 } from 'uuid';
 import {
   UploadVideoStatus,
+  UploadMetaStatus,
   ProcessingType,
   VideoVisibility,
   VideoStatus,
@@ -235,6 +236,19 @@ export class VideoService {
     if (!result) {
       throw new NotFoundException('Video not found or not owned by user');
     }
+
+    // Mark metadata processing as in-flight so callers can poll
+    // VideoInformation.metaStatus for completion once search_service
+    // responds on video.metadata.res (see ConsumerService).
+    await this.videorepository.updateVideoInfo(
+      videoId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      UploadMetaStatus.PROCESSING,
+    );
 
     await this.publisherService.transferVideoMetadata(
       result.id,

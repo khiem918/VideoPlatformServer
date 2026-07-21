@@ -7,7 +7,7 @@ export class TransferVideoMetaDataResponse {
 
   @IsString()
   @IsNotEmpty()
-  status!: 'successed' | 'failed';
+  status!: 'succeeded' | 'failed';
 
   @IsString()
   error?: string;

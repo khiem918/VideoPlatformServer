@@ -4,6 +4,7 @@ import {
   ProcessingStatus,
   ProcessingType,
   UploadVideoStatus,
+  UploadMetaStatus,
 } from '@prisma/client';
 
 describe('VideoRepository', () => {
@@ -81,6 +82,25 @@ describe('VideoRepository', () => {
     expect(prisma.videoInformation.update).toHaveBeenCalledWith({
       where: { videoId: 'video-1' },
       data: { fileName: 'renamed.mp4' },
+    });
+  });
+
+  it('updateVideoInfo writes videoMetaStatus onto the metaStatus column', async () => {
+    prisma.videoInformation.update.mockResolvedValue({ id: 'info-1' });
+
+    await repository.updateVideoInfo(
+      'video-1',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      UploadMetaStatus.PROCESSING,
+    );
+
+    expect(prisma.videoInformation.update).toHaveBeenCalledWith({
+      where: { videoId: 'video-1' },
+      data: { metaStatus: UploadMetaStatus.PROCESSING },
     });
   });
 

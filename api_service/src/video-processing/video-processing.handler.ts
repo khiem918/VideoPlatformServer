@@ -6,7 +6,7 @@ import { TranscodingDataDto } from './dto/transcodingdata.dto';
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
 import { TranscodedVideoPaths } from './dto/transcodingdata.dto';
 
-@Processor('video-processing')
+@Processor(process.env.QUEUE_NAME || 'video-processing')
 export class VideoProcessingHandler extends WorkerHost {
   private readonly logger = new Logger(VideoProcessingHandler.name);
 

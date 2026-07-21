@@ -67,12 +67,6 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   BUCKET_NAME!: string;
 
-  @IsOptional()
-  CLOUDFLARE_R2_ENDPOINT?: string;
-
-  @IsOptional()
-  CLOUDFLARE_R2_FORCE_PATH_STYLE?: boolean;
-
   @IsNotEmpty()
   MAX_FILE_SIZE!: number;
 
@@ -87,18 +81,6 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   QUEUE_PORT!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  EMBED_API_URL!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  EMBED_API_KEY!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  R2_SIGN_SECRET!: string;
 
   @IsNotEmpty()
   @IsString()

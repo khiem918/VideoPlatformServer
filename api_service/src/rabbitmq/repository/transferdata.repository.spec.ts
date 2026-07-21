@@ -1,46 +1,31 @@
-import { ProcessingStatus } from '@prisma/client';
+import { UploadMetaStatus } from '@prisma/client';
 import { TransferDataRepository } from './transferdata.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 describe('TransferDataRepository', () => {
   let repository: TransferDataRepository;
-  let prisma: { videoProcessing: { update: jest.Mock } };
+  let prisma: { videoInformation: { update: jest.Mock } };
 
   beforeEach(() => {
-    prisma = { videoProcessing: { update: jest.fn() } };
+    prisma = { videoInformation: { update: jest.fn() } };
     repository = new TransferDataRepository(prisma as unknown as PrismaService);
   });
 
-  it('marks the processing job as completed on success', async () => {
-    await repository.updateProcessingStatus('proc-1', 'successed');
+  it('marks the video metadata as processed on success', async () => {
+    await repository.updateMetaProcessingStatus('video-1', 'succeeded');
 
-    expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
-      where: { id: 'proc-1' },
-      data: expect.objectContaining({
-        status: ProcessingStatus.COMPLETED,
-        completedAt: expect.any(Date),
-      }),
+    expect(prisma.videoInformation.update).toHaveBeenCalledWith({
+      where: { videoId: 'video-1' },
+      data: { metaStatus: UploadMetaStatus.PROCESSED },
     });
   });
 
-  it('marks the processing job as failed with the error message', async () => {
-    await repository.updateProcessingStatus('proc-1', 'failed', 'boom');
+  it('marks the video metadata as failed', async () => {
+    await repository.updateMetaProcessingStatus('video-1', 'failed');
 
-    expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
-      where: { id: 'proc-1' },
-      data: expect.objectContaining({
-        status: ProcessingStatus.FAILED,
-        error: 'boom',
-      }),
-    });
-  });
-
-  it('marks the processing job as dead when the status is dead', async () => {
-    await repository.updateProcessingStatus('proc-1', 'dead');
-
-    expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
-      where: { id: 'proc-1' },
-      data: { status: ProcessingStatus.DEAD },
+    expect(prisma.videoInformation.update).toHaveBeenCalledWith({
+      where: { videoId: 'video-1' },
+      data: { metaStatus: UploadMetaStatus.FAILED },
     });
   });
 });

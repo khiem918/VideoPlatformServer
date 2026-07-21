@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   ProcessingStatus,
   UploadVideoStatus,
+  UploadMetaStatus,
   VideoVisibility,
   VideoStatus,
   ProcessingType,
@@ -10,7 +11,7 @@ import {
 
 @Injectable()
 export class VideoRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async initVideoUpload(
     userId: string,
@@ -48,7 +49,7 @@ export class VideoRepository {
     fileSize?: number,
     objectPath?: string,
     videoStatus?: UploadVideoStatus,
-    videoMetaStatus?: UploadVideoStatus,
+    videoMetaStatus?: UploadMetaStatus,
   ) {
     return await this.prisma.videoInformation.update({
       where: { videoId: videoId },
@@ -59,7 +60,7 @@ export class VideoRepository {
         ...(objectPath !== undefined && { objectPath: objectPath }),
         ...(videoStatus !== undefined && { videoStatus: videoStatus }),
         ...(videoMetaStatus !== undefined && {
-          videoMetaStatus: videoMetaStatus,
+          metaStatus: videoMetaStatus,
         }),
       },
     });

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   UploadVideoStatus,
+  UploadMetaStatus,
   VideoStatus,
   VideoVisibility,
 } from '@prisma/client';
@@ -399,6 +400,15 @@ describe('VideoService', () => {
         'PUBLIC',
       );
 
+      expect(videorepository.updateVideoInfo).toHaveBeenCalledWith(
+        'video-1',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        UploadMetaStatus.PROCESSING,
+      );
       expect(publisherService.transferVideoMetadata).toHaveBeenCalledWith(
         'video-1',
         'new title',
