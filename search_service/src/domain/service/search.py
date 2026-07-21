@@ -6,7 +6,7 @@ from src.infrastructure.database.chunk_qdrant import ChunkQdrantService
 from src.infrastructure.grpc.grpc_client import GrpcClient
 from src.domain.entity.search_respone import VideoMetadata
 from src.infrastructure.s3.s3_client import S3Client
-from src.domain.service.normalize import normalize_search_query
+from src.domain.service.normalize import normalize_transcript_text
 import logging
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class SearchService:
 
         #---------------Handle searching algorithm---------------------------------------------
 
-        normalized_query = normalize_search_query(query)
+        normalized_query = normalize_transcript_text(query)
 
         query_dense_vector = await self.embedding_service.embed_query(normalized_query)
 

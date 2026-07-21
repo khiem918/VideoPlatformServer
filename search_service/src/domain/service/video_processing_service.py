@@ -7,6 +7,8 @@ from src.infrastructure.ml_model.embeding_model import EmbeddingService
 from src.infrastructure.database.chunk_qdrant import ChunkQdrantService
 from src.infrastructure.s3.s3_client import S3Client
 from src.domain.service.caption_service import CaptionService
+from src.domain.service.normalize import normalize_transcript_text
+from qdrant_client.http.models import SparseVector
 
 
 logger = logging.getLogger(__name__)
@@ -112,12 +114,16 @@ class VideoProcessingService:
                 )
                 return
 
-            # Bước 4: Embed từng chunk bằng e5-large
-            texts   = [chunk["text"] for chunk in chunks]
-            vectors = await self._embed_chunks(texts)
+            # Bước 4: Embed từng chunk bằng e5-large (dense) + BM25 (sparse)
+            # Chuẩn hóa text (bỏ emoji/dấu câu/khoảng trắng thừa, GIỮ dấu tiếng Việt)
+            # trước khi embed để khớp đối xứng với query lúc search (search.py).
+            # payload upsert_chunks() vẫn dùng chunk["text"] gốc để hiển thị cho người dùng.
+            texts_for_embedding = [normalize_transcript_text(chunk["text"]) for chunk in chunks]
+            vectors        = await self._embed_chunks(texts_for_embedding)
+            sparse_vectors = await self._embed_chunks_sparse(texts_for_embedding)
 
             # Bước 5: Upsert vào Qdrant
-            await self.chunk_qdrant.upsert_chunks(chunks, vectors)
+            await self.chunk_qdrant.upsert_chunks(chunks, vectors, sparse_vectors)
 
             logger.info(
                 f"Hoàn thành xử lý video {infor_id}: "
@@ -226,6 +232,9 @@ class VideoProcessingService:
     
     async def _embed_chunks(self, texts: list[str]) -> list[list[float]]:
         return [await self.embedding.embed_dense(text) for text in texts]
+
+    async def _embed_chunks_sparse(self, texts: list[str]) -> list[SparseVector]:
+        return [await self.embedding.embed_sparse(text) for text in texts]
     
     async def _generate_caption_chunks(
         self,
