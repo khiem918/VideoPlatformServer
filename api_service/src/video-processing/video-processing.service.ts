@@ -142,9 +142,9 @@ export class VideoProcessingService {
       throw error instanceof TranscodingFailedException
         ? error
         : new TranscodingFailedException(
-          `Download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          objectPath.split('/')[0],
-        );
+            `R2 download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            objectPath.split('/')[0],
+          );
     }
   }
 
@@ -191,13 +191,13 @@ export class VideoProcessingService {
 
           const objectPath = relativePath.startsWith('thumb/')
             ? this.s3Service.buildPublicThumbnailPath(
-              videoId,
-              relativePath.replace(/^thumb\//, ''),
-            )
+                videoId,
+                relativePath.replace(/^thumb\//, ''),
+              )
             : this.s3Service.buildPrivateSegmentPath(
-              videoId,
-              relativePath.replace(/^dash\//, ''),
-            );
+                videoId,
+                relativePath.replace(/^dash\//, ''),
+              );
 
           const uploadedPath = await this.s3Service.uploadFileStream(
             file,

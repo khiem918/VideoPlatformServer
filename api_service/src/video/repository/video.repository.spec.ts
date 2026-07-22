@@ -107,12 +107,31 @@ describe('VideoRepository', () => {
   it('createVideoProcessing creates a processing record with PROCESSING status', async () => {
     prisma.videoProcessing.create.mockResolvedValue({ id: 'proc-1' });
 
-    await repository.createVideoProcessing('video-1', ProcessingType.VIDEO);
+    await repository.createVideoProcessing('info-1', ProcessingType.VIDEO);
 
     expect(prisma.videoProcessing.create).toHaveBeenCalledWith({
       data: {
-        videoId: 'video-1',
+        videoInformationId: 'info-1',
         processingType: ProcessingType.VIDEO,
+        status: ProcessingStatus.PROCESSING,
+      },
+    });
+  });
+
+  it('createVideoProcessing uses the provided id when given', async () => {
+    prisma.videoProcessing.create.mockResolvedValue({ id: 'proc-1' });
+
+    await repository.createVideoProcessing(
+      'info-1',
+      ProcessingType.META,
+      'proc-1',
+    );
+
+    expect(prisma.videoProcessing.create).toHaveBeenCalledWith({
+      data: {
+        id: 'proc-1',
+        videoInformationId: 'info-1',
+        processingType: ProcessingType.META,
         status: ProcessingStatus.PROCESSING,
       },
     });

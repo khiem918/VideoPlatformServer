@@ -109,7 +109,7 @@ export class VideoService {
     }
 
     const [processing] = await Promise.all([
-      this.videorepository.createVideoProcessing(videoId, ProcessingType.VIDEO),
+      this.videorepository.createVideoProcessing(video.information.id, ProcessingType.VIDEO),
       this.videorepository.updateVideoInfo(
         videoId,
         undefined,
@@ -237,10 +237,7 @@ export class VideoService {
       throw new NotFoundException('Video not found or not owned by user');
     }
 
-    // Mark metadata processing as in-flight so callers can poll
-    // VideoInformation.metaStatus for completion once search_service
-    // responds on video.metadata.res (see ConsumerService).
-    await this.videorepository.updateVideoInfo(
+    const videoInfo = await this.videorepository.updateVideoInfo(
       videoId,
       undefined,
       undefined,
@@ -250,12 +247,29 @@ export class VideoService {
       UploadMetaStatus.PROCESSING,
     );
 
-    await this.publisherService.transferVideoMetadata(
-      result.id,
-      title ? title : undefined,
-      description ? description : undefined,
-      tags ? tags : undefined,
-    );
+    if (tags || title || description) {
+      
+      const processingId = uuidv4();
+
+      await Promise.all([
+        
+        this.videorepository.createVideoProcessing(
+          videoInfo.id,
+          ProcessingType.META,
+          processingId,
+        ),
+        
+        this.publisherService.transferVideoMetadata(
+          processingId,
+          result.id,
+          title ? title : undefined,
+          description ? description : undefined,
+          tags ? tags : undefined,
+        ),
+
+      ]);
+
+    }
 
     if (result.thumbnailPath) {
       try {

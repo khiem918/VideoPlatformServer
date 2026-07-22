@@ -36,7 +36,7 @@ const fsMocks = fs as unknown as {
 };
 
 describe('VideoProcessingService', () => {
-  const tempDir = '/tmp/video-processing';
+  const tempDir = '/tmp/video-streaming-system/processing';
   let service: VideoProcessingService;
   let ffmpegService: jest.Mocked<FFmpegService>;
   let repository: jest.Mocked<VideoProcessingRepository>;

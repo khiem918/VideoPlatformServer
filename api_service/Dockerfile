@@ -33,7 +33,11 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY api_service/package.json api_service/package-lock.json ./
-RUN npm ci --omit=dev
+# `prisma` (CLI, used below by `migrate deploy`) and `@prisma/client`
+# (imported directly by prisma.service.ts) are both listed under
+# devDependencies in package.json despite being required at runtime, so
+# `--omit=dev` would silently strip them and break every DB-touching path.
+RUN npm ci
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma

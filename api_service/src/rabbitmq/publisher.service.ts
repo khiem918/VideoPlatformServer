@@ -13,12 +13,13 @@ export class PublisherService {
   constructor(private readonly amqpConnection: AmqpConnection) {}
 
   async transferVideoMetadata(
+    processingId: string,
     videoId: string,
     title?: string,
     description?: string,
     hashtags?: string[],
   ): Promise<string> {
-    const correlationId = videoId;
+    const correlationId = processingId;
     const payload: TransferVideoMetadata = {
       correlationId,
       videoId,

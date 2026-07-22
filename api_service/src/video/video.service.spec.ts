@@ -10,6 +10,7 @@ import {
   UploadMetaStatus,
   VideoStatus,
   VideoVisibility,
+  ProcessingType,
 } from '@prisma/client';
 import { VideoService } from './video.service';
 import { S3Service } from 'src/s3/s3.service';
@@ -48,7 +49,7 @@ describe('VideoService', () => {
       initVideoUpload: jest.fn(),
       findVideo: jest.fn(),
       createVideoProcessing: jest.fn(),
-      updateVideoInfo: jest.fn(),
+      updateVideoInfo: jest.fn().mockResolvedValue({ id: 'info-1' }),
       deleteVideo: jest.fn(),
       getUserAllVideos: jest.fn(),
       updateVideo: jest.fn(),
@@ -182,6 +183,10 @@ describe('VideoService', () => {
 
       await service.completeUpload('user-1', 'video-1');
 
+      expect(videorepository.createVideoProcessing).toHaveBeenCalledWith(
+        'info-1',
+        ProcessingType.VIDEO,
+      );
       expect(
         videoProcessingQueueService.addTranscodingJob,
       ).toHaveBeenCalledWith({
@@ -387,6 +392,9 @@ describe('VideoService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       } as any);
+      videorepository.updateVideoInfo.mockResolvedValue({
+        id: 'info-1',
+      } as any);
       s3Service.generatePublicResourceUrl.mockReturnValue(
         'https://signed-thumb',
       );
@@ -409,7 +417,13 @@ describe('VideoService', () => {
         undefined,
         UploadMetaStatus.PROCESSING,
       );
+      expect(videorepository.createVideoProcessing).toHaveBeenCalledWith(
+        'info-1',
+        ProcessingType.META,
+        expect.any(String),
+      );
       expect(publisherService.transferVideoMetadata).toHaveBeenCalledWith(
+        expect.any(String),
         'video-1',
         'new title',
         'new desc',
@@ -417,6 +431,34 @@ describe('VideoService', () => {
       );
       expect(result.thumbnailUrl).toBe('https://signed-thumb');
       expect(result.tags).toEqual(['tag1']);
+    });
+
+    it('does not trigger metadata processing when no title, description, or tags change', async () => {
+      videorepository.findVideo.mockResolvedValue({
+        userId: 'user-1',
+        videoName: 'existing title',
+        videoStatus: VideoStatus.AVAILABLE,
+        visibility: VideoVisibility.PUBLIC,
+      } as any);
+      videorepository.updateVideo.mockResolvedValue({
+        id: 'video-1',
+        videoName: 'existing title',
+        duration: 10,
+        videoPath: 'url',
+        thumbnailPath: null,
+        videoView: 1,
+        videoLike: 2,
+        videoDislike: 3,
+        visibility: VideoVisibility.PRIVATE,
+        videoDesc: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any);
+
+      await service.updateVideo('user-1', 'video-1', undefined, undefined, undefined, 'PRIVATE');
+
+      expect(videorepository.createVideoProcessing).not.toHaveBeenCalled();
+      expect(publisherService.transferVideoMetadata).not.toHaveBeenCalled();
     });
   });
 

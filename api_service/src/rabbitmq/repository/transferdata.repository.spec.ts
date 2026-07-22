@@ -1,31 +1,41 @@
-import { UploadMetaStatus } from '@prisma/client';
+import { ProcessingStatus, UploadMetaStatus } from '@prisma/client';
 import { TransferDataRepository } from './transferdata.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 describe('TransferDataRepository', () => {
   let repository: TransferDataRepository;
-  let prisma: { videoInformation: { update: jest.Mock } };
+  let prisma: { videoProcessing: { update: jest.Mock } };
 
   beforeEach(() => {
-    prisma = { videoInformation: { update: jest.fn() } };
+    prisma = { videoProcessing: { update: jest.fn() } };
     repository = new TransferDataRepository(prisma as unknown as PrismaService);
   });
 
-  it('marks the video metadata as processed on success', async () => {
-    await repository.updateMetaProcessingStatus('video-1', 'succeeded');
+  it('marks the processing and video metadata as completed on success', async () => {
+    await repository.updateMetaProcessingStatus('proc-1', 'succeeded');
 
-    expect(prisma.videoInformation.update).toHaveBeenCalledWith({
-      where: { videoId: 'video-1' },
-      data: { metaStatus: UploadMetaStatus.PROCESSED },
+    expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
+      where: { id: 'proc-1' },
+      data: {
+        status: ProcessingStatus.COMPLETED,
+        videoInformation: {
+          update: { metaStatus: UploadMetaStatus.PROCESSED },
+        },
+      },
     });
   });
 
-  it('marks the video metadata as failed', async () => {
-    await repository.updateMetaProcessingStatus('video-1', 'failed');
+  it('marks the processing and video metadata as failed', async () => {
+    await repository.updateMetaProcessingStatus('proc-1', 'failed');
 
-    expect(prisma.videoInformation.update).toHaveBeenCalledWith({
-      where: { videoId: 'video-1' },
-      data: { metaStatus: UploadMetaStatus.FAILED },
+    expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
+      where: { id: 'proc-1' },
+      data: {
+        status: ProcessingStatus.FAILED,
+        videoInformation: {
+          update: { metaStatus: UploadMetaStatus.FAILED },
+        },
+      },
     });
   });
 });

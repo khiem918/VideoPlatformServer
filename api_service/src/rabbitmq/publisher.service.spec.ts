@@ -78,24 +78,27 @@ describe('PublisherService', () => {
   it('publishes the minimal payload and it is delivered to the real broker', async () => {
     const waitForMessage = await subscribeToRoutingKey('video.metadata.trans');
 
-    const result = await service.transferVideoMetadata('video-1');
+    const result = await service.transferVideoMetadata('proc-1', 'video-1');
 
     const received = await waitForMessage();
-    expect(received).toEqual({ correlationId: 'video-1', videoId: 'video-1' });
-    expect(result).toBe('video-1');
+    expect(received).toEqual({ correlationId: 'proc-1', videoId: 'video-1' });
+    expect(result).toBe('proc-1');
   });
 
   it('includes optional fields only when provided', async () => {
     const waitForMessage = await subscribeToRoutingKey('video.metadata.trans');
 
-    await service.transferVideoMetadata('video-2', 'title', 'description', [
-      'tag1',
-      'tag2',
-    ]);
+    await service.transferVideoMetadata(
+      'proc-2',
+      'video-2',
+      'title',
+      'description',
+      ['tag1', 'tag2'],
+    );
 
     const received = await waitForMessage();
     expect(received).toEqual({
-      correlationId: 'video-2',
+      correlationId: 'proc-2',
       videoId: 'video-2',
       title: 'title',
       description: 'description',
