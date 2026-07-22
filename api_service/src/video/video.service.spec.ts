@@ -455,7 +455,14 @@ describe('VideoService', () => {
         updatedAt: new Date(),
       } as any);
 
-      await service.updateVideo('user-1', 'video-1', undefined, undefined, undefined, 'PRIVATE');
+      await service.updateVideo(
+        'user-1',
+        'video-1',
+        undefined,
+        undefined,
+        undefined,
+        'PRIVATE',
+      );
 
       expect(videorepository.createVideoProcessing).not.toHaveBeenCalled();
       expect(publisherService.transferVideoMetadata).not.toHaveBeenCalled();
