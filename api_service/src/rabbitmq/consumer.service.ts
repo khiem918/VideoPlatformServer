@@ -1,11 +1,13 @@
 import { RabbitSubscribe } from '@golevelup/nestjs-rabbitmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { EXCHANGE } from './rabbitmq.module';
 import { TransferVideoMetaDataResponse } from './dto/transferdata.dto';
 import { TransferDataRepository } from './repository/transferdata.repository';
 
 @Injectable()
 export class ConsumerService {
+  private readonly logger = new Logger(ConsumerService.name);
+  
   constructor(
     private readonly transferDataRepository: TransferDataRepository,
   ) {}
@@ -23,19 +25,21 @@ export class ConsumerService {
   async handleVideoMetadataRespone(
     message: TransferVideoMetaDataResponse,
   ): Promise<void> {
-    if (message.status === 'successed') {
-      await this.transferDataRepository.updateProcessingStatus(
+
+    this.logger.debug(`Received message: ${JSON.stringify(message)}`);
+
+    if (message.status === 'succeeded') {
+      await this.transferDataRepository.updateMetaProcessingStatus(
         message.correlationId,
-        'successed',
+        'succeeded',
       );
       return;
     }
 
     if (message.status === 'failed') {
-      await this.transferDataRepository.updateProcessingStatus(
+      await this.transferDataRepository.updateMetaProcessingStatus(
         message.correlationId,
         'failed',
-        message.error,
       );
       return;
     }

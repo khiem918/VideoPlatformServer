@@ -1,9 +1,11 @@
 import { VideoResolver } from './video.resolver';
 import { VideoService } from './video.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('VideoResolver', () => {
   let resolver: VideoResolver;
   let videoService: jest.Mocked<VideoService>;
+  let config: jest.Mocked<ConfigService>;
 
   beforeEach(() => {
     videoService = {
@@ -22,14 +24,18 @@ describe('VideoResolver', () => {
       trackVideoWatchProgress: jest.fn(),
     } as unknown as jest.Mocked<VideoService>;
 
-    resolver = new VideoResolver(videoService);
+    config = {
+      get: jest.fn().mockReturnValue('.example.com'),
+    } as unknown as jest.Mocked<ConfigService>;
+
+    resolver = new VideoResolver(videoService, config);
   });
 
   it('initUploadVideo returns the videoId and presignedUrl from the service', async () => {
     videoService.initUpload.mockResolvedValue({
       videoId: 'video-1',
       presignedUrl: 'https://upload',
-      r2Path: 'videos/aa/bb/video-1/original/file.mp4',
+      objectPath: 'videos/aa/bb/video-1/original/file.mp4',
     });
 
     const result = await resolver.initUploadVideo(
@@ -132,20 +138,48 @@ describe('VideoResolver', () => {
     expect(result).toEqual({ id: 'video-1' });
   });
 
-  it('getWatchVideoUrl delegates to the service', async () => {
+  it('getWatchVideoUrl delegates to the service and sets signed cookies', async () => {
     videoService.getWatchVideoUrl.mockResolvedValue({
-      signature: 'sig',
+      mpdUrl:
+        'https://cdn.example.com/private/user/video-1/segment/manifest.mpd',
+      cookies: {
+        'CloudFront-Policy': 'policy',
+        'CloudFront-Key-Pair-Id': 'key-pair-id',
+        'CloudFront-Signature': 'signature',
+      },
     } as any);
 
-    const result = await resolver.getWatchVideoUrl('video-1', {
-      userId: 'user-1',
-    });
+    const res = { cookie: jest.fn() } as any;
+
+    const result = await resolver.getWatchVideoUrl(
+      'video-1',
+      { userId: 'user-1' },
+      res,
+    );
 
     expect(videoService.getWatchVideoUrl).toHaveBeenCalledWith(
       'user-1',
       'video-1',
     );
-    expect(result).toEqual({ signature: 'sig' });
+    expect(res.cookie).toHaveBeenCalledWith(
+      'CF_P',
+      'policy',
+      expect.objectContaining({ domain: '.example.com', path: '/private/' }),
+    );
+    expect(res.cookie).toHaveBeenCalledWith(
+      'CF_K',
+      'key-pair-id',
+      expect.objectContaining({ domain: '.example.com', path: '/private/' }),
+    );
+    expect(res.cookie).toHaveBeenCalledWith(
+      'CF_S',
+      'signature',
+      expect.objectContaining({ domain: '.example.com', path: '/private/' }),
+    );
+    expect(result).toEqual({
+      mpdUrl:
+        'https://cdn.example.com/private/user/video-1/segment/manifest.mpd',
+    });
   });
 
   it('commentOnVideo delegates to the service', async () => {

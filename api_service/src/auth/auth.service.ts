@@ -157,6 +157,7 @@ export class AuthService {
       }
       throw new InternalServerErrorException('Token rotation failed');
     }
+
   }
 
 
@@ -179,4 +180,5 @@ export class AuthService {
       throw new InternalServerErrorException('Sign out failed');
     }
   }
+
 }

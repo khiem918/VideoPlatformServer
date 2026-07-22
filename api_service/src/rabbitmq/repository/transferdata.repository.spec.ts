@@ -1,4 +1,4 @@
-import { ProcessingStatus } from '@prisma/client';
+import { ProcessingStatus, UploadMetaStatus } from '@prisma/client';
 import { TransferDataRepository } from './transferdata.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 
@@ -11,36 +11,31 @@ describe('TransferDataRepository', () => {
     repository = new TransferDataRepository(prisma as unknown as PrismaService);
   });
 
-  it('marks the processing job as completed on success', async () => {
-    await repository.updateProcessingStatus('proc-1', 'successed');
+  it('marks the processing and video metadata as completed on success', async () => {
+    await repository.updateMetaProcessingStatus('proc-1', 'succeeded');
 
     expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
       where: { id: 'proc-1' },
-      data: expect.objectContaining({
+      data: {
         status: ProcessingStatus.COMPLETED,
-        completedAt: expect.any(Date),
-      }),
+        videoInformation: {
+          update: { metaStatus: UploadMetaStatus.PROCESSED },
+        },
+      },
     });
   });
 
-  it('marks the processing job as failed with the error message', async () => {
-    await repository.updateProcessingStatus('proc-1', 'failed', 'boom');
+  it('marks the processing and video metadata as failed', async () => {
+    await repository.updateMetaProcessingStatus('proc-1', 'failed');
 
     expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
       where: { id: 'proc-1' },
-      data: expect.objectContaining({
+      data: {
         status: ProcessingStatus.FAILED,
-        error: 'boom',
-      }),
-    });
-  });
-
-  it('marks the processing job as dead when the status is dead', async () => {
-    await repository.updateProcessingStatus('proc-1', 'dead');
-
-    expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
-      where: { id: 'proc-1' },
-      data: { status: ProcessingStatus.DEAD },
+        videoInformation: {
+          update: { metaStatus: UploadMetaStatus.FAILED },
+        },
+      },
     });
   });
 });

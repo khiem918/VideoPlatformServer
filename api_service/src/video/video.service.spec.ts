@@ -7,8 +7,10 @@ import {
 } from '@nestjs/common';
 import {
   UploadVideoStatus,
+  UploadMetaStatus,
   VideoStatus,
   VideoVisibility,
+  ProcessingType,
 } from '@prisma/client';
 import { VideoService } from './video.service';
 import { S3Service } from 'src/s3/s3.service';
@@ -33,15 +35,21 @@ describe('VideoService', () => {
       fileExists: jest.fn(),
       deleteDirectory: jest.fn(),
       getPresignedDownloadUrl: jest.fn(),
-      signUrl: jest.fn(),
-      getDownloadUrl: jest.fn(),
+      generatePublicResourceUrl: jest.fn(),
+      generateCookieToGetVideo: jest.fn(),
+      buildPrivatePrefix: jest.fn(
+        (videoId: string) => `private/user/${videoId}/`,
+      ),
+      buildPublicPrefix: jest.fn(
+        (videoId: string) => `public/user/${videoId}/`,
+      ),
     } as unknown as jest.Mocked<S3Service>;
 
     videorepository = {
       initVideoUpload: jest.fn(),
       findVideo: jest.fn(),
       createVideoProcessing: jest.fn(),
-      updateVideoInfo: jest.fn(),
+      updateVideoInfo: jest.fn().mockResolvedValue({ id: 'info-1' }),
       deleteVideo: jest.fn(),
       getUserAllVideos: jest.fn(),
       updateVideo: jest.fn(),
@@ -96,7 +104,7 @@ describe('VideoService', () => {
     it('returns upload metadata and persists the pending upload', async () => {
       s3Service.getPresignedUploadUrl.mockResolvedValue({
         presignedUrl: 'https://upload',
-        r2Path: 'videos/aa/bb/video-1/original/file.mp4',
+        objectPath: 'videos/aa/bb/video-1/original/file.mp4',
       });
 
       const result = await service.initUpload(
@@ -115,7 +123,7 @@ describe('VideoService', () => {
         'video/mp4',
       );
       expect(result.presignedUrl).toBe('https://upload');
-      expect(result.r2Path).toBe('videos/aa/bb/video-1/original/file.mp4');
+      expect(result.objectPath).toBe('videos/aa/bb/video-1/original/file.mp4');
       expect(typeof result.videoId).toBe('string');
     });
   });
@@ -147,7 +155,7 @@ describe('VideoService', () => {
         userId: 'user-1',
         information: {
           videoStatus: UploadVideoStatus.PENDING,
-          r2Path: 'videos/aa/bb/video-1/original/file.mp4',
+          objectPath: 'videos/aa/bb/video-1/original/file.mp4',
         },
       } as any);
       s3Service.fileExists.mockResolvedValue(false);
@@ -163,7 +171,7 @@ describe('VideoService', () => {
         information: {
           id: 'info-1',
           videoStatus: UploadVideoStatus.PENDING,
-          r2Path: 'videos/aa/bb/video-1/original/file.mp4',
+          objectPath: 'videos/aa/bb/video-1/original/file.mp4',
           mimeType: 'video/mp4',
         },
       } as any);
@@ -175,12 +183,16 @@ describe('VideoService', () => {
 
       await service.completeUpload('user-1', 'video-1');
 
+      expect(videorepository.createVideoProcessing).toHaveBeenCalledWith(
+        'info-1',
+        ProcessingType.VIDEO,
+      );
       expect(
         videoProcessingQueueService.addTranscodingJob,
       ).toHaveBeenCalledWith({
         processingId: 'proc-1',
         inforId: 'info-1',
-        r2Path: 'videos/aa/bb/video-1/original/file.mp4',
+        objectPath: 'videos/aa/bb/video-1/original/file.mp4',
         mimeType: 'video/mp4',
       });
     });
@@ -197,7 +209,7 @@ describe('VideoService', () => {
 
     it('removes storage, vector, database record, and search index entry', async () => {
       videorepository.findVideo.mockResolvedValue({
-        videoUrl: 'https://cdn/videos/aa/bb/video-1/dash/manifest.mpd',
+        videoUrl: 'https://cdn/private/user/video-1/segment/manifest.mpd',
       } as any);
       s3Service.deleteDirectory.mockResolvedValue(undefined);
       qdrantService.deleteVideoVector.mockResolvedValue(undefined);
@@ -207,7 +219,10 @@ describe('VideoService', () => {
       await service.deleteVideo('user-1', 'video-1');
 
       expect(s3Service.deleteDirectory).toHaveBeenCalledWith(
-        'videos/aa/bb/video-1/',
+        'private/user/video-1/',
+      );
+      expect(s3Service.deleteDirectory).toHaveBeenCalledWith(
+        'public/user/video-1/',
       );
       expect(qdrantService.deleteVideoVector).toHaveBeenCalledWith('video-1');
       expect(videorepository.deleteVideo).toHaveBeenCalledWith(
@@ -266,8 +281,8 @@ describe('VideoService', () => {
           id: 'video-1',
           videoName: 'public video',
           duration: 10,
-          videoUrl: 'url',
-          thumbnailUrl: 'thumb.jpg',
+          videoPath: 'url',
+          thumbnailPath: 'thumb.jpg',
           videoView: 5,
           videoLike: 1,
           videoDislike: 0,
@@ -278,7 +293,9 @@ describe('VideoService', () => {
           updatedAt: new Date(),
         },
       ] as any);
-      s3Service.getPresignedDownloadUrl.mockRejectedValue(new Error('s3 down'));
+      s3Service.generatePublicResourceUrl.mockImplementation(() => {
+        throw new Error('s3 down');
+      });
 
       const result = await service.getUserVideos('user-1');
       const [video] = await result.videos;
@@ -365,8 +382,8 @@ describe('VideoService', () => {
         id: 'video-1',
         videoName: 'new title',
         duration: 10,
-        videoUrl: 'url',
-        thumbnailUrl: 'thumb.jpg',
+        videoPath: 'url',
+        thumbnailPath: 'thumb.jpg',
         videoView: 1,
         videoLike: 2,
         videoDislike: 3,
@@ -375,7 +392,10 @@ describe('VideoService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       } as any);
-      s3Service.getPresignedDownloadUrl.mockResolvedValue(
+      videorepository.updateVideoInfo.mockResolvedValue({
+        id: 'info-1',
+      } as any);
+      s3Service.generatePublicResourceUrl.mockReturnValue(
         'https://signed-thumb',
       );
 
@@ -388,7 +408,22 @@ describe('VideoService', () => {
         'PUBLIC',
       );
 
+      expect(videorepository.updateVideoInfo).toHaveBeenCalledWith(
+        'video-1',
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        UploadMetaStatus.PROCESSING,
+      );
+      expect(videorepository.createVideoProcessing).toHaveBeenCalledWith(
+        'info-1',
+        ProcessingType.META,
+        expect.any(String),
+      );
       expect(publisherService.transferVideoMetadata).toHaveBeenCalledWith(
+        expect.any(String),
         'video-1',
         'new title',
         'new desc',
@@ -397,12 +432,47 @@ describe('VideoService', () => {
       expect(result.thumbnailUrl).toBe('https://signed-thumb');
       expect(result.tags).toEqual(['tag1']);
     });
+
+    it('does not trigger metadata processing when no title, description, or tags change', async () => {
+      videorepository.findVideo.mockResolvedValue({
+        userId: 'user-1',
+        videoName: 'existing title',
+        videoStatus: VideoStatus.AVAILABLE,
+        visibility: VideoVisibility.PUBLIC,
+      } as any);
+      videorepository.updateVideo.mockResolvedValue({
+        id: 'video-1',
+        videoName: 'existing title',
+        duration: 10,
+        videoPath: 'url',
+        thumbnailPath: null,
+        videoView: 1,
+        videoLike: 2,
+        videoDislike: 3,
+        visibility: VideoVisibility.PRIVATE,
+        videoDesc: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any);
+
+      await service.updateVideo(
+        'user-1',
+        'video-1',
+        undefined,
+        undefined,
+        undefined,
+        'PRIVATE',
+      );
+
+      expect(videorepository.createVideoProcessing).not.toHaveBeenCalled();
+      expect(publisherService.transferVideoMetadata).not.toHaveBeenCalled();
+    });
   });
 
   describe('getWatchVideoMetadata', () => {
     it('throws NotFoundException when processing is not complete', async () => {
       videorepository.getVideoForWatching.mockResolvedValue({
-        res1: { videoUrl: null },
+        res1: { videoPath: null },
       } as any);
 
       await expect(
@@ -493,8 +563,8 @@ describe('VideoService', () => {
   });
 
   describe('getWatchVideoUrl', () => {
-    it('throws NotFoundException when the video has no url yet', async () => {
-      videorepository.findVideo.mockResolvedValue({ videoUrl: null } as any);
+    it('throws NotFoundException when the video has no path yet', async () => {
+      videorepository.findVideo.mockResolvedValue({ videoPath: null } as any);
 
       await expect(
         service.getWatchVideoUrl('user-1', 'video-1'),
@@ -503,7 +573,7 @@ describe('VideoService', () => {
 
     it('throws ForbiddenException for a private video owned by someone else', async () => {
       videorepository.findVideo.mockResolvedValue({
-        videoUrl: 'url',
+        videoPath: 'private/user/video-1/segment/manifest.mpd',
         userId: 'owner-1',
         visibility: 'PRIVATE',
       } as any);
@@ -515,18 +585,29 @@ describe('VideoService', () => {
 
     it('returns a signed manifest url for a public video', async () => {
       videorepository.findVideo.mockResolvedValue({
-        videoUrl: 'manifest-path',
+        videoPath: 'private/user/video-1/segment/manifest.mpd',
         userId: 'owner-1',
         visibility: 'PUBLIC',
       } as any);
-      s3Service.signUrl.mockResolvedValue('signature');
-      s3Service.getDownloadUrl.mockResolvedValue('https://cdn/manifest-path');
+      s3Service.generateCookieToGetVideo.mockResolvedValue({
+        url: 'https://cdn.example.com/private/user/video-1/segment/manifest.mpd',
+        cookies: {
+          'CloudFront-Key-Pair-Id': 'key-pair-id',
+          'CloudFront-Policy': 'policy',
+          'CloudFront-Signature': 'signature',
+        },
+      });
 
       const result = await service.getWatchVideoUrl('user-1', 'video-1');
 
-      expect(result.signature).toBe('signature');
-      expect(result.mpdUrl).toBe('https://cdn/manifest-path');
-      expect(typeof result.expiresAt).toBe('number');
+      expect(result.mpdUrl).toBe(
+        'https://cdn.example.com/private/user/video-1/segment/manifest.mpd',
+      );
+      expect(result.cookies).toEqual({
+        'CloudFront-Key-Pair-Id': 'key-pair-id',
+        'CloudFront-Policy': 'policy',
+        'CloudFront-Signature': 'signature',
+      });
     });
   });
 

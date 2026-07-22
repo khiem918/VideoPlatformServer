@@ -40,7 +40,7 @@ def grpc_service():
 @pytest.fixture
 def s3_client():
     mock = MagicMock()
-    mock.get_presigned_url = MagicMock(side_effect=lambda path, *a, **kw: f"https://cdn.example.test/{path}")
+    mock.generate_public_resource_url = MagicMock(side_effect=lambda path, *a, **kw: f"https://cdn.example.test/{path}")
     return mock
 
 

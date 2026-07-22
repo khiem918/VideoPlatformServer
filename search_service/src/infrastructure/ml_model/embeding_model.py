@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from fastapi import logger
 import onnxruntime
@@ -39,18 +40,24 @@ class EmbeddingService(BaseEmbedding):
 
     async def embed_dense(self, text: str) -> list[float]:
 
-        result = await list(self._dense_model.embed([f"passage: {text}"]))
+        result = await asyncio.to_thread(
+            lambda: list(self._dense_model.embed([f"passage: {text}"]))
+        )
         return result[0].tolist()
 
     async def embed_sparse(self, query: str) -> SparseVector:
-        
-        result = await list(self._sparse_model.embed([query]))
+
+        result = await asyncio.to_thread(
+            lambda: list(self._sparse_model.embed([query]))
+        )
         sv = result[0]
         return SparseVector(
-                    indices=sv.indices.tolist(), 
+                    indices=sv.indices.tolist(),
                     values=sv.values.tolist(),
                     )
-    
+
     async def embed_query(self, query: str) -> list[float]:
-        result = await list(self._dense_model.embed([f"query: {query}"]))
+        result = await asyncio.to_thread(
+            lambda: list(self._dense_model.embed([f"query: {query}"]))
+        )
         return result[0].tolist()

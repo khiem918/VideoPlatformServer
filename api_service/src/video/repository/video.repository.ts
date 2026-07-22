@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   ProcessingStatus,
   UploadVideoStatus,
+  UploadMetaStatus,
   VideoVisibility,
   VideoStatus,
   ProcessingType,
@@ -10,14 +11,14 @@ import {
 
 @Injectable()
 export class VideoRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async initVideoUpload(
     userId: string,
     videoId: string,
     fileName: string,
     fileSize: number,
-    r2Path: string,
+    objectPath: string,
     mimeType: string,
   ) {
     return await this.prisma.$transaction(async (tx) => {
@@ -33,7 +34,7 @@ export class VideoRepository {
           videoId: videoId,
           fileName: fileName,
           fileSize: fileSize,
-          r2Path: r2Path,
+          objectPath: objectPath,
           mimeType: mimeType,
           videoStatus: UploadVideoStatus.PENDING,
         },
@@ -46,9 +47,9 @@ export class VideoRepository {
     mimeType?: string,
     fileName?: string,
     fileSize?: number,
-    r2Path?: string,
+    objectPath?: string,
     videoStatus?: UploadVideoStatus,
-    videoMetaStatus?: UploadVideoStatus,
+    videoMetaStatus?: UploadMetaStatus,
   ) {
     return await this.prisma.videoInformation.update({
       where: { videoId: videoId },
@@ -56,19 +57,20 @@ export class VideoRepository {
         ...(mimeType !== undefined && { mimeType: mimeType }),
         ...(fileName !== undefined && { fileName: fileName }),
         ...(fileSize !== undefined && { fileSize: fileSize }),
-        ...(r2Path !== undefined && { r2Path: r2Path }),
+        ...(objectPath !== undefined && { objectPath: objectPath }),
         ...(videoStatus !== undefined && { videoStatus: videoStatus }),
         ...(videoMetaStatus !== undefined && {
-          videoMetaStatus: videoMetaStatus,
+          metaStatus: videoMetaStatus,
         }),
       },
     });
   }
 
-  async createVideoProcessing(videoId: string, type: ProcessingType) {
+  async createVideoProcessing(videoInformationId: string, type: ProcessingType, id?: string) {
     return await this.prisma.videoProcessing.create({
       data: {
-        videoId: videoId,
+        ...(id !== undefined && { id: id }),
+        videoInformationId: videoInformationId,
         processingType: type,
         status: ProcessingStatus.PROCESSING,
       },

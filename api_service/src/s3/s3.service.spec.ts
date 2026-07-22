@@ -17,6 +17,25 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: (...args: unknown[]) => mockGetSignedUrl(...args),
 }));
 
+const mockGetSignedCookies = jest.fn();
+jest.mock('@aws-sdk/cloudfront-signer', () => ({
+  getSignedCookies: (...args: unknown[]) => mockGetSignedCookies(...args),
+}));
+
+const mockUploadDone = jest.fn();
+const mockUploadCtor = jest.fn();
+jest.mock('@aws-sdk/lib-storage', () => ({
+  Upload: jest.fn().mockImplementation((...args: unknown[]) => {
+    mockUploadCtor(...args);
+    return { done: mockUploadDone };
+  }),
+}));
+
+const mockCreateReadStream = jest.fn();
+jest.mock('fs', () => ({
+  createReadStream: (...args: unknown[]) => mockCreateReadStream(...args),
+}));
+
 import { S3Service } from './s3.service';
 
 describe('S3Service', () => {
@@ -29,14 +48,16 @@ describe('S3Service', () => {
     config = {
       get: jest.fn((key: string) => {
         const values: Record<string, string> = {
-          CLOUDFLARE_R2_ACCESS_KEY_ID: 'key-id',
-          CLOUDFLARE_R2_SECRET_ACCESS_KEY: 'secret',
-          CLOUDFLARE_R2_ENDPOINT: 'https://endpoint',
-          CLOUDFLARE_R2_REGION: 'auto',
-          CLOUDFLARE_R2_BUCKET_NAME: 'bucket',
+          S3_ACCESS_KEY_ID: 'key-id',
+          S3_SECRET_ACCESS_KEY: 'secret',
+          S3_REGION: 'auto',
+          BUCKET_NAME: 'bucket',
           R2_WORKER_URL: 'https://cdn.example.com',
           R2_SIGN_SECRET: 'sign-secret',
           WORKER_KEY: 'worker-key',
+          CLOUDFRONT_DOMAIN_NAME: 'cdn.example.com',
+          CLOUDFRONT_KEY_PAIR_ID: 'key-pair-id',
+          CLOUDFRONT_PRIVATE_KEY: Buffer.from('private-key').toString('base64'),
         };
         return values[key];
       }),
@@ -45,50 +66,50 @@ describe('S3Service', () => {
     service = new S3Service(config);
   });
 
-  describe('buildVideoPath / buildVideoPrefix', () => {
-    it('builds a deterministic sharded path for a given video id', () => {
-      const path1 = service.buildVideoPath('video-1', 'original/file.mp4');
-      const path2 = service.buildVideoPath('video-1', 'original/file.mp4');
+  describe('buildPrivateOriginalPath / buildPrivateSegmentPath / buildPublicThumbnailPath', () => {
+    it('builds the private original path for a given video id', () => {
+      const path = service.buildPrivateOriginalPath('video-1', 'file.mp4');
 
-      expect(path1).toBe(path2);
-      expect(path1).toMatch(
-        /^videos\/[0-9a-f]{2}\/[0-9a-f]{2}\/video-1\/original\/file\.mp4$/,
-      );
+      expect(path).toBe('private/user/video-1/original/file.mp4');
     });
 
-    it('builds a prefix without a leading slash on the relative path', () => {
-      const prefix = service.buildVideoPrefix('video-1');
+    it('builds the private segment path for a given video id', () => {
+      const path = service.buildPrivateSegmentPath('video-1', 'manifest.mpd');
 
-      expect(prefix.endsWith('video-1/')).toBe(true);
+      expect(path).toBe('private/user/video-1/segment/manifest.mpd');
+    });
+
+    it('builds the public thumbnail path for a given video id', () => {
+      const path = service.buildPublicThumbnailPath('video-1', '0.jpg');
+
+      expect(path).toBe('public/user/video-1/thumbnail/0.jpg');
     });
   });
 
-  describe('buildVideoPrefixFromR2Path / extractVideoIdFromR2Path', () => {
-    it('extracts the video id from a well-formed r2 path', () => {
-      const videoId = service.extractVideoIdFromR2Path(
-        'videos/aa/bb/video-1/original/file.mp4',
+  describe('buildPrivatePrefix / buildPublicPrefix', () => {
+    it('builds the private prefix for a video id', () => {
+      expect(service.buildPrivatePrefix('video-1')).toBe(
+        'private/user/video-1/',
+      );
+    });
+
+    it('builds the public prefix for a video id', () => {
+      expect(service.buildPublicPrefix('video-1')).toBe('public/user/video-1/');
+    });
+  });
+
+  describe('parseVideoIdFromPrivatePath', () => {
+    it('extracts the video id from a well-formed private path', () => {
+      const videoId = service.parseVideoIdFromPrivatePath(
+        'private/user/video-1/original/file.mp4',
       );
 
       expect(videoId).toBe('video-1');
     });
 
-    it('throws for a malformed r2 path', () => {
-      expect(() => service.extractVideoIdFromR2Path('bad/path')).toThrow(
-        'Invalid R2 video path',
-      );
-    });
-
-    it('builds the prefix from a well-formed r2 path', () => {
-      const prefix = service.buildVideoPrefixFromR2Path(
-        'videos/aa/bb/video-1/original/file.mp4',
-      );
-
-      expect(prefix).toBe('videos/aa/bb/video-1/');
-    });
-
-    it('throws when building the prefix from a malformed r2 path', () => {
-      expect(() => service.buildVideoPrefixFromR2Path('bad/path')).toThrow(
-        'Invalid R2 video path',
+    it('throws for a malformed private path', () => {
+      expect(() => service.parseVideoIdFromPrivatePath('bad/path')).toThrow(
+        'Invalid private object path',
       );
     });
   });
@@ -104,7 +125,7 @@ describe('S3Service', () => {
       );
 
       expect(result.presignedUrl).toBe('https://upload-url');
-      expect(result.r2Path).toContain('video-1');
+      expect(result.objectPath).toContain('video-1');
     });
 
     it('throws InternalServerErrorException when signing fails', async () => {
@@ -122,11 +143,11 @@ describe('S3Service', () => {
 
       const result = await service.uploadFile(
         Buffer.from('data'),
-        'videos/aa/bb/video-1/file.mp4',
+        'private/user/video-1/original/file.mp4',
         'video/mp4',
       );
 
-      expect(result).toBe('videos/aa/bb/video-1/file.mp4');
+      expect(result).toBe('private/user/video-1/original/file.mp4');
     });
 
     it('rethrows when the upload fails', async () => {
@@ -134,6 +155,42 @@ describe('S3Service', () => {
 
       await expect(
         service.uploadFile(Buffer.from('data'), 'path', 'video/mp4'),
+      ).rejects.toThrow('upload failed');
+    });
+  });
+
+  describe('uploadFileStream', () => {
+    it('streams the file from disk and returns the object path', async () => {
+      mockCreateReadStream.mockReturnValue('fake-read-stream');
+      mockUploadDone.mockResolvedValue({});
+
+      const result = await service.uploadFileStream(
+        '/tmp/dash/segment-1.m4s',
+        'private/user/video-1/segment/segment-1.m4s',
+        'video/iso.segment',
+      );
+
+      expect(result).toBe('private/user/video-1/segment/segment-1.m4s');
+      expect(mockCreateReadStream).toHaveBeenCalledWith(
+        '/tmp/dash/segment-1.m4s',
+      );
+      expect(mockUploadCtor).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            Key: 'private/user/video-1/segment/segment-1.m4s',
+            Body: 'fake-read-stream',
+            ContentType: 'video/iso.segment',
+          }),
+        }),
+      );
+    });
+
+    it('rethrows when the upload fails', async () => {
+      mockCreateReadStream.mockReturnValue('fake-read-stream');
+      mockUploadDone.mockRejectedValue(new Error('upload failed'));
+
+      await expect(
+        service.uploadFileStream('/tmp/file.mp4', 'path', 'video/mp4'),
       ).rejects.toThrow('upload failed');
     });
   });
@@ -179,17 +236,6 @@ describe('S3Service', () => {
       );
     });
 
-    it('reads the stream into a single buffer', async () => {
-      async function* generate() {
-        yield Buffer.from('hello ');
-        yield Buffer.from('world');
-      }
-      mockSend.mockResolvedValue({ Body: generate() });
-
-      const result = await service.getFileBuffer('path');
-
-      expect(result.toString()).toBe('hello world');
-    });
   });
 
   describe('getPresignedDownloadUrl', () => {
@@ -210,28 +256,16 @@ describe('S3Service', () => {
     });
   });
 
-  describe('getDownloadUrl', () => {
-    it('builds the CDN url from the configured worker url', async () => {
-      const result = await service.getDownloadUrl(
-        'videos/aa/bb/video-1/file.mp4',
-      );
-
-      expect(result).toBe(
-        'https://cdn.example.com/videos/aa/bb/video-1/file.mp4',
-      );
-    });
-  });
-
   describe('deleteDirectory', () => {
     it('lists and deletes all objects under the prefix', async () => {
       mockSend
         .mockResolvedValueOnce({
-          Contents: [{ Key: 'videos/aa/bb/video-1/file.mp4' }],
+          Contents: [{ Key: 'private/user/video-1/original/file.mp4' }],
           IsTruncated: false,
         })
         .mockResolvedValueOnce({});
 
-      await service.deleteDirectory('videos/aa/bb/video-1');
+      await service.deleteDirectory('private/user/video-1');
 
       expect(mockSend).toHaveBeenCalledTimes(2);
     });
@@ -239,7 +273,7 @@ describe('S3Service', () => {
     it('stops when there is nothing to delete', async () => {
       mockSend.mockResolvedValueOnce({ Contents: [] });
 
-      await service.deleteDirectory('videos/aa/bb/video-1');
+      await service.deleteDirectory('private/user/video-1');
 
       expect(mockSend).toHaveBeenCalledTimes(1);
     });
@@ -248,29 +282,39 @@ describe('S3Service', () => {
       mockSend.mockRejectedValue(new Error('list failed'));
 
       await expect(
-        service.deleteDirectory('videos/aa/bb/video-1'),
+        service.deleteDirectory('private/user/video-1'),
       ).rejects.toThrow(InternalServerErrorException);
     });
   });
 
-  describe('signUrl', () => {
-    it('returns a deterministic HMAC signature', async () => {
-      const signature1 = await service.signUrl(1000);
-      const signature2 = await service.signUrl(1000);
-
-      expect(signature1).toBe(signature2);
-      expect(signature1).toMatch(/^[0-9a-f]{64}$/);
-    });
-
-    it('throws InternalServerErrorException when the sign secret is missing', async () => {
-      config.get.mockImplementation((key: string) => {
-        if (key === 'R2_SIGN_SECRET') return undefined;
-        return 'value';
+  describe('generateCookieToGetVideo', () => {
+    it('returns the resource url and signed cookies', async () => {
+      mockGetSignedCookies.mockReturnValue({
+        'CloudFront-Policy': 'policy',
+        'CloudFront-Signature': 'signature',
+        'CloudFront-Key-Pair-Id': 'key-pair-id',
       });
 
-      await expect(service.signUrl(1000)).rejects.toThrow(
-        InternalServerErrorException,
+      const result = await service.generateCookieToGetVideo(
+        'private/user/video-1/segment/manifest.mpd',
       );
+
+      expect(result.url).toBe(
+        'https://cdn.example.com/private/user/video-1/segment/manifest.mpd',
+      );
+      expect(result.cookies['CloudFront-Key-Pair-Id']).toBe('key-pair-id');
+    });
+
+    it('throws InternalServerErrorException when signing fails', async () => {
+      mockGetSignedCookies.mockImplementation(() => {
+        throw new Error('sign failed');
+      });
+
+      await expect(
+        service.generateCookieToGetVideo(
+          'private/user/video-1/segment/manifest.mpd',
+        ),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 });

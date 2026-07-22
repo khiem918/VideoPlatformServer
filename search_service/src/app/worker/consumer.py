@@ -17,18 +17,20 @@ async def handle_metadata_transfer_message(
         correlation_id = payload.get('correlationId')
         video_id = payload.get('videoId')
         title = payload.get('title')
-        desc = payload.get('desc')
+        desc = payload.get('description') or payload.get('desc')
 
         logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}")
         
         await container.video.process_metadata(video_id, title, desc)
+
+        logger.debug(f"Metadata processing succeeded: correlation_id={correlation_id}, video_id={video_id}")
 
         await exchange.publish(
             aio_pika.Message(
                 body=json.dumps({
                     "correlationId": correlation_id,
                     "status": "succeeded",
-                }),
+                }).encode("utf-8"),
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                 content_type="application/json",
             ),

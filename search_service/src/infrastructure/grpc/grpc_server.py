@@ -1,7 +1,7 @@
 import logging
 import grpc 
 from src.app import container
-from src.core import config
+from src.core.config import config
 from .generated import (
     video_pb2 as pb,
     video_pb2_grpc as pb_grpc,
@@ -45,10 +45,9 @@ class DeleteVideoServicer(pb_grpc.DeleteVideoServiceServicer):
 
 class GrpcServer:
     def __init__(self):
-        self._GRPC_SERVER_URL = config.GRPC_SERVER_URL
         self._server : grpc.aio.Server | None = None
 
-    async def connect(self, port: int):
+    async def connect(self):
         self._server = grpc.aio.server()
         pb_grpc.add_DeleteVideoServiceServicer_to_server(
             DeleteVideoServicer(), 

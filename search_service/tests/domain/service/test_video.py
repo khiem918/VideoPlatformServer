@@ -33,11 +33,6 @@ def video_service(embedding, qdrant, redis):
     return Video(embedding=embedding, qdrant=qdrant, redis=redis)
 
 
-def _close_if_coroutine(value):
-    if asyncio.iscoroutine(value):
-        value.close()
-
-
 class TestProcessMetadata:
     async def test_normalizes_title_before_upserting(self, video_service, qdrant):
         await video_service.process_metadata("video-1", "Hello World!", None)
@@ -78,23 +73,23 @@ class TestProcessMetadata:
         kwargs = qdrant.upsert_video_point.await_args.kwargs
         assert kwargs["desc_vector"] is None
 
-    async def test_bug_vectors_are_unawaited_coroutines_not_actual_values(
+    async def test_awaits_embedding_calls_and_passes_resolved_vectors(
         self, video_service, qdrant, embedding
     ):
         await video_service.process_metadata("video-1", "Title", "A real description")
 
         kwargs = qdrant.upsert_video_point.await_args.kwargs
 
-        assert asyncio.iscoroutine(kwargs["title_vector"])
-        assert asyncio.iscoroutine(kwargs["desc_vector"])
-        assert asyncio.iscoroutine(kwargs["sparse_vector"])
+        assert not asyncio.iscoroutine(kwargs["title_vector"])
+        assert not asyncio.iscoroutine(kwargs["desc_vector"])
+        assert not asyncio.iscoroutine(kwargs["sparse_vector"])
 
-        assert embedding.embed_dense.await_count == 0
-        assert embedding.embed_sparse.await_count == 0
+        assert kwargs["title_vector"] == [0.1, 0.2, 0.3]
+        assert kwargs["desc_vector"] == [0.1, 0.2, 0.3]
+        assert kwargs["sparse_vector"] == {"indices": [1], "values": [0.5]}
 
-        _close_if_coroutine(kwargs["title_vector"])
-        _close_if_coroutine(kwargs["desc_vector"])
-        _close_if_coroutine(kwargs["sparse_vector"])
+        assert embedding.embed_dense.await_count == 2
+        assert embedding.embed_sparse.await_count == 1
 
 
 class TestDeleteVideo:

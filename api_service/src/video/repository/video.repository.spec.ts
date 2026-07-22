@@ -4,6 +4,7 @@ import {
   ProcessingStatus,
   ProcessingType,
   UploadVideoStatus,
+  UploadMetaStatus,
 } from '@prisma/client';
 
 describe('VideoRepository', () => {
@@ -66,7 +67,7 @@ describe('VideoRepository', () => {
         videoId: 'video-1',
         fileName: 'file.mp4',
         fileSize: 100,
-        r2Path: 'r2/path',
+        objectPath: 'r2/path',
         mimeType: 'video/mp4',
         videoStatus: UploadVideoStatus.PENDING,
       },
@@ -84,15 +85,53 @@ describe('VideoRepository', () => {
     });
   });
 
+  it('updateVideoInfo writes videoMetaStatus onto the metaStatus column', async () => {
+    prisma.videoInformation.update.mockResolvedValue({ id: 'info-1' });
+
+    await repository.updateVideoInfo(
+      'video-1',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      UploadMetaStatus.PROCESSING,
+    );
+
+    expect(prisma.videoInformation.update).toHaveBeenCalledWith({
+      where: { videoId: 'video-1' },
+      data: { metaStatus: UploadMetaStatus.PROCESSING },
+    });
+  });
+
   it('createVideoProcessing creates a processing record with PROCESSING status', async () => {
     prisma.videoProcessing.create.mockResolvedValue({ id: 'proc-1' });
 
-    await repository.createVideoProcessing('video-1', ProcessingType.VIDEO);
+    await repository.createVideoProcessing('info-1', ProcessingType.VIDEO);
 
     expect(prisma.videoProcessing.create).toHaveBeenCalledWith({
       data: {
-        videoId: 'video-1',
+        videoInformationId: 'info-1',
         processingType: ProcessingType.VIDEO,
+        status: ProcessingStatus.PROCESSING,
+      },
+    });
+  });
+
+  it('createVideoProcessing uses the provided id when given', async () => {
+    prisma.videoProcessing.create.mockResolvedValue({ id: 'proc-1' });
+
+    await repository.createVideoProcessing(
+      'info-1',
+      ProcessingType.META,
+      'proc-1',
+    );
+
+    expect(prisma.videoProcessing.create).toHaveBeenCalledWith({
+      data: {
+        id: 'proc-1',
+        videoInformationId: 'info-1',
+        processingType: ProcessingType.META,
         status: ProcessingStatus.PROCESSING,
       },
     });

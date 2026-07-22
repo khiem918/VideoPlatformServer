@@ -16,7 +16,7 @@ export class VideoProcessingRepository {
     inforId: string,
     videoProcessingId: string,
     videoUrl: string,
-    thumbnailUrl: string,
+    thumbnailPath: string,
     duration: number,
   ): Promise<{
     videoId: string;
@@ -36,8 +36,8 @@ export class VideoProcessingRepository {
       await tx.video.update({
         where: { id: info.videoId },
         data: {
-          videoUrl: videoUrl,
-          thumbnailUrl: thumbnailUrl,
+          videoPath: videoUrl,
+          thumbnailPath: thumbnailPath,
           duration: duration,
         },
       });
@@ -85,7 +85,7 @@ export class VideoProcessingRepository {
   }
 
   async publicVideo(videoId: string): Promise<void> {
-    this.prisma.video.update({
+    await this.prisma.video.update({
       where: { id: videoId },
       data: {
         videoStatus: VideoStatus.AVAILABLE,

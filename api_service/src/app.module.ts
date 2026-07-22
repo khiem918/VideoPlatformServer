@@ -15,6 +15,7 @@ import { VideoModule } from './video/video.module';
 import { NotificationModule } from './notification/notification.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { PublisherModule } from './rabbitmq/publisher.module';
+import { ConsumerModule } from './rabbitmq/consumer.module';
 import { VideoMetaDataGrpcModule } from './grpc/server/video-metadata/video-metadata.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { VideoMetaDataGrpcModule } from './grpc/server/video-metadata/video-meta
     NotificationModule,
     RabbitmqModule,
     PublisherModule,
+    ConsumerModule,
     VideoMetaDataGrpcModule,
   ],
   controllers: [],

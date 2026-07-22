@@ -13,6 +13,7 @@ This document describes the end-to-end workflows and processes that operate acro
 5. [Hybrid Search Flow](#5-hybrid-search-flow)
 6. [Video Playback Flow](#6-video-playback-flow)
 8. [Cross-Service Messaging (RabbitMQ)](#8-cross-service-messaging-rabbitmq)
+9. [End-to-End Testing (Staging)](#9-end-to-end-testing-staging)
 
 ---
 
@@ -146,7 +147,7 @@ sequenceDiagram
     S3-->>API: presignedUrl
     
     API->>API: Create VideoUpload record (status: PENDING)
-    API-->>Client: { videoId, uploadId, presignedUrl, r2Path }
+    API-->>Client: { videoId, uploadId, presignedUrl, objectPath }
     
     Client->>S3: PUT {presignedUrl}<br/>+ file bytes
     S3-->>Client: 200 OK
@@ -157,7 +158,7 @@ sequenceDiagram
     API->>API: Create VideoProcessing record (type: VIDEO)
     API->>API: Update VideoUpload (status: UPLOADED)
     
-    API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, r2Path, mimeType }
+    API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, objectPath, mimeType }
     BullMQ-->>API: Job ID returned
     API-->>Client: ✓ Upload complete, transcoding started
     
@@ -541,13 +542,25 @@ See root-level `docker-compose.yml` and service-specific `.env` files for curren
 
 5. **Notification Module**: Heavy refactoring (+506 -415 lines) but behavior unchanged.
 
-<!-- **Verified against:**
-- api_service/src/video/video.service.ts (getWatchVideoUrl, unchanged/working)
-- api_service/src/s3/s3.service.ts (getDownloadUrl targets externally-deployed r2-worker)
-- search_service/src/app/worker/consumer.py (fixed: container.metadata_process.process → container.video.process_metadata)
-- api_service/src/grpc/server/video-metadata/ (new structure)
-- api_service/src/grpc/client/grpc-client.service.ts (DeleteVideoService client)
-- proto/video.proto (new bidirectional services)
-- search_service/src/domain/service/video.py (new metadata orchestrator)
-- search_service/src/infrastructure/grpc/grpc_server.py (new server)
-- search_service/src/core/config.py (new config module) -->
+---
+
+## 9. End-to-End Testing (Staging)
+
+`test/` (sibling to `api_service/` and `search_service/`) holds black-box e2e suites written in TypeScript/Jest. They never import either service's source or spawn one service from the other -- they only talk over the network (GraphQL, REST, RabbitMQ, Redis, Postgres, Qdrant), so the same suite runs against two different targets depending on env vars:
+
+- **Local / CI default**: `docker/docker-compose.staging.yml` builds and runs real `api_service`/`search_service` containers alongside Postgres x2, Redis x2, RabbitMQ, and Qdrant. Copy `docker/staging.env.example` to `docker/staging.env`, fill in a real, disposable S3/R2 bucket's credentials (api_service's `S3Service` always talks to a real bucket -- there is no local fake), then:
+  ```bash
+  docker compose -f docker/docker-compose.staging.yml up -d --build --wait
+  npm --prefix test ci
+  npm --prefix test test
+  docker compose -f docker/docker-compose.staging.yml down -v
+  ```
+- **A real deployed staging**: set `STAGING_API_URL`, `STAGING_SEARCH_URL`, `STAGING_API_DATABASE_URL`, `STAGING_REDIS_SEARCH_URL`, `STAGING_RABBITMQ_URI`, `STAGING_QDRANT_URL`, `STAGING_JWT_SECRET` (see `test/e2e/support/env.ts`) and run `npm --prefix test test` -- no other changes needed.
+
+**Suites:**
+- `video-publish.e2e-spec.ts` -- upload -> real ffmpeg transcode -> metadata update -> RabbitMQ round trip to search_service, asserted via `core.video_upload.video_status`/`meta_status` in api_service's Postgres and an independent Qdrant point read.
+- `search.e2e-spec.ts` -- Redis cache-key correctness (`search:{userId}:{queryId}`, `meta:{videoId}`) and correctness of search_service's gRPC metadata re-fetch from api_service on a cache miss.
+
+CI wiring lives in `.github/workflows/e2e.yml`.
+
+

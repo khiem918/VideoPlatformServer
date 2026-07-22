@@ -14,7 +14,6 @@ jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn(),
     writeFile: jest.fn(),
-    readFile: jest.fn(),
     readdir: jest.fn(),
     rm: jest.fn(),
   },
@@ -31,14 +30,13 @@ const fsMocks = fs as unknown as {
   promises: {
     mkdir: jest.Mock;
     writeFile: jest.Mock;
-    readFile: jest.Mock;
     readdir: jest.Mock;
     rm: jest.Mock;
   };
 };
 
 describe('VideoProcessingService', () => {
-  const tempDir = '/tmp/video-processing';
+  const tempDir = '/tmp/video-streaming-system/processing';
   let service: VideoProcessingService;
   let ffmpegService: jest.Mocked<FFmpegService>;
   let repository: jest.Mocked<VideoProcessingRepository>;
@@ -67,9 +65,10 @@ describe('VideoProcessingService', () => {
 
     s3Service = {
       getFileStream: jest.fn(),
-      extractVideoIdFromR2Path: jest.fn(),
-      buildVideoPath: jest.fn(),
-      uploadFile: jest.fn(),
+      parseVideoIdFromPrivatePath: jest.fn(),
+      buildPrivateSegmentPath: jest.fn(),
+      buildPublicThumbnailPath: jest.fn(),
+      uploadFileStream: jest.fn(),
     } as unknown as jest.Mocked<S3Service>;
 
     service = new VideoProcessingService(ffmpegService, repository, s3Service);
@@ -84,7 +83,6 @@ describe('VideoProcessingService', () => {
         return [
           { name: 'dash', isDirectory: () => true },
           { name: 'thumb', isDirectory: () => true },
-          { name: 'meta.json', isDirectory: () => false },
         ];
       }
       if (dir === dashDir) {
@@ -95,7 +93,6 @@ describe('VideoProcessingService', () => {
       }
       return [];
     });
-    fsMocks.promises.readFile.mockResolvedValue(Buffer.from('data'));
   }
 
   describe('transcodeVideo', () => {
@@ -114,13 +111,17 @@ describe('VideoProcessingService', () => {
         manifest: 'manifest.mpd',
       });
       ffmpegService.extractThumbnail.mockResolvedValue(undefined);
-      s3Service.extractVideoIdFromR2Path.mockReturnValue('video-1');
-      s3Service.buildVideoPath.mockImplementation(
+      s3Service.parseVideoIdFromPrivatePath.mockReturnValue('video-1');
+      s3Service.buildPrivateSegmentPath.mockImplementation(
         (videoId: string, relativePath: string) =>
-          `remote/${videoId}/${relativePath}`,
+          `private/user/${videoId}/segment/${relativePath}`,
       );
-      s3Service.uploadFile.mockImplementation(
-        async (_buffer: Buffer, r2Path: string) => r2Path,
+      s3Service.buildPublicThumbnailPath.mockImplementation(
+        (videoId: string, relativePath: string) =>
+          `public/user/${videoId}/thumbnail/${relativePath}`,
+      );
+      s3Service.uploadFileStream.mockImplementation(
+        async (_filePath: string, objectPath: string) => objectPath,
       );
       repository.completeVideoProcessing.mockResolvedValue({
         videoId: 'video-1',
@@ -132,20 +133,19 @@ describe('VideoProcessingService', () => {
       const result = await service.transcodeVideo({
         processingId: 'proc-1',
         inforId: 'info-1',
-        r2Path: 'r2/path',
+        objectPath: 'private/user/video-1/original/file.mp4',
         mimeType: 'video/mp4',
       });
 
       expect(result).toEqual({
-        manifestPath: 'remote/video-1/dash/manifest.mpd',
-        thumbnailPath: 'remote/video-1/thumb/0.jpg',
-        metadataPath: 'remote/video-1/meta.json',
+        manifestPath: 'private/user/video-1/segment/manifest.mpd',
+        thumbnailPath: 'public/user/video-1/thumbnail/0.jpg',
       });
       expect(repository.completeVideoProcessing).toHaveBeenCalledWith(
         'info-1',
         'proc-1',
-        'remote/video-1/dash/manifest.mpd',
-        'remote/video-1/thumb/0.jpg',
+        'private/user/video-1/segment/manifest.mpd',
+        'public/user/video-1/thumbnail/0.jpg',
         65,
       );
       expect(repository.publicVideo).toHaveBeenCalledWith('video-1');
@@ -170,13 +170,17 @@ describe('VideoProcessingService', () => {
         manifest: 'manifest.mpd',
       });
       ffmpegService.extractThumbnail.mockResolvedValue(undefined);
-      s3Service.extractVideoIdFromR2Path.mockReturnValue('video-2');
-      s3Service.buildVideoPath.mockImplementation(
+      s3Service.parseVideoIdFromPrivatePath.mockReturnValue('video-2');
+      s3Service.buildPrivateSegmentPath.mockImplementation(
         (videoId: string, relativePath: string) =>
-          `remote/${videoId}/${relativePath}`,
+          `private/user/${videoId}/segment/${relativePath}`,
       );
-      s3Service.uploadFile.mockImplementation(
-        async (_buffer: Buffer, r2Path: string) => r2Path,
+      s3Service.buildPublicThumbnailPath.mockImplementation(
+        (videoId: string, relativePath: string) =>
+          `public/user/${videoId}/thumbnail/${relativePath}`,
+      );
+      s3Service.uploadFileStream.mockImplementation(
+        async (_filePath: string, objectPath: string) => objectPath,
       );
       repository.completeVideoProcessing.mockResolvedValue({
         videoId: 'video-2',
@@ -187,7 +191,7 @@ describe('VideoProcessingService', () => {
       await service.transcodeVideo({
         processingId: 'proc-2',
         inforId: 'info-2',
-        r2Path: 'r2/path',
+        objectPath: 'private/user/video-2/original/file.mp4',
         mimeType: 'video/mp4',
       });
 
@@ -201,7 +205,7 @@ describe('VideoProcessingService', () => {
         service.transcodeVideo({
           processingId: 'proc-3',
           inforId: 'info-3',
-          r2Path: 'r2/path',
+          objectPath: 'r2/path',
           mimeType: 'video/mp4',
         }),
       ).rejects.toThrow(TranscodingFailedException);
@@ -223,7 +227,7 @@ describe('VideoProcessingService', () => {
         service.transcodeVideo({
           processingId: 'proc-4',
           inforId: 'info-4',
-          r2Path: 'r2/path',
+          objectPath: 'r2/path',
           mimeType: 'video/mp4',
         }),
       ).rejects.toThrow(TranscodingFailedException);
@@ -245,7 +249,7 @@ describe('VideoProcessingService', () => {
         service.transcodeVideo({
           processingId: 'proc-5',
           inforId: 'info-5',
-          r2Path: 'r2/path',
+          objectPath: 'r2/path',
           mimeType: 'video/mp4',
         }),
       ).rejects.toThrow(InvalidVideoException);
@@ -266,13 +270,13 @@ describe('VideoProcessingService', () => {
         manifest: 'manifest.mpd',
       });
       ffmpegService.extractThumbnail.mockResolvedValue(undefined);
-      s3Service.extractVideoIdFromR2Path.mockReturnValue('video-6');
+      s3Service.parseVideoIdFromPrivatePath.mockReturnValue('video-6');
 
       await expect(
         service.transcodeVideo({
           processingId: 'proc-6',
           inforId: 'info-6',
-          r2Path: 'r2/path',
+          objectPath: 'private/user/video-6/original/file.mp4',
           mimeType: 'video/mp4',
         }),
       ).rejects.toThrow('No transcoding artifacts found for upload');
@@ -293,7 +297,7 @@ describe('VideoProcessingService', () => {
         service.transcodeVideo({
           processingId: 'proc-7',
           inforId: 'info-7',
-          r2Path: 'r2/path',
+          objectPath: 'r2/path',
           mimeType: 'video/mp4',
         }),
       ).rejects.toThrow(TranscodingFailedException);

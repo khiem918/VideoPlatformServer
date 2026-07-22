@@ -511,3 +511,5 @@ opencode.json
 .docs/*
 
 .=1.68
+
+docker/
