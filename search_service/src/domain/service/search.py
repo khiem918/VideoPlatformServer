@@ -246,7 +246,7 @@ class SearchService:
                 # }
                 # result_metadata.append(enriched_meta)
 
-            result_metadata = await self._handle_metadata(ordered_result_ids)
+        result_metadata = await self._handle_metadata(ordered_result_ids)
 
         #-----------------Cache searching result in redis (GIỮ NGUYÊN 100% CỦA FILE 1)------------------------
 
