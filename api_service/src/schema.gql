@@ -113,5 +113,9 @@ type WatchVideoResponse {
 }
 
 type WatchVideoUrlResponse {
+<<<<<<< HEAD
+  expiresAt: Int!
+=======
+>>>>>>> main
   mpdUrl: String!
 }

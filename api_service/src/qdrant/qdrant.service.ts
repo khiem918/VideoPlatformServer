@@ -32,20 +32,28 @@ export class QdrantService implements OnModuleInit {
     // which fails inside Node's native fetch. We hide process.versions.node
     // temporarily so it doesn't create and inject the incompatible dispatcher.
     const nodeVersion = process.versions.node;
+<<<<<<< HEAD
+    Object.defineProperty(process.versions, 'node', { value: undefined, configurable: true });
+=======
     Object.defineProperty(process.versions, 'node', {
       value: undefined,
       configurable: true,
     });
+>>>>>>> main
 
     this.qdrantClient = new QdrantClient({
       url: process.env.QDRANT_URL || 'http://localhost:6333',
       checkCompatibility: false,
     });
 
+<<<<<<< HEAD
+    Object.defineProperty(process.versions, 'node', { value: nodeVersion, configurable: true });
+=======
     Object.defineProperty(process.versions, 'node', {
       value: nodeVersion,
       configurable: true,
     });
+>>>>>>> main
   }
 
   async onModuleInit() {

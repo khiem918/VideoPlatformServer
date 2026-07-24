@@ -58,7 +58,6 @@ class RedisService:
             for key, value, ttl in zip(keys, values, ttls)
         ]
 
-
     async def mset(self, key_value_pairs: list[tuple[str, dict]], expire: int = 3600):     
         pipeline = self._client.pipeline()
 
@@ -66,7 +65,6 @@ class RedisService:
             pipeline.set(key, json.dumps(value), ex=expire)
 
         await pipeline.execute()
-
 
     async def mupdate(self, key_value_pairs: list[tuple[str, dict]], expire: int = 3600):
         pipeline = self._client.pipeline()

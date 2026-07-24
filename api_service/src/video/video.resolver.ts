@@ -131,29 +131,8 @@ export class VideoResolver {
       videoId,
     );
 
-    const cookieOptions = {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'strict' as const,
-      domain: this.config.get<string>('CDN_DOMAIN'),
-      path: '/private/',
-      maxAge: 5 * 60 * 1000,
-    };
-
-    res.cookie('CF_P', cookies['CloudFront-Policy'], cookieOptions);
-    res.cookie('CF_K', cookies['CloudFront-Key-Pair-Id'], cookieOptions);
-    res.cookie('CF_S', cookies['CloudFront-Signature'], cookieOptions);
-
     return { mpdUrl };
   }
-
-  // @Query(() => [UserVideoResponse])
-  // async suggestVideo(
-  //   @gqlCurrentUser() user: { userId: string },
-  // ) {
-  //   const result = await this.videoService.suggestVideos(userId);
-  //   return result as any;
-  // }
 
   @UseGuards(GqlAuthGuard)
   @Mutation(() => CommentContentResponse)
@@ -189,7 +168,7 @@ export class VideoResolver {
   @Mutation(() => Boolean)
   async updateVideoHistory(
     @gqlCurrentUser() user: { userId: string },
-    @Args('videoId', { type: () => Int, nullable: true }) videoId: string,
+    @Args('videoId', { type: () => String, nullable: true }) videoId: string,
   ) {
     await this.videoService.updateVideoHistory(user.userId, videoId);
     return true;

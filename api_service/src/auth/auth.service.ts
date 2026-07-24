@@ -94,33 +94,9 @@ export class AuthService {
       )) as Session | null;
 
       if (!sessionData || !refreshToken || !sessionId) {
-        const newRefreshToken = randomBytes(64).toString('hex');
-        const newSessionId: string = uuidv4();
-        const hashedNewRefreshToken = await this.hashToken(newRefreshToken);
-        const new_sesssion_data: Session = {
-          userId,
-          refreshToken: hashedNewRefreshToken,
-          createdAt: new Date().toISOString(),
-        };
-
-        await this.redisService.set(
-          `s:${newSessionId}`,
-          new_sesssion_data,
-          parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
+        throw new UnauthorizedException(
+          'Session expired or invalid. Please sign in again.',
         );
-
-        return {
-          newAccessToken: this.jwtService.sign(
-            { userId } as Record<string, any>,
-            {
-              secret: this.config.get('JWT_SECRET'),
-              expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
-            },
-          ),
-          newFreshToken: newRefreshToken,
-          newSessionId: newSessionId,
-          userId: userId || (sessionData?.userId ?? ''),
-        };
       }
 
       const isTokenValid = await compare(
@@ -132,7 +108,7 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const finalUserId = userId || sessionData.userId;
+      const finalUserId = sessionData.userId;
 
       const newAccessToken = this.jwtService.sign(
         { userId: finalUserId } as Record<string, any>,
@@ -157,7 +133,6 @@ export class AuthService {
       }
       throw new InternalServerErrorException('Token rotation failed');
     }
-
   }
 
 

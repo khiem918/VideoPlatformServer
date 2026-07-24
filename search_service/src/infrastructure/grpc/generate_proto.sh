@@ -24,11 +24,3 @@ else
 fi
 
 echo "Compiled gRPC successfully"
-
-
-
-
-
-
-
-

@@ -1,6 +1,10 @@
 # Video Platform Server — Process Documentation
 
+<<<<<<< HEAD
+**Last Updated:** 2026-07-07
+=======
 **Last Updated:** 2026-07-12
+>>>>>>> main
 
 This document describes the end-to-end workflows and processes that operate across the VideoPlatformServer system. Each process includes a sequence diagram illustrating the flow of data and control between services.
 
@@ -12,8 +16,13 @@ This document describes the end-to-end workflows and processes that operate acro
 4. [Embedding & Indexing Pipeline](#4-embedding--indexing-pipeline)
 5. [Hybrid Search Flow](#5-hybrid-search-flow)
 6. [Video Playback Flow](#6-video-playback-flow)
+<<<<<<< HEAD
+7. [Notifications Flow](#7-notifications-flow)
+8. [Cross-Service Messaging (RabbitMQ)](#8-cross-service-messaging-rabbitmq)
+=======
 8. [Cross-Service Messaging (RabbitMQ)](#8-cross-service-messaging-rabbitmq)
 9. [End-to-End Testing (Staging)](#9-end-to-end-testing-staging)
+>>>>>>> main
 
 ---
 
@@ -26,7 +35,11 @@ graph TB
     Client["Client<br/>(Browser/Mobile)"]
     API["api_service<br/>(NestJS 11 + Apollo GraphQL)"]
     Search["search_service<br/>(Python FastAPI)"]
+<<<<<<< HEAD
+    R2Worker["r2-worker<br/>(Cloudflare Worker)"]
+=======
     R2Worker["r2-worker<br/>(Cloudflare Worker,<br/>deployed & versioned separately)"]
+>>>>>>> main
     
     PG[("PostgreSQL 16<br/>(core schema)")]
     Redis[("Redis 7<br/>(sessions, BullMQ, cache)")]
@@ -40,10 +53,17 @@ graph TB
     API -->|Prisma ORM| PG
     API -->|ioredis, BullMQ| Redis
     API -->|AMQP| RabbitMQ
+<<<<<<< HEAD
+    API -->|REST/gRPC| Search
+    
+    Search -->|AMQP| RabbitMQ
+    Search -->|gRPC| API
+=======
     API -->|gRPC (bidirectional)| Search
     
     Search -->|AMQP| RabbitMQ
     Search -->|gRPC (bidirectional)| API
+>>>>>>> main
     Search -->|Redis cache| Redis
     Search -->|Vector ops| Qdrant
     
@@ -64,7 +84,11 @@ graph TB
 **Key design principles:**
 - **Async-first**: BullMQ for intra-service jobs, RabbitMQ for cross-service work
 - **Event-driven**: Metadata changes trigger RabbitMQ events → search_service re-indexes
+<<<<<<< HEAD
+- **Decoupled metadata**: gRPC pull model (search_service fetches current truth from api_service)
+=======
 - **Bidirectional gRPC**: api_service acts as server for VideoMetaDataService (search_service client), search_service acts as server for DeleteVideoService (api_service client)
+>>>>>>> main
 - **Redis caching**: Frequently-used metadata cached with TTL to reduce gRPC calls
 - **Vector-first search**: Hybrid keyword + dense vector scoring with dead-lettering for failures
 
@@ -147,7 +171,11 @@ sequenceDiagram
     S3-->>API: presignedUrl
     
     API->>API: Create VideoUpload record (status: PENDING)
+<<<<<<< HEAD
+    API-->>Client: { videoId, uploadId, presignedUrl, r2Path }
+=======
     API-->>Client: { videoId, uploadId, presignedUrl, objectPath }
+>>>>>>> main
     
     Client->>S3: PUT {presignedUrl}<br/>+ file bytes
     S3-->>Client: 200 OK
@@ -158,7 +186,11 @@ sequenceDiagram
     API->>API: Create VideoProcessing record (type: VIDEO)
     API->>API: Update VideoUpload (status: UPLOADED)
     
+<<<<<<< HEAD
+    API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, r2Path, mimeType }
+=======
     API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, objectPath, mimeType }
+>>>>>>> main
     BullMQ-->>API: Job ID returned
     API-->>Client: ✓ Upload complete, transcoding started
     
@@ -258,12 +290,19 @@ sequenceDiagram
 - `/api_service/src/video/video.service.ts` — `updateVideo()` method, calls PublisherService
 - `/api_service/src/rabbitmq/publisher.service.ts` — Publishes metadata transfer message
 - `/search_service/src/app/worker/consumer.py` — Consumes `video.metadata.trans` messages
+<<<<<<< HEAD
+- `/search_service/src/domain/service/metadata_process.py` — Orchestrates normalize → embed → upsert
+=======
 - `/search_service/src/domain/service/video.py` — Video class orchestrates normalize → embed → upsert (replaces metadata_process.py)
+>>>>>>> main
 - `/search_service/src/domain/service/normalize.py` — Text normalization rules
 - `/search_service/src/infrastructure/ml_model/embeding_model.py` — Dense/sparse embedding calls
 - `/search_service/src/infrastructure/database/qdrant.py` — Qdrant upsert operations
 - `/search_service/src/infrastructure/redis/redis.py` — Redis metadata cache
+<<<<<<< HEAD
+=======
 - `/search_service/src/core/config.py` — Centralized configuration (GRPC_URL, MQ_URL, etc.)
+>>>>>>> main
 
 ---
 
@@ -342,18 +381,26 @@ sequenceDiagram
 - `/api_service/src/search/search.service.ts` — GraphQL mutation `searchVideos()`
 - `/search_service/src/app/api/v1/endpoint/search.py` — FastAPI `/search` endpoint
 - `/search_service/src/domain/service/search.py` — SearchService with hybrid scoring
+<<<<<<< HEAD
+- `/search_service/src/infrastructure/grpc/grpc_client.py` — gRPC metadata fetching
+- `/search_service/src/infrastructure/redis/redis.py` — Redis caching logic
+=======
 - `/search_service/src/infrastructure/grpc/grpc_client.py` — gRPC metadata fetching (api_service client)
 - `/search_service/src/infrastructure/grpc/grpc_server.py` — gRPC server for DeleteVideoService (api_service calls this)
 - `/search_service/src/infrastructure/redis/redis.py` — Redis caching logic
 - `/api_service/src/grpc/client/grpc-client.service.ts` — gRPC client for DeleteVideoService
 - `/api_service/src/grpc/server/video-metadata/` — gRPC server for VideoMetaDataService
+>>>>>>> main
 
 ---
 
 ## 6. Video Playback Flow
 
+<<<<<<< HEAD
+=======
 > **Note:** `/r2-worker` was removed from this repository, but this is a repo-organization change only — the Cloudflare Worker itself is deployed and versioned in a separate repository/pipeline and is still live at `R2_WORKER_URL`. `S3Service.getDownloadUrl()`/`signUrl()` continue to work unchanged; there is no coupling between this monorepo's contents and the deployed worker.
 
+>>>>>>> main
 **Entry point**: `getWatchVideoUrl(videoId)` → HMAC-signed URL generation → Cloudflare Worker validation → Range-request streaming from R2
 
 ```mermaid
@@ -361,7 +408,11 @@ sequenceDiagram
     participant Client as Client<br/>(MPEG-DASH Player)
     participant API as api_service
     participant S3 as Cloudflare R2
+<<<<<<< HEAD
+    participant Worker as r2-worker<br/>(Cloudflare)
+=======
     participant Worker as r2-worker<br/>(Cloudflare, deployed separately)
+>>>>>>> main
     
     Client->>API: getWatchVideoUrl(videoId)
     API->>API: Verify video exists & is not PRIVATE/DRAFT<br/>(or owned by user)
@@ -395,7 +446,11 @@ sequenceDiagram
 **Key points:**
 - **HMAC signing**: Prevents URL tampering and unauthorized playback
 - **Time-limited URLs**: 100-minute expiry covers a typical watch session + replay
+<<<<<<< HEAD
+- **Cloudflare Worker as proxy**: Validates signature server-side before proxying to R2 (prevents signature disclosure to client)
+=======
 - **Cloudflare Worker as proxy**: Validates signature server-side before proxying to R2 (prevents signature disclosure to client); source lives in its own repo, not this monorepo
+>>>>>>> main
 - **Range-request support**: Worker proxies HTTP Range headers for efficient segment streaming
 - **Manifest + segments**: Both must be signed separately (client re-signs segment requests after parsing manifest)
 - **Privacy enforcement**: api_service checks visibility before generating URL (private videos only for owner)
@@ -403,10 +458,84 @@ sequenceDiagram
 **Related files:**
 - `/api_service/src/video/video.service.ts` — `getWatchVideoUrl()` method
 - `/api_service/src/s3/s3.service.ts` — `signUrl()` and `getDownloadUrl()` methods
+<<<<<<< HEAD
+- `/r2-worker/src/index.js` — Cloudflare Worker HMAC validation + R2 proxy logic
+- `/proto/video.proto` — Not directly used, but defines video ownership rules
+
+---
+
+## 7. Notifications Flow
+
+**Entry point**: Event triggered (video upload complete, new comment, subscription change) → Redis Stream → Consumer processes → Per-user RxJS Subject → GraphQL subscriptions
+
+```mermaid
+sequenceDiagram
+    participant VideoSvc as VideoService<br/>(api_service)
+    participant NotifSvc as NotificationService<br/>(api_service)
+    participant PG as PostgreSQL
+    participant Redis as Redis Stream
+    participant Consumer as NotificationConsumer<br/>(BullMQ or timer-based)
+    participant Memory as In-Memory<br/>RxJS Subjects
+    participant GraphQL as GraphQL Subscription
+    participant Client as Client
+    
+    Note over VideoSvc,Client: Scenario: User completes video upload
+    VideoSvc->>NotifSvc: sendNotification(type: 'VIDEO_UPLOADED',<br/>fromUserId, toUserIds, payload)
+    
+    NotifSvc->>PG: INSERT INTO Notification<br/>{ type, fromUserId, toUserId, payload, createdAt }
+    
+    NotifSvc->>PG: Query subscribed users<br/>SELECT subscribers WHERE channelId = video.userId
+    PG-->>NotifSvc: List of subscriber user IDs
+    
+    loop For each subscriber
+        NotifSvc->>Redis: XADD notifications:stream *<br/>{ event: 'VIDEO_UPLOADED', videoId, uploaderId, ... }
+        Redis-->>NotifSvc: Stream entry ID
+    end
+    NotifSvc-->>VideoSvc: ✓ Notifications queued
+    
+    Note over Consumer,GraphQL: Async consumer (polling or timer-based)
+    Consumer->>Redis: XREADGROUP<br/>GROUP notify_workers CONSUMER_1<br/>STREAMS notifications:stream >
+    Redis-->>Consumer: [{ entry_id, payload }, ...]
+    
+    loop For each message
+        Consumer->>Consumer: Parse payload
+        Consumer->>Memory: subject = getOrCreateSubject(toUserId)
+        Consumer->>Memory: subject.next(notification)
+        Memory-->>Consumer: ✓ RxJS Subject updated
+        Consumer->>Redis: XACK notifications:stream notify_workers {entry_id}
+        Redis-->>Consumer: ✓ Acknowledged
+    end
+    
+    Note over GraphQL,Client: Client has open WebSocket subscription
+    Client->>GraphQL: subscribe { onNotification { type, payload } }
+    GraphQL->>Memory: Register listener to subject for userId
+    
+    Memory-->>GraphQL: New notification received
+    GraphQL-->>Client: Push notification via WebSocket
+    Client->>Client: Update UI (toast, badge, etc.)
+```
+
+**Key points:**
+- **Dual-layer storage**: Notification record in PostgreSQL for audit trail, Redis Stream for real-time dispatch
+- **Consumer group pattern**: RabbitMQ-like acknowledgement mechanism (XACK) prevents duplicate delivery if consumer crashes
+- **In-memory subjects**: Per-user RxJS Subject holds only actively-subscribed clients (lightweight)
+- **Graceful degradation**: If consumer is down, notifications wait in Redis Stream until consumer restarts
+- **Subscription-aware**: Notifications only sent to users who subscribe to the video creator's channel
+- **Event types**: VIDEO_UPLOADED, NEW_COMMENT, USER_SUBSCRIBED, etc. (extensible)
+
+**Related files:**
+- `/api_service/src/notification/notification.service.ts` — `sendNotification()` method, Redis Stream publishing
+- `/api_service/src/notification/notification.resolver.ts` — GraphQL subscription resolver (onNotification)
+- `/api_service/src/notification/notification.consumer.ts` — Consumer that polls Redis Stream and dispatches to subjects
+- `/api_service/src/notification/notification.gateway.ts` — WebSocket gateway for subscription delivery
+
+---
+=======
 - r2-worker source (Cloudflare Worker HMAC validation + R2 proxy logic) — lives in a separate repository, not under `/r2-worker` here
 
 ---
 
+>>>>>>> main
 
 ## 8. Cross-Service Messaging (RabbitMQ)
 
@@ -501,12 +630,44 @@ sequenceDiagram
 
 ### 8.4 Setup (Environment Variables & Docker)
 
+<<<<<<< HEAD
+**Docker Compose:**
+```yaml
+version: '3.8'
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: video-platform-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: video_platform
+      RABBITMQ_DEFAULT_PASS: change_me_in_prod
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+```
+
+**Environment Variables:**
+- `RABBITMQ_URI=amqp://video_platform:PASSWORD@localhost:5672` (api_service)
+- `RABBITMQ_URI=amqp://video_platform:PASSWORD@localhost:5672` (search_service)
+=======
 See root-level `docker-compose.yml` and service-specific `.env` files for current configuration. (Previous docker-compose files for individual services have been consolidated.)
 
 **Environment Variables:**
 - `RABBITMQ_URI=amqp://video_platform:PASSWORD@{host}:5672` (api_service and search_service)
 - `RABBITMQ_EXCHANGE=video.processing` (topic exchange name)
 - `RABBITMQ_QUEUE=video.meta.transfer` (queue for metadata processing)
+>>>>>>> main
 
 **Management UI:** `http://localhost:15672` (login: `video_platform` / password)
 
@@ -523,6 +684,63 @@ See root-level `docker-compose.yml` and service-specific `.env` files for curren
 
 ---
 
+<<<<<<< HEAD
+## Summary: Known Issues & In-Progress Work
+
+### 1. **CRITICAL: Field Name Mismatch in RabbitMQ Message (Bug)**
+- **Location**: Publisher vs. Consumer payload field
+- **Issue**: `api_service/src/rabbitmq/publisher.service.ts` sends `description` field, but `search_service/src/app/worker/consumer.py` expects `desc` field
+- **Impact**: Search service consumer receives `desc=undefined`, so embeddings are generated without description text
+- **Fix**: Either:
+  - Change publisher to send `desc` instead of `description`, OR
+  - Change consumer to expect `description` instead of `desc`
+- **Recommendation**: Use `description` (more explicit); update consumer line 20 from `desc = payload.get('desc')` to `description = payload.get('description')`
+
+### 2. **CRITICAL: Auth Guard Gaps**
+- **Location**: `/api_service/src/video/video.resolver.ts` mutations
+- **Issue**: `updateVideo` and `deleteVideo` mutations have `@UseGuards(GqlAuthGuard)` commented out
+- **Additional issue**: `updateVideo` is hardcoded with test user ID `"@jrALUe0g"` instead of passing the authenticated user's ID
+- **Security impact**: Any authenticated user can update/delete any video, not just their own
+- **Fix needed**:
+  1. Uncomment `@UseGuards(GqlAuthGuard)` decorators
+  2. Replace hardcoded user ID with actual authenticated user from context
+  3. Add ownership validation in `VideoService.updateVideo()` and `VideoService.deleteVideo()`
+
+### 3. **Qdrant Ownership Migration**
+- **Current state**: Qdrant is managed by both api_service and search_service
+- **Issue**: `api_service/src/video/video.service.ts` calls `this.qdrantService.deleteVideoVector(videoId)` directly on video deletion
+- **Target**: search_service should own Qdrant; api_service should publish `video.vector.delete` RabbitMQ event instead
+- **Status**: In progress; see `/VideoPlatformServer/QDRANT_MIGRATION.md`
+- **Impact on docs**: This documentation describes the target end state; current code has direct Qdrant calls in api_service
+- **Workaround**: Currently both services have Qdrant access; duplication is safe but not ideal
+
+### 4. **Search Service Refactor**
+- **Changes**: 
+  - Added gRPC metadata fetching (instead of fat RabbitMQ events)
+  - Added Redis caching with TTL management for metadata
+  - Introduced dense + sparse vector search with hybrid scoring
+  - Added inflight request deduplication using asyncio.Event
+- **Files changed**: `search_service/src/domain/service/search.py`, `consumer.py`, `metadata_process.py`, `grpc_client.py`, `redis.py`
+- **Docs impact**: DOCUMENTATION.md section 10.5 may be outdated; this PROCESSES.md reflects the new architecture
+
+### 5. **RabbitMQ Publisher Module**
+- **Recent addition**: `api_service/src/rabbitmq/publisher.module.ts` and `publisher.service.ts`
+- **Purpose**: Centralized RabbitMQ publishing for video metadata events
+- **Status**: Integrated into `VideoService.updateVideo()` workflow
+- **Note**: New file `publisher.module.ts` defines the RabbitMQ client module export
+
+
+---
+
+**Generated:** 2026-07-07  
+<!-- **Verified against:**
+- api_service/src/video/video.service.ts
+- api_service/src/auth/auth.service.ts
+- api_service/src/rabbitmq/publisher.service.ts
+- search_service/src/app/worker/consumer.py
+- search_service/src/domain/service/metadata_process.py
+- search_service/src/domain/service/search.py -->
+=======
 
 
 
@@ -534,7 +752,7 @@ See root-level `docker-compose.yml` and service-specific `.env` files for curren
 
 1. **gRPC Restructured**: Reorganized from flat `api_service/src/grpc/` to `api_service/src/grpc/server/video-metadata/` and new `api_service/src/grpc/client/`. Added bidirectional gRPC setup: api_service acts as server for VideoMetaDataService, search_service acts as server for DeleteVideoService.
 
-2. **Proto Replaced**: `proto/video_metadata.proto` replaced with `proto/video.proto`. New proto defines two services: VideoMetaDataService (client=search_service, server=api_service) and DeleteVideoService (client=api_service, server=search_service).
+2. **Proto Replaced**: `proto/video.proto` replaced with `proto/video.proto`. New proto defines two services: VideoMetaDataService (client=search_service, server=api_service) and DeleteVideoService (client=api_service, server=search_service).
 
 3. **r2-worker Directory Removed From Monorepo**: `/r2-worker` deleted from this repo, but the Cloudflare Worker is deployed/versioned separately and is unaffected at runtime. Playback flow (Section 6) is unchanged and still works as documented.
 
@@ -564,3 +782,4 @@ See root-level `docker-compose.yml` and service-specific `.env` files for curren
 CI wiring lives in `.github/workflows/e2e.yml`.
 
 
+>>>>>>> main

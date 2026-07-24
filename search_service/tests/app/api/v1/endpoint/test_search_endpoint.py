@@ -46,6 +46,10 @@ class TestSearchEndpoint:
                     "view": 5,
                     "date": 1700000000,
                     "channel": "channel-a",
+                    "start": 0,
+                    "end": 10,
+                    "matched_text": "sample text",
+                    "score": 0.95
                 }
             ],
             10,

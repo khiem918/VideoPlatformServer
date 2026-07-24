@@ -1,0 +1,87 @@
+{
+  "_note": "chunk_id được tính bằng uuid5(NAMESPACE_DNS, f'{video_id}_{i}') — đúng công thức trong upsert_chunks() của chunk_qdrant.py. Query được viết theo lối diễn đạt tự nhiên (paraphrase), cố tình tránh lặp từ khóa chính xác trong transcript để bộc lộ rõ khác biệt giữa dense (semantic) và sparse (BM25/từ khóa).",
+
+  "queries": [
+    {
+      "id": "q01",
+      "topic": "cooking",
+      "query": "cách nấu nước dùng ngon cho một món ăn Việt Nam truyền thống",
+      "relevant_chunk_ids": [
+        "70265c99-c2d0-53de-8203-f46ddf637b76",
+        "f91c468d-16df-5f1d-86c7-7c97d787ca85"
+      ]
+    },
+    {
+      "id": "q02",
+      "topic": "cooking",
+      "query": "bí quyết làm nước lèo thơm từ xương hầm lâu",
+      "relevant_chunk_ids": [
+        "f91c468d-16df-5f1d-86c7-7c97d787ca85"
+      ]
+    },
+    {
+      "id": "q03",
+      "topic": "travel",
+      "query": "những địa điểm du lịch nổi tiếng nên ghé thăm ở Nhật Bản",
+      "relevant_chunk_ids": [
+        "3d227839-90d5-5771-85f6-7799bece0a31"
+      ]
+    },
+    {
+      "id": "q04",
+      "topic": "travel",
+      "query": "thời điểm nào trong năm hoa nở đẹp nhất để đi du lịch",
+      "relevant_chunk_ids": [
+        "a9c933d3-4d31-5c82-b653-6416fa0845be"
+      ]
+    },
+    {
+      "id": "q05",
+      "topic": "sports",
+      "query": "kết quả ghi bàn trong hiệp hai của trận đấu",
+      "relevant_chunk_ids": [
+        "23988bef-a160-5b33-a31d-179d784b368c"
+      ]
+    },
+    {
+      "id": "q06",
+      "topic": "sports",
+      "query": "cảm nhận của người dẫn dắt đội bóng sau khi giành chiến thắng",
+      "relevant_chunk_ids": [
+        "d2875f66-1fdb-5a28-a3e6-d6a26e13128f"
+      ]
+    },
+    {
+      "id": "q07",
+      "topic": "tech",
+      "query": "công nghệ giúp máy tính tự viết phần mềm và trả lời câu hỏi phức tạp",
+      "relevant_chunk_ids": [
+        "62c4094f-a478-5738-8a5a-a7b2fbaa2c65"
+      ]
+    },
+    {
+      "id": "q08",
+      "topic": "tech",
+      "query": "cơ sở dữ liệu lưu trữ vector phục vụ tìm kiếm theo ý nghĩa",
+      "relevant_chunk_ids": [
+        "b8b285bd-5987-5f89-a1a1-bcf9a33e751a"
+      ]
+    },
+    {
+      "id": "q09",
+      "topic": "music",
+      "query": "cách bấm các hợp âm cơ bản khi mới tập chơi đàn",
+      "relevant_chunk_ids": [
+        "cf1d5d14-b3a3-5ff0-9d1f-13f2f407c63d"
+      ]
+    },
+    {
+      "id": "q10",
+      "topic": "music",
+      "query": "dùng thiết bị đếm nhịp để giữ tốc độ ổn định khi luyện tập",
+      "relevant_chunk_ids": [
+        "51afc8b8-8b76-5f68-96dc-248efeee1895"
+      ]
+    }
+  ]
+}

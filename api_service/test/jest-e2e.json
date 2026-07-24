@@ -5,6 +5,8 @@
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
+<<<<<<< HEAD
+=======
   },
   "transformIgnorePatterns": [
     "node_modules/(?!(jose)/)"
@@ -13,5 +15,6 @@
     "^nanoid$": "<rootDir>/../src/__mocks__/nanoid.ts",
     "^uuid$": "<rootDir>/../src/__mocks__/uuid.ts",
     "^src/(.*)$": "<rootDir>/../src/$1"
+>>>>>>> main
   }
 }

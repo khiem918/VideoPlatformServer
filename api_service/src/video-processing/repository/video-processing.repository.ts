@@ -5,7 +5,6 @@ import {
   UploadMetaStatus,
   UploadVideoStatus,
   VideoStatus,
-  VideoVisibility,
 } from '@prisma/client';
 
 @Injectable()
@@ -20,25 +19,28 @@ export class VideoProcessingRepository {
     duration: number,
   ): Promise<{
     videoId: string;
+    userId: string; 
     videoStatus: UploadVideoStatus;
     metaStatus: UploadMetaStatus;
   }> {
     return await this.prisma.$transaction(async (tx) => {
       const info = await tx.videoInformation.update({
         where: { id: inforId },
-
         data: {
           videoStatus: UploadVideoStatus.PROCESSED,
           videoUpdatedAt: new Date(),
         },
       });
 
-      await tx.video.update({
+      const video = await tx.video.update({
         where: { id: info.videoId },
         data: {
           videoPath: videoUrl,
           thumbnailPath: thumbnailPath,
           duration: duration,
+        },
+        select: {
+          userId: true, 
         },
       });
 
@@ -52,6 +54,7 @@ export class VideoProcessingRepository {
 
       return {
         videoId: info.videoId,
+        userId: video.userId, 
         videoStatus: info.videoStatus,
         metaStatus: info.metaStatus,
       };
@@ -66,7 +69,6 @@ export class VideoProcessingRepository {
     await this.prisma.$transaction(async (tx) => {
       await tx.videoInformation.update({
         where: { id: inforId },
-
         data: {
           videoStatus: UploadVideoStatus.FAILED,
           videoUpdatedAt: new Date(),
@@ -89,7 +91,6 @@ export class VideoProcessingRepository {
       where: { id: videoId },
       data: {
         videoStatus: VideoStatus.AVAILABLE,
-        visibility: VideoVisibility.PUBLIC,
       },
     });
   }

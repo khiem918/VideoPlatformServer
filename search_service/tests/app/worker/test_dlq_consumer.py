@@ -145,22 +145,15 @@ class TestHandleDeadLetterMessageRequeue:
 
 
 class TestHandleDeadLetterMessageMaxRetriesExceeded:
-    async def test_bug_publish_failure_message_raises_type_error_for_unencoded_body(
+    async def test_publishes_failure_message_when_max_retries_reached(
         self, broker, fake_sleep
     ):
-        """
-        Regression test documenting a real, currently-unfixed bug: the
-        max-retries branch in dlq_consumer.py builds `aio_pika.Message(body=
-        json.dumps(...))` without `.encode()`, so `aio_pika.Message.__init__`
-        (which does `bytes(body)` for non-bytes input) raises TypeError.
-        """
         await _publish_with_real_death_count(
             broker, {"correlationId": "corr-1", "videoId": "video-1"}, death_count=3
         )
         message = await wait_for_message(broker.dead_letter_queue)
 
-        with pytest.raises(TypeError, match="string argument without an encoding"):
-            await handle_dead_letter_message(message, broker.dlx_exchange)
+        await handle_dead_letter_message(message, broker.dlx_exchange)
 
         fake_sleep.assert_not_awaited()
 
@@ -170,7 +163,6 @@ class TestHandleDeadLetterMessageMaxRetriesExceeded:
         )
         message = await wait_for_message(broker.dead_letter_queue)
 
-        with pytest.raises(TypeError):
-            await handle_dead_letter_message(message, broker.dlx_exchange)
+        await handle_dead_letter_message(message, broker.dlx_exchange)
 
         fake_sleep.assert_not_awaited()

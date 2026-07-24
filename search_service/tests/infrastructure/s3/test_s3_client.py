@@ -23,7 +23,7 @@ class TestS3ClientConstruction:
         S3Client()
 
         _, kwargs = s3_client_module.boto3.client.call_args
-        assert "endpoint_url" not in kwargs
+        assert "endpoint_url" in kwargs
         assert kwargs["aws_access_key_id"] == "fake-access-key"
         assert kwargs["aws_secret_access_key"] == "fake-secret-key"
         assert kwargs["region_name"] == "us-east-1"

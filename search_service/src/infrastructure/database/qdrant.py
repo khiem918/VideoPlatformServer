@@ -8,7 +8,7 @@ from src.core.config import config
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "videos"
-VECTOR_DEMENSION = 1024
+VECTOR_DIMENSION = 1024
 
 VECTOR_NAMES = { 
     "titleDense": "title", 
@@ -32,11 +32,11 @@ class QdrantService:
                 collection_name=COLLECTION_NAME,
                 vectors_config={
                     VECTOR_NAMES["titleDense"]: models.VectorParams(
-                                                    size=VECTOR_DEMENSION, 
+                                                    size=VECTOR_DIMENSION, 
                                                     distance=models.Distance.COSINE
                                                 ),
                     VECTOR_NAMES["descDense"]: models.VectorParams(
-                                                    size=VECTOR_DEMENSION, 
+                                                    size=VECTOR_DIMENSION, 
                                                     distance=models.Distance.COSINE
                                             ),
                     }, 
@@ -65,12 +65,17 @@ class QdrantService:
         else: 
 
             logger.info(f"Collection '{COLLECTION_NAME}' already exists.")
+            
+        # Gọi tạo index từ nhánh feat
+        await self._ensure_payload_indexes()
 
         
     async def _ensure_payload_indexes(self):
         indexes = [
             ("title", models.PayloadSchemaType.KEYWORD),
             ("desc", models.PayloadSchemaType.KEYWORD),
+            ("user_id", models.PayloadSchemaType.KEYWORD),
+            ("visibility", models.PayloadSchemaType.KEYWORD),
         ]
 
         for field_name, field_type in indexes:
@@ -91,7 +96,9 @@ class QdrantService:
         desc_vector: list[float] | None, 
         sparse_vector: SparseVector,
         title: str, 
-        desc: str | None, 
+        desc: str | None,
+        user_id: str | None = None,
+        visibility: str | None = None,
     ) -> None:
         vector = {}
 
@@ -107,6 +114,10 @@ class QdrantService:
         payload["title"] = title
         if desc:
             payload["desc"] = desc
+        if user_id:
+            payload["user_id"] = user_id
+        if visibility:
+            payload["visibility"] = visibility
 
         await self._client.upsert(
             collection_name=COLLECTION_NAME,
@@ -130,7 +141,25 @@ class QdrantService:
             query_dense_vector: list[float],
             query_sparse_vector: SparseVector,
             limit : int = 30,
+            current_user_id: str | None = None,
     ) -> list[models.ScoredPoint]:
+        
+        should_conditions = [
+            models.FieldCondition(
+                key="visibility",
+                match=models.MatchValue(value="PUBLIC")
+            )
+        ]
+        
+        if current_user_id:
+            should_conditions.append(
+                models.FieldCondition(
+                    key="user_id",
+                    match=models.MatchValue(value=current_user_id)
+                )
+            )
+            
+        privacy_filter = models.Filter(should=should_conditions)
         
         result = await self._client.query_points(
             collection_name=COLLECTION_NAME,
@@ -139,16 +168,19 @@ class QdrantService:
                     query=query_dense_vector,
                     using=VECTOR_NAMES["titleDense"], 
                     limit=limit*2,
+                    filter=privacy_filter,
                 ),
                 models.Prefetch(
                     query=query_dense_vector,
                     using=VECTOR_NAMES["descDense"], 
-                    limit=limit*2
+                    limit=limit*2,
+                    filter=privacy_filter,
                 ),
                 models.Prefetch(
                     query=query_sparse_vector,
                     using=VECTOR_NAMES["sparse"],
-                    limit=limit*2
+                    limit=limit*2,
+                    filter=privacy_filter,
                 )
             ], 
             query=models.FusionQuery(function=models.Fusion.RRF),
@@ -159,6 +191,7 @@ class QdrantService:
 
         return result.points
 
+    # Giữ lại phương thức xóa video từ nhánh main
     async def delete_video_point(self, video_id: str) -> None:
 
         await self._client.delete(
@@ -168,6 +201,3 @@ class QdrantService:
             ), 
             wait=True
         )
-
-
-
