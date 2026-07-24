@@ -48,8 +48,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const server_port = configservice.get('SERVER_PORT');
-  await app.listen(server_port);
+  await app.listen(8080);
 }
 
 bootstrap();

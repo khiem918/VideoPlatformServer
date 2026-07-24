@@ -6,7 +6,7 @@ from .generated import video_pb2_grpc as pb_grpc, video_pb2 as pb
 
 class GrpcClient:
     def __init__(self):
-        self._target = config.GRPC_URL
+        self._target = config.API_SERVICE_GRPC_URL
         self._channel : grpc.aio.Channel | None = None
         self._stub : pb_grpc.VideoMetaDataServiceStub | None = None
 
