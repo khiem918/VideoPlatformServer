@@ -43,7 +43,7 @@ export class AuthService {
         { userId } as Record<string, any>,
         {
           secret: this.config.get('JWT_SECRET'),
-          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+          expiresIn: 3600,
         },
       );
 
@@ -57,7 +57,7 @@ export class AuthService {
       await this.redisService.set(
         `s:${sessionId}`,
         session_data,
-        parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
+        86400,
       );
 
       return {
@@ -106,7 +106,7 @@ export class AuthService {
         await this.redisService.set(
           `s:${newSessionId}`,
           new_sesssion_data,
-          parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
+          86400,
         );
 
         return {
@@ -114,7 +114,7 @@ export class AuthService {
             { userId } as Record<string, any>,
             {
               secret: this.config.get('JWT_SECRET'),
-              expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+              expiresIn: 3600,
             },
           ),
           newFreshToken: newRefreshToken,
@@ -138,7 +138,7 @@ export class AuthService {
         { userId: finalUserId } as Record<string, any>,
         {
           secret: this.config.get('JWT_SECRET'),
-          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+          expiresIn: 3600,
         },
       );
 
