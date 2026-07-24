@@ -30,7 +30,6 @@ export class FFmpegService {
   private readonly tempDir = '/tmp/video-streaming-system/processing';
 
   constructor(
-    private s3Service: S3Service,
     private configService: ConfigService,
   ) {
     if (!fs.existsSync(this.tempDir)) {
@@ -206,13 +205,6 @@ export class FFmpegService {
   }
 
   private getThreadsPerStream(variantCount: number): number {
-    const configured = this.configService.get<number>(
-      'FFMPEG_THREADS_PER_STREAM',
-    );
-    if (configured && configured > 0) {
-      return configured;
-    }
-
     return Math.max(1, Math.floor(os.cpus().length / variantCount));
   }
 
