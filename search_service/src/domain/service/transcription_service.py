@@ -28,7 +28,7 @@ class TranscriptionService:
     # Transcribe
     # ─────────────────────────────────────────────
 
-    def transcribe(self, audio_path: str, language: str = "vi"):
+    def transcribe(self, audio_path: str, language: str | None = None):
         """
         Transcribe file audio, trả về list segment từ Whisper.
         Trả về list rỗng nếu không phát hiện lời nói.
@@ -45,7 +45,8 @@ class TranscriptionService:
 
         logger.info(
             f"Transcribed {audio_path}: "
-            f"language={info.language}, segments={len(segments)}"
+            f"detected_language={info.language} (prob={info.language_probability:.2f}), "
+            f"segments={len(segments)}"
         )
         return segments
 
@@ -95,7 +96,14 @@ class TranscriptionService:
 
         return chunks
 
-    def process_video_transcript(self, segments: list) -> list[dict] | None:
+    def process_audio_file(
+        self,
+        audio_path: str,
+        video_id: str,
+        user_owner: str,
+        created_at: int,
+        language: str | None = None,
+    ) -> list[dict] | None:
         """
         Xử lý toàn bộ transcript của 1 video.
 

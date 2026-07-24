@@ -17,12 +17,14 @@ import { SemanticSearchModule } from '../semantic-search/semantic-search.module'
     PrismaModule,
     QueueModule,
     NotificationModule,
+<<<<<<< HEAD
     SemanticSearchModule,
+=======
+>>>>>>> main
 
     BullModule.registerQueue({
       name: process.env.QUEUE_NAME || 'video-processing',
     }),
-
   ],
   providers: [
     VideoProcessingHandler,

@@ -1,13 +1,13 @@
 import json
-import os
 import logging
 from redis.asyncio import Redis
 from typing import Optional, Any
+from src.core.config import config
 
 class RedisService:
     def __init__(self):
         self._client: Redis = Redis.from_url(
-            os.getenv("REDIS_URL", "redis://localhost:6380"),
+            config.REDIS_URL,
             decode_responses=True,
         )
         
@@ -73,3 +73,37 @@ class RedisService:
             pipeline.set(key, json.dumps(value), ex=expire)
 
         await pipeline.execute()
+
+
+    async def zadd(self, key: str, value: dict, expire: int = 3600):
+     
+        pipeline = self._client.pipeline()
+     
+        pipeline.zadd(key, value)
+        pipeline.expire(key, expire)
+     
+        await pipeline.execute()
+
+
+    async def zrange(self, key: str, start: int, end: int) -> list[str] | None:
+
+        result = await self._client.zrange(key, start, end)
+        return result if result else None
+
+    async def delete_by_pattern(self, patterns: list[str]): 
+        
+        pipeline = self._client.pipeline()
+        
+        delete_key_count = 0
+
+        for pattern in patterns:
+            for key in self._client.scan_iter(match=pattern, count=1000):
+                pipeline.delete(key)
+                delete_key_count += 1
+
+                if delete_key_count % 1000 == 0:
+                    pipeline.execute()
+
+        if delete_key_count % 1000 != 0: 
+            pipeline.execute()
+        

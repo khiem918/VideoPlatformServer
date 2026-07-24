@@ -22,7 +22,6 @@ export const VECTOR_NAMES = {
   descDense: 'desc',
 } as const;
 
-
 export interface VectorSearchParams {
   denseVector: number[];
   limit?: number;

@@ -23,7 +23,6 @@ scalar DateTime
 
 type InitUploadResponse {
   presignedUrl: String!
-  uploadId: String!
   videoId: String!
 }
 
@@ -62,7 +61,6 @@ type Query {
   getVideoComments(cursorCreatedAt: DateTime, cursorId: String, videoId: String!): [CommentContentResponse!]!
   getWatchVideoMetadata(videoId: String!): WatchVideoResponse!
   getWatchVideoUrl(videoId: String!): WatchVideoUrlResponse!
-  hello: String!
   me: String!
 }
 
@@ -115,7 +113,9 @@ type WatchVideoResponse {
 }
 
 type WatchVideoUrlResponse {
+<<<<<<< HEAD
   expiresAt: Int!
+=======
+>>>>>>> main
   mpdUrl: String!
-  signature: String!
 }

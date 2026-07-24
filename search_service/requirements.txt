@@ -1,6 +1,7 @@
 fastapi==0.104.1
 uvicorn==0.24.0
 pydantic>=2.10,<3.0
+pydantic-settings>=2.10,<3.0
 python-dotenv==1.0.0
 aio-pika==9.4.3
 qdrant-client[fastembed]>=1.14.2

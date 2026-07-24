@@ -1,4 +1,8 @@
-import { createParamDecorator, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  createParamDecorator,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 export const restCurrentUser = createParamDecorator(
   (_: unknown, context: ExecutionContext) => {
@@ -8,12 +12,12 @@ export const restCurrentUser = createParamDecorator(
       throw new UnauthorizedException('Request not found');
     }
 
-    const user = (req as any).user;
+    const user = req.user;
 
     if (!user) {
       throw new UnauthorizedException('User not found in request');
     }
 
     return user;
-  } 
+  },
 );

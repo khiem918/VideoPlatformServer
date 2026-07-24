@@ -20,4 +20,3 @@ export class GqlAuthGuard extends AuthGuard('jwt') {
     return req;
   }
 }
-

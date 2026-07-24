@@ -14,7 +14,7 @@ export class TranscodingDataDto {
   @IsString()
   @IsNotEmpty()
   @Length(1, 500)
-  r2Path!: string;
+  objectPath!: string;
 
   @IsString()
   @IsNotEmpty()
@@ -27,7 +27,6 @@ export class TranscodingDataDto {
   ])
   mimeType!: string;
 }
-
 
 export interface TranscodingResponse {
   jobId: string;
@@ -42,5 +41,4 @@ export interface TranscodingResponse {
 export interface TranscodedVideoPaths {
   manifestPath: string;
   thumbnailPath: string;
-  metadataPath: string;
-};
+}

@@ -9,12 +9,14 @@ import { VideoResolver } from './video.resolver';
 import { VideoProcessingModule } from 'src/video-processing/video-processing.module';
 import { QdrantModule } from 'src/qdrant/qdrant.module';
 import { NotificationModule } from 'src/notification/notification.module';
+import { GrpcClientModule } from 'src/grpc/client/grpc-client.module';
 
 @Module({
   imports: [
     VideoProcessingModule,
     QdrantModule,
     NotificationModule,
+    GrpcClientModule,
     BullModule.registerQueue({
       name: process.env.QUEUE_NAME || 'video-processing',
     }),

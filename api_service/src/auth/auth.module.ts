@@ -25,7 +25,14 @@ import { RedisService } from './session.service';
       }),
     }),
   ],
-  providers: [AuthService, AuthResolver, JwtStrategy, AuthRepository, RedisService, FirebaseService],
+  providers: [
+    AuthService,
+    AuthResolver,
+    JwtStrategy,
+    AuthRepository,
+    RedisService,
+    FirebaseService,
+  ],
   exports: [AuthService, JwtModule, PassportModule],
 })
 export class AuthModule {}

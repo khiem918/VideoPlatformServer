@@ -17,24 +17,26 @@ export class VideoMetaDataGrpcService {
     async getVideoMetaData(videoId: string[]) {
         const video = await this.videoMetaDataRepository.getVideoMetaData(videoId);
 
-        if (!video) {
-            throw new RpcException({
-                code: GrpcStatus.NOT_FOUND,
-                message: 'Video not found',
-            });
+        if (!video || video.length === 0) {
+        throw new RpcException({
+            code: GrpcStatus.NOT_FOUND,
+            message: 'Video not found',
+        });
         }
 
-        return video.map((v) => ({
+        return {
+        videoMetadata: video.map((v) => ({
             videoId: v.id,
-            videoName: v.videoName,
-            videoView: v.videoView,
-            channel: v.owner.userName ? v.owner.userName : v.owner.id,
-            thumbnailUrl: v.thumbnailUrl,
-            videoReleasedDate: v.videoReleasedDate,
-            videoDesc: v.videoDesc?.slice(0, 50),
-            visibility: v.visibility,
+            title: v.videoName,             
+            description: v.videoDesc || '', 
+            thumbnailUrl: v.thumbnailPath,
+            view: Number(v.videoView),
             duration: v.duration,
-        }));
+            date: Math.floor((v.videoReleasedDate?.getTime() || Date.now()) / 1000),
+            channel: v.owner.id,            
+            visibility: v.visibility,
+        })),
+        };
     }
 
 

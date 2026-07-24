@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsNumber, IsString, IsOptional } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsOptional,
+  Min,
+} from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
@@ -50,29 +56,23 @@ export class EnvironmentVariables {
   COOKIE_SECRET!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_REGION!: string;
+  S3_REGION!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_ACCESS_KEY_ID!: string;
+  S3_ACCESS_KEY_ID!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_SECRET_ACCESS_KEY!: string;
+  S3_SECRET_ACCESS_KEY!: string;
 
   @IsNotEmpty()
-  CLOUDFLARE_R2_BUCKET_NAME!: string;
-
-  @IsOptional()
-  CLOUDFLARE_R2_ENDPOINT?: string;
-
-  @IsOptional()
-  CLOUDFLARE_R2_FORCE_PATH_STYLE?: boolean;
+  BUCKET_NAME!: string;
 
   @IsNotEmpty()
   MAX_FILE_SIZE!: number;
 
-  @IsNotEmpty()  
+  @IsNotEmpty()
   @IsString()
-  QUEUE_NAME! : string;
+  QUEUE_NAME!: string;
 
   @IsNotEmpty()
   @IsString()
@@ -84,19 +84,36 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  EMBED_API_URL!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  EMBED_API_KEY!: string;
-
-  @IsNotEmpty()
-  @IsString()
-  R2_SIGN_SECRET!: string;
-
-  @IsNotEmpty()
-  @IsString()
   RABBITMQ_URI!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  GRPC_URL!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  SEARCH_SERVICE_GRPC_URL!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFRONT_DOMAIN_NAME!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFRONT_KEY_PAIR_ID!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CLOUDFRONT_PRIVATE_KEY!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  CDN_DOMAIN!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  FFMPEG_THREADS_PER_STREAM?: number;
 }
 
 export function validateEnv(

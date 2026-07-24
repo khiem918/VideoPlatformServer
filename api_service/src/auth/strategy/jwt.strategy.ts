@@ -10,14 +10,20 @@ function extractTokenFromRequest(request: Request): string | null {
     return bearerToken;
   }
 
-  const queryToken = typeof request.query.token === 'string' ? request.query.token : null;
+  const queryToken =
+    typeof request.query.token === 'string' ? request.query.token : null;
   if (queryToken) {
-    return queryToken.startsWith('token=') ? queryToken.slice('token='.length) : queryToken;
+    return queryToken.startsWith('token=')
+      ? queryToken.slice('token='.length)
+      : queryToken;
   }
 
-  const pathToken = typeof request.params?.token === 'string' ? request.params.token : null;
+  const pathToken =
+    typeof request.params?.token === 'string' ? request.params.token : null;
   if (pathToken) {
-    return pathToken.startsWith('token=') ? pathToken.slice('token='.length) : pathToken;
+    return pathToken.startsWith('token=')
+      ? pathToken.slice('token='.length)
+      : pathToken;
   }
 
   const urlMatch = request.url.match(/(?:\?|&)token=([^&]+)/);
@@ -26,7 +32,9 @@ function extractTokenFromRequest(request: Request): string | null {
   }
 
   const rawToken = decodeURIComponent(urlMatch[1]);
-  return rawToken.startsWith('token=') ? rawToken.slice('token='.length) : rawToken;
+  return rawToken.startsWith('token=')
+    ? rawToken.slice('token='.length)
+    : rawToken;
 }
 
 @Injectable()
@@ -45,9 +53,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
+<<<<<<< HEAD
   validate(payload: { userId: string; iat: number, exp: number })
     : { userId: string; iat: number, exp: number }  
   {
+=======
+  validate(payload: { userId: string; iat: number; exp: number }): {
+    userId: string;
+    iat: number;
+    exp: number;
+  } {
+>>>>>>> main
     if (!payload?.userId) {
       throw new UnauthorizedException('Invalid token payload');
     }

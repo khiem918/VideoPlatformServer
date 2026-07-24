@@ -1,8 +1,8 @@
-import os 
 import logging
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import SparseVector, Modifier
+from src.core.config import config
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ VECTOR_NAMES = {
 class QdrantService:
     def __init__(self):
         self._client = AsyncQdrantClient(
-            url=os.getenv("QDRANT_URL", "http://localhost:6333")
+            url=config.QDRANT_URL
         )
 
     async def init_collection(self): 
@@ -66,6 +66,7 @@ class QdrantService:
 
             logger.info(f"Collection '{COLLECTION_NAME}' already exists.")
             
+        # Gọi tạo index từ nhánh feat
         await self._ensure_payload_indexes()
 
         
@@ -140,7 +141,25 @@ class QdrantService:
             query_dense_vector: list[float],
             query_sparse_vector: SparseVector,
             limit : int = 30,
+            current_user_id: str | None = None,
     ) -> list[models.ScoredPoint]:
+        
+        should_conditions = [
+            models.FieldCondition(
+                key="visibility",
+                match=models.MatchValue(value="PUBLIC")
+            )
+        ]
+        
+        if current_user_id:
+            should_conditions.append(
+                models.FieldCondition(
+                    key="user_id",
+                    match=models.MatchValue(value=current_user_id)
+                )
+            )
+            
+        privacy_filter = models.Filter(should=should_conditions)
         
         result = await self._client.query_points(
             collection_name=COLLECTION_NAME,
@@ -149,16 +168,19 @@ class QdrantService:
                     query=query_dense_vector,
                     using=VECTOR_NAMES["titleDense"], 
                     limit=limit*2,
+                    filter=privacy_filter,
                 ),
                 models.Prefetch(
                     query=query_dense_vector,
                     using=VECTOR_NAMES["descDense"], 
-                    limit=limit*2
+                    limit=limit*2,
+                    filter=privacy_filter,
                 ),
                 models.Prefetch(
                     query=query_sparse_vector,
                     using=VECTOR_NAMES["sparse"],
-                    limit=limit*2
+                    limit=limit*2,
+                    filter=privacy_filter,
                 )
             ], 
             query=models.FusionQuery(function=models.Fusion.RRF),
@@ -169,6 +191,13 @@ class QdrantService:
 
         return result.points
 
+    # Giữ lại phương thức xóa video từ nhánh main
+    async def delete_video_point(self, video_id: str) -> None:
 
-
-        
+        await self._client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=models.PointIdsList(
+                points=[video_id]
+            ), 
+            wait=True
+        )

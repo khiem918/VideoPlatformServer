@@ -1,7 +1,6 @@
 import logging
-import os
-
 from prisma import Prisma
+from src.core.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -11,11 +10,7 @@ class PostgresService:
         self._client = Prisma()
 
     async def connect(self) -> None:
-        database_url = os.getenv("DATABASE_URL") or ""
-        if not database_url:
-            raise RuntimeError("DATABASE_URL is not set")
-
-        self._client = Prisma(datasource={"url": database_url})
+        self._client = Prisma(datasource={"url": config.DATABASE_URL})
         await self._client.connect()
         logger.info("Connected to PostgreSQL")
 

@@ -6,6 +6,7 @@ routers = APIRouter()
 router_list = [search_router]
 
 for r in router_list:
+    r.tags = routers.tags.append("v1")
     routers.include_router(r)
 
 

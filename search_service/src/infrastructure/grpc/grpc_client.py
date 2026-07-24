@@ -1,12 +1,12 @@
-import os 
 import logging
 import grpc
-from .generated import video_metadata_pb2_grpc as pb_grpc, video_metadata_pb2 as pb
+from src.core.config import config
+from .generated import video_pb2_grpc as pb_grpc, video_pb2 as pb
 
 
-class GrpcClient: 
-    def __init__(self): 
-        self._target = os.getenv("GRPC_URL", "localhost:50051")
+class GrpcClient:
+    def __init__(self):
+        self._target = config.GRPC_URL
         self._channel : grpc.aio.Channel | None = None
         self._stub : pb_grpc.VideoMetaDataServiceStub | None = None
 
@@ -46,7 +46,3 @@ class GrpcClient:
                 return None
            
             raise
-    
-    
-
-

@@ -10,6 +10,7 @@
 *.userosscache
 *.sln.docstates
 *.env
+docker/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -510,3 +511,6 @@ opencode.json
 .docs/*
 
 .=1.68
+.=1.68
+
+docker/
