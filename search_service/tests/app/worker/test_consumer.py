@@ -58,8 +58,8 @@ class TestStartConsumer:
             async with response_message.process():
                 pass
 
-            fake_video_service.process_metadata.assert_awaited_once_with(
-                "video-1", "A Title", "A description"
+            fake_video_service.process_metadata.assert_called_once_with(
+                "video-1", "A Title", "A description", user_id=None, visibility=None
             )
         finally:
             await verify_connection.close()
@@ -93,8 +93,8 @@ class TestStartConsumer:
             async with response_message.process():
                 pass
 
-            fake_video_service.process_metadata.assert_awaited_once_with(
-                "video-1", "A Title", None
+            fake_video_service.process_metadata.assert_called_once_with(
+                "video-1", "A Title", None, user_id=None, visibility=None
             )
         finally:
             await verify_connection.close()

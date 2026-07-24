@@ -21,6 +21,14 @@ def qdrant_service():
 
 
 @pytest.fixture
+def chunk_qdrant_service():
+    mock = MagicMock()
+    mock.search_chunks = AsyncMock(return_value=[])
+    mock.search_points = AsyncMock(return_value=[])
+    return mock
+
+
+@pytest.fixture
 def redis_service():
     mock = MagicMock()
     mock.mget_with_ttl = AsyncMock(return_value=[])
@@ -40,15 +48,25 @@ def grpc_service():
 @pytest.fixture
 def s3_client():
     mock = MagicMock()
-    mock.generate_public_resource_url = MagicMock(side_effect=lambda path, *a, **kw: f"https://cdn.example.test/{path}")
+    mock.generate_public_resource_url = MagicMock(
+        side_effect=lambda path, *a, **kw: f"https://cdn.example.test/{path}"
+    )
     return mock
 
 
 @pytest.fixture
-def search_service(embedding_service, qdrant_service, redis_service, grpc_service, s3_client):
+def search_service(
+    embedding_service,
+    qdrant_service,
+    chunk_qdrant_service,
+    redis_service,
+    grpc_service,
+    s3_client,
+):
     return SearchService(
         embedding_service=embedding_service,
         qdrant_service=qdrant_service,
+        chunk_qdrant_service=chunk_qdrant_service,
         redis_service=redis_service,
         grpc_service=grpc_service,
         s3_client=s3_client,

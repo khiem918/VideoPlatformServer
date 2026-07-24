@@ -76,6 +76,7 @@ class TestHandleMetadataMissingFromCache:
 
         result = await search_service._handle_metadata(["missing"])
 
+        # [KHẮC PHỤC]: Bổ sung trường visibility: PUBLIC để khớp với kết quả trả về từ get_metadata_grpc
         assert result == [
             {
                 "video_id": "missing",
@@ -85,6 +86,7 @@ class TestHandleMetadataMissingFromCache:
                 "view": 10,
                 "date": 42,
                 "channel": "chan",
+                "visibility": "PUBLIC",
             }
         ]
 

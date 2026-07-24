@@ -12,6 +12,10 @@ VALID_ITEM = {
     "view": 100,
     "date": 1700000000,
     "channel": "channel-1",
+    "start": 0,
+    "end": 10,
+    "matched_text": "sample matched text",
+    "score": 0.95,
 }
 
 

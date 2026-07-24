@@ -17,6 +17,25 @@ export class VideoProcessingQueueService {
   ) {}
 
   async addTranscodingJob(data: TranscodingDataDto): Promise<string> {
+<<<<<<< HEAD
+      const job = await this.queue.add('transcode-video', data, {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+        removeOnComplete: true,
+        removeOnFail: true,           /// retry by cronjob 
+      });
+
+      this.logger.log(
+        `Added transcoding job for inforId: ${data.inforId}, processingId: ${data.processingId}, jobId: ${job.id}`,
+      );
+      
+      job.updateProgress(5);
+
+      return job.id as string;
+=======
     const job = await this.queue.add('transcode-video', data, {
       attempts: 3,
       backoff: {
@@ -34,6 +53,7 @@ export class VideoProcessingQueueService {
     job.updateProgress(5);
 
     return job.id as string;
+>>>>>>> main
   }
 
   async getJobStatus(jobId: string): Promise<TranscodingResponse | null> {

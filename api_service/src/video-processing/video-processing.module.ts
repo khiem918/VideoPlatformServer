@@ -9,12 +9,18 @@ import { VideoProcessingRepository } from './repository/video-processing.reposit
 import { FFmpegService } from './ffmpeg.service';
 import { S3Service } from 'src/s3/s3.service';
 import { NotificationModule } from 'src/notification/notification.module';
+import { SemanticSearchModule } from '../semantic-search/semantic-search.module';
+
 
 @Module({
   imports: [
     PrismaModule,
     QueueModule,
     NotificationModule,
+<<<<<<< HEAD
+    SemanticSearchModule,
+=======
+>>>>>>> main
 
     BullModule.registerQueue({
       name: process.env.QUEUE_NAME || 'video-processing',

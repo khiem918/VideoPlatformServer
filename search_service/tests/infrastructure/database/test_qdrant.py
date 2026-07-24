@@ -100,14 +100,16 @@ class TestEnsurePayloadIndexes:
     async def test_creates_payload_index_for_each_configured_field(self, service):
         await service._ensure_payload_indexes()
 
-        assert service._client.create_payload_index.await_count == 2
+        assert service._client.create_payload_index.await_count == 4
 
     async def test_continues_when_creating_one_index_fails(self, service):
         service._client.create_payload_index.side_effect = [
             RuntimeError("already exists"),
             None,
+            None,
+            None,
         ]
 
         await service._ensure_payload_indexes()
 
-        assert service._client.create_payload_index.await_count == 2
+        assert service._client.create_payload_index.await_count == 4

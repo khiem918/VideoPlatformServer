@@ -248,17 +248,14 @@ export class VideoService {
     );
 
     if (tags || title || description) {
-      
       const processingId = uuidv4();
 
       await Promise.all([
-        
         this.videorepository.createVideoProcessing(
           videoInfo.id,
           ProcessingType.META,
           processingId,
         ),
-        
         this.publisherService.transferVideoMetadata(
           processingId,
           result.id,
@@ -266,9 +263,7 @@ export class VideoService {
           description ? description : undefined,
           tags ? tags : undefined,
         ),
-
       ]);
-
     }
 
     if (result.thumbnailPath) {

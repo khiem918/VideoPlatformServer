@@ -36,6 +36,10 @@ class TestDeclare:
         )
         response_queue = await channel.get_queue("video.metadata.response")
 
+        await transfer_queue.purge()
+        await dead_letter_queue.purge()
+        await response_queue.purge()
+        
         await exchange.publish(
             aio_pika.Message(json.dumps({"which": "transfer"}).encode()),
             routing_key="video.metadata.trans",
@@ -74,6 +78,9 @@ class TestDeclare:
         channel = await connection.channel()
 
         exchange, _, transfer_queue, dead_letter_queue = await declare(channel)
+        
+        await transfer_queue.purge()
+        await dead_letter_queue.purge()
 
         await exchange.publish(
             aio_pika.Message(json.dumps({"correlationId": "corr-1"}).encode()),

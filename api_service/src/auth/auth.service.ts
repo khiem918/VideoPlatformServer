@@ -132,7 +132,7 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const finalUserId = userId || sessionData.userId;
+      const finalUserId = sessionData.userId;
 
       const newAccessToken = this.jwtService.sign(
         { userId: finalUserId } as Record<string, any>,
@@ -157,7 +157,6 @@ export class AuthService {
       }
       throw new InternalServerErrorException('Token rotation failed');
     }
-
   }
 
 

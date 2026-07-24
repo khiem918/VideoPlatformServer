@@ -11,6 +11,7 @@ import { TranscodingFailedException } from './exceptions/transcoding-failed.exce
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
 import { TranscodedVideoPaths } from './dto/transcodingdata.dto';
 import { UploadMetaStatus, UploadVideoStatus } from '@prisma/client';
+import { SemanticQueueService } from '../semantic-search/semantic-search.queue';
 
 @Injectable()
 export class VideoProcessingService {
@@ -22,6 +23,7 @@ export class VideoProcessingService {
     private readonly ffmpegService: FFmpegService,
     private readonly repository: VideoProcessingRepository,
     private readonly s3Service: S3Service,
+    private readonly semanticQueueService: SemanticQueueService,
   ) {
     this.ensureTempDir();
   }
@@ -46,42 +48,30 @@ export class VideoProcessingService {
     const workDir = path.join(this.tempDir, inforId);
 
     try {
-      // Download video from object storage to temporary working directory
       const inputPath = await this.downloadVideoFromObjectStorage(
         objectPath,
         workDir,
         mimeType,
       );
 
-      // Extract video metadata and calculate duration for processing
       const metadata = await this.ffmpegService.getVideoMetadata(inputPath);
       const videoDuration = Math.max(1, Math.floor(metadata.duration));
 
-      // Transcode video to DASH format for adaptive streaming
       const dashOutputDir = path.join(workDir, 'dash');
       await this.ffmpegService.transcodeToDASH(inputPath, dashOutputDir);
 
-      // Extract and generate thumbnail from video
       const thumbsDir = path.join(workDir, 'thumb');
       await fs.promises.mkdir(thumbsDir, { recursive: true });
       const thumbnailPath = path.join(thumbsDir, '0.jpg');
       await this.ffmpegService.extractThumbnail(inputPath, thumbnailPath);
 
-      // Upload transcoded files to object storage
       const uploadResult = await this.uploadToObjectStorage(
         workDir,
         processingId,
-        data.objectPath,
+        objectPath,
       );
 
-      /* 
-     
-        Using for processing successfully::
-                  - update : video.uploadvideostatus = COMPLETED
-                  - handle logic: if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE
-      */
-
-      const { videoId, videoStatus, metaStatus } =
+      const { videoId, userId, videoStatus, metaStatus } =
         await this.repository.completeVideoProcessing(
           inforId,
           processingId,
@@ -90,8 +80,21 @@ export class VideoProcessingService {
           videoDuration,
         );
 
-      // Trigger status update if all metadata is ready
       await this.triggerVideoStatus(videoId, videoStatus, metaStatus);
+
+      if (
+        videoStatus === UploadVideoStatus.PROCESSED &&
+        metaStatus === UploadMetaStatus.PROCESSED
+      ) {
+        await this.semanticQueueService.addSemanticIndexingJob({
+          inforId,
+          processingId,
+          videoId,
+          userId,
+          r2Path: objectPath, 
+          mimeType: data.mimeType,
+        });
+      }
 
       this.logger.log(
         `Completed transcoding for video ${inforId}, manifest: ${uploadResult.manifestPath}, thumbnail: ${uploadResult.thumbnailPath}`,
@@ -99,14 +102,9 @@ export class VideoProcessingService {
 
       return uploadResult;
     } catch (error) {
-      // Record processing failure for error tracking and monitoring
       await this.recordFailure(inforId, processingId, error);
 
-      if (error instanceof InvalidVideoException) {
-        throw error;
-      }
-
-      if (error instanceof TranscodingFailedException) {
+      if (error instanceof InvalidVideoException || error instanceof TranscodingFailedException) {
         throw error;
       }
 
@@ -116,7 +114,6 @@ export class VideoProcessingService {
         true,
       );
     } finally {
-      // Clean up temporary files regardless of success or failure
       await this.cleanupTempFiles(workDir);
     }
   }
@@ -273,7 +270,6 @@ export class VideoProcessingService {
 
     try {
       await this.repository.recordFailure(inforId, processingId, errorMessage);
-
       this.logger.error(
         `Recorded failure for video ${inforId}: ${errorMessage}`,
       );
@@ -338,20 +334,26 @@ export class VideoProcessingService {
   /*
   if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE & video.visibility = PUBLIC  
   */
+  /*
+    When transcoding and metadata processing are completed, only technical availability should be updated.
+    Never override user's visibility setting (PRIVATE/DRAFT/PUBLIC).
+  */
   private async triggerVideoStatus(
     videoId: string,
     videoStatus: UploadVideoStatus,
     metaStatus: UploadMetaStatus,
   ): Promise<void> {
     if (
-      videoStatus == UploadVideoStatus.PROCESSED &&
-      metaStatus == UploadMetaStatus.PROCESSED
+      videoStatus === UploadVideoStatus.PROCESSED &&
+      metaStatus === UploadMetaStatus.PROCESSED
     ) {
       try {
-        await this.repository.publicVideo(videoId);
+        this.logger.log(
+          `Video ${videoId} has completed processing and is now technically AVAILABLE.`,
+        );
       } catch (error) {
         this.logger.error(
-          `Failed to update video status to AVAILABLE for video ${videoId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          `Failed to handle status update for video ${videoId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
       }
     }
