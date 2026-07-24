@@ -1,4 +1,5 @@
 import os
+import json
 import asyncio
 import logging
 from src.core.config import config
@@ -25,17 +26,54 @@ class SearchService:
         s3_client: S3Client,
     ):
         self.embedding_service = embedding_service
-        self.qdrant_service = qdrant_service              # Từ main
-        self.chunk_qdrant_service = chunk_qdrant_service  # Từ feat (Multimodal AI)
+        self.qdrant_service = qdrant_service
+        self.chunk_qdrant_service = chunk_qdrant_service
         self.redis_service = redis_service
         self.grpc_service = grpc_service
         self._s3_client = s3_client
         self._inflight_requests = {}
         self._meta_cache_ttl = getattr(config, "META_CACHE_TTL", 3600)
+        self._search_cache_ttl = getattr(config, "SEARCH_CACHE_TTL", 300)
 
     def _get_search_cache_key(self, user_id: str, query: str) -> str:
         query_id = normalize_query_to_id(query)
         return f"search:{user_id}:{query_id}"
+
+    # ==================== PHẦN CACHE KẾT QUẢ TÌM KIẾM NÂNG CẤP ====================
+
+    async def _cache_searching_result(self, redis_key: str, results: list[dict]):
+        """
+        Lưu toàn bộ danh sách kết quả chunk (kèm start, end, matched_text) vào Redis dạng JSON
+        để hỗ trợ phân trang mượt mà cho Multimodal AI mà không cần truy vấn lại Qdrant.
+        """
+        try:
+            serialized_data = json.dumps(results)
+            await self.redis_service.set(redis_key, serialized_data, expire=self._search_cache_ttl)
+            logger.debug(f"Cached {len(results)} search results for key: {redis_key}")
+        except Exception as e:
+            logger.error(f"Failed to cache search results to Redis: {e}")
+
+    async def _get_cached_searching_result(self, redis_key: str, limit: int = 10, cursor: int | None = None) -> tuple[list[dict], int | None]:
+        """
+        Đọc và cắt trang (paginate) kết quả chunk từ Redis Cache.
+        """
+        try:
+            cached_data = await self.redis_service.get(redis_key)
+            if not cached_data:
+                return [], None
+            
+            all_results: list[dict] = json.loads(cached_data)
+            start_idx = cursor or 0
+            
+            paginated_results = all_results[start_idx : start_idx + limit]
+            next_cursor = (start_idx + limit) if len(all_results) > (start_idx + limit) else None
+            
+            return paginated_results, next_cursor
+        except Exception as e:
+            logger.error(f"Error reading search cache from Redis: {e}")
+            return [], None
+
+    # ==================== PHẦN XỬ LÝ METADATA & INFLIGHT REQUESTS ====================
 
     async def get_metadata_grpc(self, video_ids: list[str]) -> list[dict]:
         try:
@@ -67,9 +105,6 @@ class SearchService:
         return await self.redis_service.mget_with_ttl([f"meta:{id}" for id in video_ids])
 
     async def _handle_metadata(self, video_ids: list[str]) -> list[dict]:
-        """
-        Hàm hỗ trợ lấy metadata từ Cache/gRPC (refactoring từ nhánh main)
-        """
         next_caching_data = []
         missing_ids = []
 
@@ -82,7 +117,6 @@ class SearchService:
             elif item["value"] is not None and item["ttl"] < self._meta_cache_ttl / 2:
                 next_caching_data.append((item["key"], item["value"]))
 
-        # Inflight deduplication pattern
         if missing_ids:
             not_on_request_ids = []
             on_request_ids = []
@@ -112,14 +146,22 @@ class SearchService:
 
         return result_metadata
 
+    # ==================== HÀM SEARCH CHÍNH (HỢP NHẤT CACHE & CHUNK AI) ====================
+
     async def search(
         self, user_id: str, query: str, limit: int = 10, cursor: int | None = None
     ) -> tuple[list[dict], int | None]:
-        """
-        Quy trình tìm kiếm ngữ nghĩa hợp nhất:
-        Query -> Embed Dense -> Search Chunks (Qdrant) -> Lấy metadata -> Lọc visibility -> Trả về tuple phân trang
-        """
-        # 1. Chuẩn hóa & Tạo vector truy vấn
+        
+        redis_key = self._get_search_cache_key(user_id, query)
+
+        # 1. KIỂM TRA CACHE TRƯỚC: Nếu người dùng đang phân trang (cursor), lấy ngay từ Redis
+        if cursor is not None:
+            cached_results, next_cursor = await self._get_cached_searching_result(redis_key, limit, cursor)
+            if cached_results:
+                logger.debug(f"Serving paginated search results from cache for cursor: {cursor}")
+                return cached_results, next_cursor
+
+        # 2. CHUẨN HÓA & TẠO VECTOR TRUY VẤN
         normalized_query = standard_normalize(query)
         try:
             query_dense_vector = await self.embedding_service.embed_query(normalized_query)
@@ -127,8 +169,8 @@ class SearchService:
             logger.error(f"Error occurred while embedding query: {e}")
             raise Exception("Error occurred while embedding query") from e
 
-        # 2. Tìm kiếm các đoạn video khớp ngữ nghĩa (từ nhánh feat)
-        fetch_limit = (cursor or 0) + limit * 2  # Lấy dư để bù cho các video bị lọc quyền riêng tư
+        # 3. TÌM KIẾM CHUNK TRÊN QDRANT (Multimodal AI)
+        fetch_limit = (cursor or 0) + limit * 3 
         chunk_results = await self.chunk_qdrant_service.search_chunks(
             query_vector=query_dense_vector,
             limit=fetch_limit,
@@ -137,11 +179,11 @@ class SearchService:
         ordered_chunks = sorted(chunk_results, key=lambda c: c.score, reverse=True)
         unique_video_ids = list({c.payload["videoId"] for c in ordered_chunks})
 
-        # 3. Lấy thông tin Metadata (sử dụng helper sạch sẽ của nhánh main)
+        # 4. LẤY THÔNG TIN METADATA TỪ CACHE/gRPC
         result_metadata = await self._handle_metadata(unique_video_ids)
         metadata_map = {item["video_id"]: item for item in result_metadata if isinstance(item, dict) and "video_id" in item}
 
-        # 4. Ghép kết quả, lọc quyền riêng tư và chuyển đổi URL hình ảnh
+        # 5. GHÉP KẾT QUẢ, LỌC QUYỀN RIÊNG TƯ & TẠO PUBLIC URL
         results = []
         for chunk in ordered_chunks:
             video_id = chunk.payload["videoId"]
@@ -151,14 +193,12 @@ class SearchService:
             if metadata is None:
                 continue
 
-            # Lọc quyền riêng tư (chỉ hiện video PUBLIC hoặc video của chính người dùng đó)
             is_owner = (owner_id == user_id) or (metadata.get("channel", {}).get("id") == user_id if isinstance(metadata.get("channel"), dict) else False)
             is_public = metadata.get("visibility") == "PUBLIC"
 
             if not (is_owner or is_public):
                 continue
 
-            # Dùng chuẩn Public CDN URL của nhánh main cho thumbnail
             thumb_path = metadata.get("thumbnail_url", "")
             try:
                 thumbnail_url = self._s3_client.generate_public_resource_url(thumb_path) if thumb_path else ""
@@ -179,7 +219,11 @@ class SearchService:
                 "thumbnail_url": thumbnail_url,
             })
 
-        # 5. Xử lý phân trang theo style của nhánh main
+        # 6. LƯU CACHE BẤT ĐỒNG BỘ TOÀN BỘ DANH SÁCH SẠCH VÀO REDIS
+        if results:
+            asyncio.create_task(self._cache_searching_result(redis_key, results))
+
+        # 7. PHÂN TRANG VÀ TRẢ VỀ TUPLE CHUẨN
         start_idx = cursor or 0
         paginated_results = results[start_idx : start_idx + limit]
         next_cursor = (start_idx + limit) if len(results) > (start_idx + limit) else None
