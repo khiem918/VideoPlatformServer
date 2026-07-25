@@ -17,11 +17,7 @@ async def handle_metadata_transfer_message(
         correlation_id = payload.get('correlationId')
         video_id = payload.get('videoId')
         title = payload.get('title')
-        # Kết hợp fallback từ nhánh main và các trường AI từ nhánh feat
-        desc = payload.get('description') or payload.get('desc')
-        user_id = payload.get('userId')
-        visibility = payload.get('visibility')
-        hashtags = payload.get('hashtags')
+        desc = payload.get('desc')
 
         logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}")
         
@@ -30,14 +26,12 @@ async def handle_metadata_transfer_message(
             video_id, title, desc, user_id=user_id, visibility=visibility
         )
 
-        logger.debug(f"Metadata processing succeeded: correlation_id={correlation_id}, video_id={video_id}")
-
         await exchange.publish(
             aio_pika.Message(
                 body=json.dumps({
                     "correlationId": correlation_id,
                     "status": "succeeded",
-                }).encode("utf-8"),  # Bắt buộc encode bytes từ nhánh main
+                }),
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                 content_type="application/json",
             ),

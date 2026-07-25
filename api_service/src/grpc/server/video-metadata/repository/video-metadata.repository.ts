@@ -16,7 +16,7 @@ export class VideoMetaDatarepository {
         id: true,
         videoName: true,
         videoView: true,
-        thumbnailPath: true,
+        thumbnailUrl: true,
         videoReleasedDate: true,
         videoDesc: true,
         visibility: true,

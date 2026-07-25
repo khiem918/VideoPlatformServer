@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { pipeline } from 'stream/promises';
-import pLimit from 'p-limit';
 import { S3Service } from 'src/s3/s3.service';
 import { FFmpegService } from './ffmpeg.service';
 import { VideoProcessingRepository } from './repository/video-processing.repository';
@@ -16,8 +15,7 @@ import { SemanticQueueService } from '../semantic-search/semantic-search.queue';
 @Injectable()
 export class VideoProcessingService {
   private readonly logger = new Logger(VideoProcessingService.name);
-  private readonly tempDir = '/tmp/video-streaming-system/processing';
-  private readonly maxConcurrentUploads = 4;
+  private readonly tempDir = '/tmp/video-processing';
 
   constructor(
     private readonly ffmpegService: FFmpegService,
@@ -34,22 +32,20 @@ export class VideoProcessingService {
     }
   }
 
-  /**
-   * Transcodes a video to DASH format with thumbnail extraction and metadata generation.
-   * @param data - Transcoding parameters including video path, processing ID, and MIME type
-   * @returns Paths to the generated manifest and thumbnail files
-   * @throws {InvalidVideoException} If the video is invalid or corrupted
-   * @throws {TranscodingFailedException} If transcoding or upload fails
-   */
   async transcodeVideo(
     data: TranscodingDataDto,
   ): Promise<TranscodedVideoPaths> {
-    const { inforId, processingId, objectPath, mimeType } = data;
+    const { inforId, processingId, r2Path, mimeType } = data;
     const workDir = path.join(this.tempDir, inforId);
 
     try {
+<<<<<<< HEAD
       const inputPath = await this.downloadVideoFromObjectStorage(
         objectPath,
+=======
+      const inputPath = await this.downloadVideoFromR2(
+        r2Path,
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
         workDir,
         mimeType,
       );
@@ -58,13 +54,16 @@ export class VideoProcessingService {
       const videoDuration = Math.max(1, Math.floor(metadata.duration));
 
       const dashOutputDir = path.join(workDir, 'dash');
+
       await this.ffmpegService.transcodeToDASH(inputPath, dashOutputDir);
 
       const thumbsDir = path.join(workDir, 'thumb');
       await fs.promises.mkdir(thumbsDir, { recursive: true });
+
       const thumbnailPath = path.join(thumbsDir, '0.jpg');
       await this.ffmpegService.extractThumbnail(inputPath, thumbnailPath);
 
+<<<<<<< HEAD
       const uploadResult = await this.uploadToObjectStorage(
         workDir,
         processingId,
@@ -72,6 +71,37 @@ export class VideoProcessingService {
       );
 
       const { videoId, userId, videoStatus, metaStatus } =
+=======
+      const metadataPath = path.join(workDir, 'meta.json');
+
+      await fs.promises.writeFile(
+        metadataPath,
+        JSON.stringify(
+          {
+            processingId,
+            originalPath: data.r2Path,
+            manifest: 'dash/manifest.mpd',
+            thumbnails: ['thumb/0.jpg'],
+            video: metadata,
+            generatedAt: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      );
+
+      const uploadResult = await this.uploadToR2(workDir, processingId, r2Path);
+
+      /* 
+     
+      Using for processing successfully::
+                  - update : video.uploadvideostatus = COMPLETED
+                  - handle logic: if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE
+      */
+
+      const { videoId, videoStatus, metaStatus } =
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
         await this.repository.completeVideoProcessing(
           inforId,
           processingId,
@@ -118,8 +148,8 @@ export class VideoProcessingService {
     }
   }
 
-  private async downloadVideoFromObjectStorage(
-    objectPath: string,
+  private async downloadVideoFromR2(
+    r2Path: string,
     workDir: string,
     mimeType: string,
   ): Promise<string> {
@@ -129,7 +159,7 @@ export class VideoProcessingService {
       const extension = this.getFileExtension(mimeType);
       const inputPath = path.join(workDir, `input${extension}`);
 
-      const videoStream = await this.s3Service.getFileStream(objectPath);
+      const videoStream = await this.s3Service.getFileStream(r2Path);
       const writeStream = fs.createWriteStream(inputPath);
 
       await pipeline(videoStream, writeStream);
@@ -140,29 +170,28 @@ export class VideoProcessingService {
         ? error
         : new TranscodingFailedException(
             `R2 download failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            objectPath.split('/')[0],
+            r2Path.split('/')[0],
           );
     }
   }
 
-  private async uploadToObjectStorage(
+  private async uploadToR2(
     localOutputDir: string,
     processingId: string,
-    sourceObjectPath: string,
+    sourceR2Path: string,
   ): Promise<TranscodedVideoPaths> {
-    const videoId =
-      this.s3Service.parseVideoIdFromPrivatePath(sourceObjectPath);
+    const videoId = this.s3Service.extractVideoIdFromR2Path(sourceR2Path);
 
-    // Collect every file produced by the transcoding step.
     const files = await this.getFilesRecursive(localOutputDir);
 
-    // Keep only the artifacts that must be uploaded back to object storage.
     const artifactFiles = files.filter((file) => {
       const relativePath = path
         .relative(localOutputDir, file)
         .replace(/\\/g, '/');
       return (
-        relativePath.startsWith('dash/') || relativePath.startsWith('thumb/')
+        relativePath.startsWith('dash/') ||
+        relativePath.startsWith('thumb/') ||
+        relativePath === 'meta.json'
       );
     });
 
@@ -175,45 +204,37 @@ export class VideoProcessingService {
 
     let remoteManifestPath: string | null = null;
     let remoteThumbnailPath: string | null = null;
-
-    const limit = pLimit(this.maxConcurrentUploads);
+    let remoteMetadataPath: string | null = null;
 
     await Promise.all(
-      artifactFiles.map((file) =>
-        limit(async () => {
-          const relativePath = path
-            .relative(localOutputDir, file)
-            .replace(/\\/g, '/');
-          const mimeType = this.getMimeTypeByPath(relativePath);
+      artifactFiles.map(async (file) => {
+        const relativePath = path
+          .relative(localOutputDir, file)
+          .replace(/\\/g, '/');
+        const fileBuffer = await fs.promises.readFile(file);
+        const mimeType = this.getMimeTypeByPath(relativePath);
+        const r2Path = this.s3Service.buildVideoPath(videoId, relativePath);
 
-          const objectPath = relativePath.startsWith('thumb/')
-            ? this.s3Service.buildPublicThumbnailPath(
-                videoId,
-                relativePath.replace(/^thumb\//, ''),
-              )
-            : this.s3Service.buildPrivateSegmentPath(
-                videoId,
-                relativePath.replace(/^dash\//, ''),
-              );
+        const uploadedPath = await this.s3Service.uploadFile(
+          fileBuffer,
+          r2Path,
+          mimeType,
+        );
 
-          const uploadedPath = await this.s3Service.uploadFileStream(
-            file,
-            objectPath,
-            mimeType,
-          );
+        if (relativePath === 'dash/manifest.mpd') {
+          remoteManifestPath = uploadedPath;
+        }
 
-          if (relativePath === 'dash/manifest.mpd') {
-            remoteManifestPath = uploadedPath;
-          }
+        if (relativePath === 'thumb/0.jpg') {
+          remoteThumbnailPath = uploadedPath;
+        }
 
-          if (relativePath === 'thumb/0.jpg') {
-            remoteThumbnailPath = uploadedPath;
-          }
-        }),
-      ),
+        if (relativePath === 'meta.json') {
+          remoteMetadataPath = uploadedPath;
+        }
+      }),
     );
 
-    // Fail fast if any required artifact was not uploaded successfully.
     if (!remoteManifestPath) {
       throw new TranscodingFailedException(
         'Manifest upload failed',
@@ -228,10 +249,17 @@ export class VideoProcessingService {
       );
     }
 
-    // Return the uploaded paths for downstream persistence.
+    if (!remoteMetadataPath) {
+      throw new TranscodingFailedException(
+        'Metadata upload failed',
+        processingId,
+      );
+    }
+
     return {
       manifestPath: remoteManifestPath,
       thumbnailPath: remoteThumbnailPath,
+      metadataPath: remoteMetadataPath,
     };
   }
 
@@ -334,23 +362,31 @@ export class VideoProcessingService {
   /*
   if videoInfor.metaStatus is COMPLETED, then Video.videoStatus = AVAILABLE & video.visibility = PUBLIC  
   */
+<<<<<<< HEAD
   /*
     When transcoding and metadata processing are completed, only technical availability should be updated.
     Never override user's visibility setting (PRIVATE/DRAFT/PUBLIC).
   */
   private async triggerVideoStatus(
+=======
+  private triggerVideoStatus(
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
     videoId: string,
     videoStatus: UploadVideoStatus,
     metaStatus: UploadMetaStatus,
-  ): Promise<void> {
+  ) {
     if (
       videoStatus === UploadVideoStatus.PROCESSED &&
       metaStatus === UploadMetaStatus.PROCESSED
     ) {
       try {
+<<<<<<< HEAD
         this.logger.log(
           `Video ${videoId} has completed processing and is now technically AVAILABLE.`,
         );
+=======
+        this.repository.publicVideo(videoId);
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
       } catch (error) {
         this.logger.error(
           `Failed to handle status update for video ${videoId}: ${error instanceof Error ? error.message : 'Unknown error'}`,

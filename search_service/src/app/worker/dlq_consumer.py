@@ -39,7 +39,6 @@ async def handle_dead_letter_message(
             return
 
         delay = min(2 ** death_count, 60)
-        # Giữ dòng log cú pháp chuẩn từ nhánh feat (HEAD)
         logger.debug(f"Requeuing with delay={delay}s: correlation_id={correlation_id}, death_count={death_count}")
 
         await asyncio.sleep(delay)

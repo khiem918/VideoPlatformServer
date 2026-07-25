@@ -114,8 +114,13 @@ type WatchVideoResponse {
 
 type WatchVideoUrlResponse {
 <<<<<<< HEAD
+<<<<<<< HEAD
   expiresAt: Int!
 =======
 >>>>>>> main
+=======
+  expiresAt: Int!
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
   mpdUrl: String!
+  signature: String!
 }

@@ -43,7 +43,7 @@ export class AuthService {
         { userId } as Record<string, any>,
         {
           secret: this.config.get('JWT_SECRET'),
-          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+          expiresIn: 3600,
         },
       );
 
@@ -57,7 +57,7 @@ export class AuthService {
       await this.redisService.set(
         `s:${sessionId}`,
         session_data,
-        parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
+        86400,
       );
 
       return {
@@ -94,9 +94,33 @@ export class AuthService {
       )) as Session | null;
 
       if (!sessionData || !refreshToken || !sessionId) {
-        throw new UnauthorizedException(
-          'Session expired or invalid. Please sign in again.',
+        const newRefreshToken = randomBytes(64).toString('hex');
+        const newSessionId: string = uuidv4();
+        const hashedNewRefreshToken = await this.hashToken(newRefreshToken);
+        const new_sesssion_data: Session = {
+          userId,
+          refreshToken: hashedNewRefreshToken,
+          createdAt: new Date().toISOString(),
+        };
+
+        await this.redisService.set(
+          `s:${newSessionId}`,
+          new_sesssion_data,
+          86400,
         );
+
+        return {
+          newAccessToken: this.jwtService.sign(
+            { userId } as Record<string, any>,
+            {
+              secret: this.config.get('JWT_SECRET'),
+              expiresIn: 3600,
+            },
+          ),
+          newFreshToken: newRefreshToken,
+          newSessionId: newSessionId,
+          userId: userId || (sessionData?.userId ?? ''),
+        };
       }
 
       const isTokenValid = await compare(
@@ -114,7 +138,7 @@ export class AuthService {
         { userId: finalUserId } as Record<string, any>,
         {
           secret: this.config.get('JWT_SECRET'),
-          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+          expiresIn: 3600,
         },
       );
 
@@ -155,5 +179,4 @@ export class AuthService {
       throw new InternalServerErrorException('Sign out failed');
     }
   }
-
 }

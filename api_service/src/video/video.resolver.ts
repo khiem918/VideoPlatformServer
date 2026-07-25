@@ -1,5 +1,5 @@
 import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
-import { Resolver, Query, Mutation, Args, Int, Context } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { gqlCurrentUser } from 'src/auth/decorator/gql-current-user.decorator';
 import { GqlAuthGuard } from 'src/auth/guard/gql-auth.guard';
 import { VideoService } from './video.service';
@@ -15,15 +15,12 @@ import {
   SubscribeChannelResponse,
 } from './dto/watch-video.respone';
 import { CommentContentResponse } from './dto/comment-content.respone';
-import type { Response } from 'express';
-import { ConfigService } from '@nestjs/config';
 
 @Resolver()
 export class VideoResolver {
-  constructor(
-    private readonly videoService: VideoService,
-    private readonly config: ConfigService,
-  ) {}
+  
+  constructor(private readonly videoService: VideoService) {}
+
 
   @Mutation(() => InitUploadResponse)
   @UseGuards(GqlAuthGuard)
@@ -46,6 +43,7 @@ export class VideoResolver {
     };
   }
 
+
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async completeUploadVideo(
@@ -55,6 +53,7 @@ export class VideoResolver {
     await this.videoService.completeUpload(user.userId, uploadId);
     return true;
   }
+
 
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
@@ -66,14 +65,18 @@ export class VideoResolver {
     return true;
   }
 
+
   @Query(() => UserVideosListResponse)
   @UseGuards(GqlAuthGuard)
   async getUserVideos(
     @gqlCurrentUser() user: { userId: string },
   ): Promise<UserVideosListResponse> {
-    const result = await this.videoService.getUserVideos(user.userId);
+    const result = await this.videoService.getUserVideos(
+      user.userId,
+    );
     return result as any;
   }
+
 
   @Mutation(() => UserVideoResponse)
   @UseGuards(GqlAuthGuard)
@@ -86,6 +89,7 @@ export class VideoResolver {
     description: string,
     @Args('visibility') visibility: string,
   ): Promise<UserVideoResponse> {
+
     return (await this.videoService.updateVideo(
       user.userId,
       videoId,
@@ -96,6 +100,7 @@ export class VideoResolver {
     )) as UserVideoResponse;
   }
 
+
   @Mutation(() => Boolean)
   @UseGuards(GqlAuthGuard)
   async deleteVideo(
@@ -105,6 +110,7 @@ export class VideoResolver {
     await this.videoService.deleteVideo(user.userId, videoId);
     return true;
   }
+
 
   @Query(() => WatchVideoResponse)
   @UseGuards(GqlAuthGuard)
@@ -119,13 +125,14 @@ export class VideoResolver {
     return result;
   }
 
+
   @UseGuards(GqlAuthGuard)
   @Query(() => WatchVideoUrlResponse)
   async getWatchVideoUrl(
     @Args('videoId') videoId: string,
     @gqlCurrentUser() user: { userId: string },
-    @Context('res') res: Response,
   ): Promise<WatchVideoUrlResponse> {
+<<<<<<< HEAD
     const { mpdUrl, cookies } = await this.videoService.getWatchVideoUrl(
       user.userId,
       videoId,
@@ -134,6 +141,21 @@ export class VideoResolver {
     return { mpdUrl };
   }
 
+=======
+    return await this.videoService.getWatchVideoUrl(user.userId, videoId);
+  }
+
+
+  // @Query(() => [UserVideoResponse])
+  // async suggestVideo(
+  //   @gqlCurrentUser() user: { userId: string },
+  // ) {
+  //   const result = await this.videoService.suggestVideos(userId);
+  //   return result as any;
+  // }
+
+
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
   @UseGuards(GqlAuthGuard)
   @Mutation(() => CommentContentResponse)
   async commentOnVideo(
@@ -147,6 +169,7 @@ export class VideoResolver {
       content,
     );
   }
+
 
   @UseGuards(GqlAuthGuard)
   @Query(() => [CommentContentResponse])
@@ -164,6 +187,7 @@ export class VideoResolver {
     );
   }
 
+
   @UseGuards(GqlAuthGuard)
   @Mutation(() => Boolean)
   async updateVideoHistory(
@@ -173,6 +197,7 @@ export class VideoResolver {
     await this.videoService.updateVideoHistory(user.userId, videoId);
     return true;
   }
+
 
   @UseGuards(GqlAuthGuard)
   @Mutation(() => LikeDislikeResponse)
@@ -188,6 +213,7 @@ export class VideoResolver {
     );
   }
 
+
   @UseGuards(GqlAuthGuard)
   @Mutation(() => SubscribeChannelResponse)
   async subscribeChannel(
@@ -201,6 +227,7 @@ export class VideoResolver {
       subscribe,
     );
   }
+
 
   @UseGuards(GqlAuthGuard)
   @Mutation(() => Boolean)

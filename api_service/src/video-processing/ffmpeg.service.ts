@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
@@ -15,24 +13,18 @@ if (ffprobeStatic && ffprobeStatic.path) {
   ffmpeg.setFfprobePath(ffprobeStatic.path);
 }
 
-interface QualityVariant {
-  name: string;
-  w: number;
-  h: number;
-  bitrate: string;
-  maxrate: string;
-  bufsize: string;
-}
-
 @Injectable()
 export class FFmpegService {
   private readonly logger = new Logger(FFmpegService.name);
-  private readonly tempDir = '/tmp/video-streaming-system/processing';
+  private readonly tempDir = '/tmp/video-processing';
 
+<<<<<<< HEAD
   constructor(
-    private s3Service: S3Service,
     private configService: ConfigService,
   ) {
+=======
+  constructor(private s3Service: S3Service) {
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true });
     }
@@ -53,7 +45,7 @@ export class FFmpegService {
           resolve();
         })
         .on('error', (error) => {
-          this.logger.error(`Thumbnail extraction failed: ${error}`);
+          this.logger.error(`Thumbnail extraction failed: ${error.message}`);
           reject(error);
         })
         .run();
@@ -65,109 +57,75 @@ export class FFmpegService {
     outputDir: string,
   ): Promise<{ manifest: string }> {
     try {
-      // Ensure the output directory exists before generating DASH artifacts.
       await fs.promises.mkdir(outputDir, { recursive: true });
 
-      // Read source metadata to limit output variants to supported resolutions.
       const metadata = await this.getVideoMetadata(inputPath);
       const originalWidth = metadata.width;
       const originalHeight = metadata.height;
 
-      // Build quality ladder and keep only variants not exceeding source dimensions.
-      const qualities: QualityVariant[] = [
-        {
-          name: '360p',
-          w: 640,
-          h: 360,
-          bitrate: '500k',
-          maxrate: '550k',
-          bufsize: '1000k',
-        },
-        {
-          name: '480p',
-          w: 854,
-          h: 480,
-          bitrate: '800k',
-          maxrate: '900k',
-          bufsize: '1600k',
-        },
-        {
-          name: '720p',
-          w: 1280,
-          h: 720,
-          bitrate: '1800k',
-          maxrate: '2000k',
-          bufsize: '3600k',
-        },
-        {
-          name: '1080p',
-          w: 1920,
-          h: 1080,
-          bitrate: '3500k',
-          maxrate: '3800k',
-          bufsize: '7000k',
-        },
-        {
-          name: '1440p',
-          w: 2560,
-          h: 1440,
-          bitrate: '6000k',
-          maxrate: '6400k',
-          bufsize: '12000k',
-        },
-        {
-          name: '2160p',
-          w: 3840,
-          h: 2160,
-          bitrate: '15000k',
-          maxrate: '16500k',
-          bufsize: '30000k',
-        },
+      const qualities = [
+        { name: '360p', w: 640, h: 360, bitrate: '500k' },
+        { name: '720p', w: 1280, h: 720, bitrate: '2500k' },
+        { name: '1080p', w: 1920, h: 1080, bitrate: '5000k' },
+        { name: '1440p', w: 2560, h: 1440, bitrate: '8000k' },
+        { name: '2160p', w: 3840, h: 2160, bitrate: '15000k' },
       ].filter((q) => q.w <= originalWidth && q.h <= originalHeight);
 
-      // Fail early when no valid representation can be generated.
       if (qualities.length === 0) {
         throw new Error('No suitable quality variants for input resolution');
       }
 
-      // Prepare a temporary workspace for encoded tracks.
-      const interimDir = path.join(outputDir, 'interim');
-      await fs.promises.mkdir(interimDir, { recursive: true });
-
-      // Encode optional audio track once for all video representations.
-      const audioFile = await this.encodeAudioTrack(inputPath, interimDir);
-
-      // Decode the source once and encode every quality variant in a single
-      // pass via a sequential downscaling ladder (highest resolution first).
-      const interimVideoFiles = await this.encodeVariantLadder(
-        inputPath,
-        interimDir,
-        qualities,
-      );
-
-      // Merge encoded tracks into a final DASH manifest.
       const manifestPath = path.join(outputDir, 'manifest.mpd');
-      await this.combineToManifest(
-        interimVideoFiles,
-        audioFile,
-        qualities,
-        manifestPath,
-      );
+      const outputOptions: string[] = [];
 
-      // Record successful DASH packaging and return manifest location.
-      this.logger.log(`Transcoded to DASH with ${qualities.length} variants`);
+      for (let i = 0; i < qualities.length; i++) {
+        outputOptions.push('-map', '0:v:0');
+      }
 
-      // Clean up interim workspace.
-      await fs.promises.rm(interimDir, { recursive: true, force: true });
+      outputOptions.push('-map', '0:a:0?');
+      outputOptions.push('-c:v', 'libx264');
+      outputOptions.push('-c:a', 'aac');
+      outputOptions.push('-b:a', '128k');
+
+      qualities.forEach((q, i) => {
+        outputOptions.push(`-b:v:${i}`, q.bitrate);
+        outputOptions.push(`-s:v:${i}`, `${q.w}x${q.h}`);
+      });
+
+      outputOptions.push('-g', '48');
+      outputOptions.push('-keyint_min', '48');
+      outputOptions.push('-sc_threshold', '0');
+      outputOptions.push('-use_template', '1');
+      outputOptions.push('-use_timeline', '1');
+      outputOptions.push('-seg_duration', '6');
+      outputOptions.push('-adaptation_sets', 'id=0,streams=v id=1,streams=a');
+      outputOptions.push('-f', 'dash');
+
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(inputPath)
+          .outputOptions(...outputOptions)
+          .output(manifestPath)
+          .on('end', () => {
+            this.logger.log(
+              `Transcoded to DASH with ${qualities.length} variants`,
+            );
+            resolve();
+          })
+          .on('error', (error) => {
+            this.logger.error(`DASH transcoding failed: ${error.message}`);
+            reject(error);
+          })
+          .run();
+      });
 
       return { manifest: manifestPath };
     } catch (error) {
-      // Log and rethrow to preserve error handling upstream.
-      this.logger.error(`DASH transcoding failed: ${error}`);
+      this.logger.error(`DASH transcoding failed: ${error.message}`);
       throw error;
     }
   }
 
+<<<<<<< HEAD
   private async hasAudioStream(filePath: string): Promise<boolean> {
     // Probe media streams and report whether an audio stream is present.
     const metadata = await this.probe(filePath);
@@ -206,13 +164,6 @@ export class FFmpegService {
   }
 
   private getThreadsPerStream(variantCount: number): number {
-    const configured = this.configService.get<number>(
-      'FFMPEG_THREADS_PER_STREAM',
-    );
-    if (configured && configured > 0) {
-      return configured;
-    }
-
     return Math.max(1, Math.floor(os.cpus().length / variantCount));
   }
 
@@ -381,6 +332,8 @@ export class FFmpegService {
     });
   }
 
+=======
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
   async getVideoMetadata(filePath: string): Promise<{
     duration: number;
     width: number;
@@ -415,7 +368,7 @@ export class FFmpegService {
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
         if (err) {
-          this.logger.error(`Failed to probe video metadata: ${err}`);
+          this.logger.error(`Failed to probe video metadata: ${err.message}`);
           reject(err);
           return;
         }
@@ -444,5 +397,13 @@ export class FFmpegService {
     }
 
     return duration;
+  }
+
+  async cleanup(dirPath: string): Promise<void> {
+    try {
+      await fs.promises.rm(dirPath, { recursive: true, force: true });
+    } catch (error) {
+      this.logger.error(`Cleanup failed: ${error.message}`);
+    }
   }
 }

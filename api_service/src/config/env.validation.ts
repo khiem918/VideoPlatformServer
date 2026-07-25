@@ -1,17 +1,8 @@
-import {
-  IsNotEmpty,
-  IsNumber,
-  IsString,
-  IsOptional,
-  Min,
-} from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsOptional } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
-  @IsNumber()
-  SERVER_PORT!: number;
-
   @IsNotEmpty()
   @IsString()
   DATABASE_URL!: string;
@@ -32,14 +23,6 @@ export class EnvironmentVariables {
   JWT_SECRET!: string;
 
   @IsNotEmpty()
-  @IsNumber()
-  ACCESS_TOKEN_EXPIRES_IN!: number;
-
-  @IsNotEmpty()
-  @IsNumber()
-  REFRESH_TOKEN_EXPIRES_IN!: number;
-
-  @IsNotEmpty()
   @IsString()
   FIREBASE_PROJECT_ID!: string;
 
@@ -56,16 +39,22 @@ export class EnvironmentVariables {
   COOKIE_SECRET!: string;
 
   @IsNotEmpty()
-  S3_REGION!: string;
+  CLOUDFLARE_R2_REGION!: string;
 
   @IsNotEmpty()
-  S3_ACCESS_KEY_ID!: string;
+  CLOUDFLARE_R2_ACCESS_KEY_ID!: string;
 
   @IsNotEmpty()
-  S3_SECRET_ACCESS_KEY!: string;
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY!: string;
 
   @IsNotEmpty()
-  BUCKET_NAME!: string;
+  CLOUDFLARE_R2_BUCKET_NAME!: string;
+
+  @IsOptional()
+  CLOUDFLARE_R2_ENDPOINT?: string;
+
+  @IsOptional()
+  CLOUDFLARE_R2_FORCE_PATH_STYLE?: boolean;
 
   @IsNotEmpty()
   MAX_FILE_SIZE!: number;
@@ -84,6 +73,18 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
+  EMBED_API_URL!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  EMBED_API_KEY!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  R2_SIGN_SECRET!: string;
+
+  @IsNotEmpty()
+  @IsString()
   RABBITMQ_URI!: string;
 
   @IsNotEmpty()
@@ -93,6 +94,7 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   SEARCH_SERVICE_GRPC_URL!: string;
+<<<<<<< HEAD
 
   @IsNotEmpty()
   @IsString()
@@ -110,10 +112,8 @@ export class EnvironmentVariables {
   @IsString()
   CDN_DOMAIN!: string;
 
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  FFMPEG_THREADS_PER_STREAM?: number;
+=======
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
 }
 
 export function validateEnv(

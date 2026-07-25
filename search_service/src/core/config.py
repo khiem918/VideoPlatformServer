@@ -26,7 +26,8 @@ class Config(BaseSettings):
     
     
     GRPC_URL: str = os.getenv("GRPC_URL")
-    
+    API_SERVICE_GRPC_URL: str = os.getenv("API_SERVICE_GRPC_URL")
+
 
     S3_ENDPOINT: str | None = os.getenv("S3_ENDPOINT")
     S3_ACCESS_KEY: str | None = os.getenv("S3_ACCESS_KEY")
@@ -41,11 +42,6 @@ class Config(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["*"]
 
-    CLOUDFRONT_DOMAIN_NAME: str = os.getenv("CLOUDFRONT_DOMAIN_NAME")
-
-
-
-    
 @lru_cache
 def get_config() -> Config:
     return Config()

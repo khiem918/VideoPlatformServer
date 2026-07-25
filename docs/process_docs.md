@@ -1,10 +1,6 @@
 # Video Platform Server — Process Documentation
 
-<<<<<<< HEAD
-**Last Updated:** 2026-07-07
-=======
 **Last Updated:** 2026-07-12
->>>>>>> main
 
 This document describes the end-to-end workflows and processes that operate across the VideoPlatformServer system. Each process includes a sequence diagram illustrating the flow of data and control between services.
 
@@ -21,8 +17,11 @@ This document describes the end-to-end workflows and processes that operate acro
 8. [Cross-Service Messaging (RabbitMQ)](#8-cross-service-messaging-rabbitmq)
 =======
 8. [Cross-Service Messaging (RabbitMQ)](#8-cross-service-messaging-rabbitmq)
+<<<<<<< HEAD
 9. [End-to-End Testing (Staging)](#9-end-to-end-testing-staging)
 >>>>>>> main
+=======
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
 
 ---
 
@@ -172,10 +171,14 @@ sequenceDiagram
     
     API->>API: Create VideoUpload record (status: PENDING)
 <<<<<<< HEAD
+<<<<<<< HEAD
     API-->>Client: { videoId, uploadId, presignedUrl, r2Path }
 =======
     API-->>Client: { videoId, uploadId, presignedUrl, objectPath }
 >>>>>>> main
+=======
+    API-->>Client: { videoId, uploadId, presignedUrl, r2Path }
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
     
     Client->>S3: PUT {presignedUrl}<br/>+ file bytes
     S3-->>Client: 200 OK
@@ -187,10 +190,14 @@ sequenceDiagram
     API->>API: Update VideoUpload (status: UPLOADED)
     
 <<<<<<< HEAD
+<<<<<<< HEAD
     API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, r2Path, mimeType }
 =======
     API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, objectPath, mimeType }
 >>>>>>> main
+=======
+    API->>BullMQ: Queue transcode job<br/>{ processingId, inforId, r2Path, mimeType }
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
     BullMQ-->>API: Job ID returned
     API-->>Client: ✓ Upload complete, transcoding started
     
@@ -760,6 +767,7 @@ See root-level `docker-compose.yml` and service-specific `.env` files for curren
 
 5. **Notification Module**: Heavy refactoring (+506 -415 lines) but behavior unchanged.
 
+<<<<<<< HEAD
 ---
 
 ## 9. End-to-End Testing (Staging)
@@ -783,3 +791,15 @@ CI wiring lives in `.github/workflows/e2e.yml`.
 
 
 >>>>>>> main
+=======
+<!-- **Verified against:**
+- api_service/src/video/video.service.ts (getWatchVideoUrl, unchanged/working)
+- api_service/src/s3/s3.service.ts (getDownloadUrl targets externally-deployed r2-worker)
+- search_service/src/app/worker/consumer.py (fixed: container.metadata_process.process → container.video.process_metadata)
+- api_service/src/grpc/server/video-metadata/ (new structure)
+- api_service/src/grpc/client/grpc-client.service.ts (DeleteVideoService client)
+- proto/video.proto (new bidirectional services)
+- search_service/src/domain/service/video.py (new metadata orchestrator)
+- search_service/src/infrastructure/grpc/grpc_server.py (new server)
+- search_service/src/core/config.py (new config module) -->
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)

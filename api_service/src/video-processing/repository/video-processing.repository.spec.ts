@@ -56,8 +56,8 @@ describe('VideoProcessingRepository', () => {
       expect(tx.video.update).toHaveBeenCalledWith({
         where: { id: 'video-1' },
         data: {
-          videoPath: 'manifest-url',
-          thumbnailPath: 'thumb-url',
+          videoUrl: 'manifest-url',
+          thumbnailUrl: 'thumb-url',
           duration: 120,
         },
       });

@@ -1,16 +1,9 @@
-import asyncio
 import importlib
 import sys
-import time
 import types
 from unittest.mock import AsyncMock, MagicMock
-from urllib.parse import quote
 
-import aio_pika
 import pytest
-from testcontainers.rabbitmq import RabbitMqContainer
-
-RABBITMQ_IMAGE = "rabbitmq:3.13-management-alpine"
 
 
 def install_container_stub() -> MagicMock:
@@ -47,37 +40,3 @@ def mock_container():
     stub_container.search_service = AsyncMock(name="search_service")
     stub_container.video = AsyncMock(name="video")
     yield stub_container
-
-
-@pytest.fixture(scope="session")
-def rabbitmq_container():
-    with RabbitMqContainer(RABBITMQ_IMAGE) as container:
-        yield container
-
-
-@pytest.fixture
-def rabbitmq_url(rabbitmq_container: RabbitMqContainer) -> str:
-    host = rabbitmq_container.get_container_host_ip()
-    port = rabbitmq_container.get_exposed_port(rabbitmq_container.port)
-    vhost = rabbitmq_container.vhost
-    vhost_path = "" if vhost in ("/", "") else quote(vhost, safe="")
-    return (
-        f"amqp://{rabbitmq_container.username}:{rabbitmq_container.password}"
-        f"@{host}:{port}/{vhost_path}"
-    )
-
-
-async def wait_for_message(
-    queue: aio_pika.abc.AbstractQueue, timeout: float = 5.0
-) -> aio_pika.abc.AbstractIncomingMessage:
-    """Poll a real queue until a message is available or `timeout` elapses."""
-    deadline = time.monotonic() + timeout
-    while True:
-        message = await queue.get(fail=False)
-        if message is not None:
-            return message
-        if time.monotonic() >= deadline:
-            raise AssertionError(
-                f"No message received from queue {queue.name!r} within {timeout}s"
-            )
-        await asyncio.sleep(0.1)

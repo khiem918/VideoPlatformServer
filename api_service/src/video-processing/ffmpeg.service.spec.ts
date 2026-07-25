@@ -12,15 +12,9 @@ jest.mock('fs', () => {
   };
 });
 
-function createChainableCommand(initialInput?: string) {
-  const command: any = { _inputs: initialInput ? [initialInput] : [] };
-  command.input = jest.fn((input: string) => {
-    command._inputs.push(input);
-    return command;
-  });
-  command.inputOptions = jest.fn().mockReturnValue(command);
+function createChainableCommand() {
+  const command: any = {};
   command.seekInput = jest.fn().mockReturnValue(command);
-  command.complexFilter = jest.fn().mockReturnValue(command);
   command.outputOptions = jest.fn().mockReturnValue(command);
   command.output = jest.fn().mockReturnValue(command);
   command.on = jest.fn((event: string, handler: (...args: any[]) => void) => {
@@ -35,11 +29,9 @@ function createChainableCommand(initialInput?: string) {
 }
 
 let lastCommand: any;
-let createdCommands: any[];
 const ffprobeMock = jest.fn();
-const ffmpegFn = jest.fn((initialInput?: string) => {
-  lastCommand = createChainableCommand(initialInput);
-  createdCommands.push(lastCommand);
+const ffmpegFn = jest.fn(() => {
+  lastCommand = createChainableCommand();
   return lastCommand;
 });
 (ffmpegFn as any).setFfmpegPath = jest.fn();
@@ -50,22 +42,16 @@ jest.mock('fluent-ffmpeg', () => ffmpegFn);
 
 import { FFmpegService } from './ffmpeg.service';
 import { S3Service } from '../s3/s3.service';
-import { ConfigService } from '@nestjs/config';
 
 describe('FFmpegService', () => {
   let service: FFmpegService;
   let s3Service: jest.Mocked<S3Service>;
-  let configService: jest.Mocked<ConfigService>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     lastCommand = undefined;
-    createdCommands = [];
     s3Service = {} as unknown as jest.Mocked<S3Service>;
-    configService = {
-      get: jest.fn().mockReturnValue(undefined),
-    } as unknown as jest.Mocked<ConfigService>;
-    service = new FFmpegService(s3Service, configService);
+    service = new FFmpegService(s3Service);
   });
 
   function triggerEnd() {
@@ -76,21 +62,14 @@ describe('FFmpegService', () => {
     lastCommand._handlers.error(error);
   }
 
-  async function waitForCommandCount(count: number): Promise<void> {
+  async function waitForRunningCommand(): Promise<void> {
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      if (
-        createdCommands.length >= count &&
-        createdCommands[count - 1]?._handlers?.end
-      ) {
+      if (lastCommand?._handlers?.end) {
         return;
       }
       await new Promise((resolve) => setImmediate(resolve));
     }
-    throw new Error(`Expected at least ${count} ffmpeg commands to be created`);
-  }
-
-  function triggerEndAt(index: number) {
-    createdCommands[index]._handlers.end();
+    throw new Error('ffmpeg command was never invoked');
   }
 
   describe('extractThumbnail', () => {
@@ -198,109 +177,20 @@ describe('FFmpegService', () => {
               height: 1080,
               bit_rate: '5000000',
             },
-            { codec_type: 'audio' },
           ],
         });
       });
 
       const promise = service.transcodeToDASH('input.mp4', '/tmp/dash-output');
-
-      // Audio is extracted once, up front (command #0)
-      await waitForCommandCount(1);
-      triggerEndAt(0);
-
-      // The source is decoded exactly once: a single command builds the
-      // downscaling ladder (360p/480p/720p/1080p for a 1080p source) and
-      // fans it out to four outputs sharing one complexFilter graph (#1).
-      await waitForCommandCount(2);
-      expect(createdCommands[1].complexFilter).toHaveBeenCalledTimes(1);
-      expect(createdCommands[1].output).toHaveBeenCalledTimes(4);
-      triggerEndAt(1);
-
-      // Final remux into a single manifest (command #2)
-      await waitForCommandCount(3);
-      triggerEndAt(2);
+      await waitForRunningCommand();
+      triggerEnd();
 
       const result = await promise;
 
       expect(result.manifest).toContain('manifest.mpd');
-      expect(createdCommands[2].output).toHaveBeenCalledWith(
+      expect(lastCommand.output).toHaveBeenCalledWith(
         expect.stringContaining('manifest.mpd'),
       );
-    });
-
-    it('does not start the manifest combination until the variant ladder finishes encoding', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
-        cb(null, {
-          format: { duration: '65.4' },
-          streams: [
-            {
-              codec_type: 'video',
-              width: 1920,
-              height: 1080,
-              bit_rate: '5000000',
-            },
-          ],
-        });
-      });
-
-      const promise = service.transcodeToDASH('input.mp4', '/tmp/dash-output');
-
-      // No audio stream, so the first command created is the single ladder
-      // encode (one decode pass, four outputs on the same process).
-      await waitForCommandCount(1);
-      expect(createdCommands).toHaveLength(1);
-      expect(createdCommands[0].output).toHaveBeenCalledTimes(4);
-
-      // Manifest combination must not start while the ladder is still running
-      await new Promise((resolve) => setImmediate(resolve));
-      expect(createdCommands).toHaveLength(1);
-
-      triggerEndAt(0);
-
-      await waitForCommandCount(2);
-      expect(createdCommands).toHaveLength(2);
-
-      triggerEndAt(1);
-
-      await expect(promise).resolves.toEqual(
-        expect.objectContaining({
-          manifest: expect.stringContaining('manifest.mpd'),
-        }),
-      );
-    });
-
-    it('builds a sequential downscaling filter graph from highest to lowest resolution', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
-        cb(null, {
-          format: { duration: '10' },
-          streams: [
-            {
-              codec_type: 'video',
-              width: 1280,
-              height: 720,
-              bit_rate: '2500000',
-            },
-          ],
-        });
-      });
-
-      const promise = service.transcodeToDASH('input.mp4', '/tmp/dash-output');
-
-      await waitForCommandCount(1);
-      const filterArg = createdCommands[0].complexFilter.mock.calls[0][0];
-
-      expect(filterArg).toBe(
-        '[0:v]scale=w=1280:h=720:force_original_aspect_ratio=decrease:force_divisible_by=2,split=2[v720p_out][v720p_next]; ' +
-          '[v720p_next]scale=w=854:h=480:force_original_aspect_ratio=decrease:force_divisible_by=2,split=2[v480p_out][v480p_next]; ' +
-          '[v480p_next]scale=w=640:h=360:force_original_aspect_ratio=decrease:force_divisible_by=2[v360p_out]',
-      );
-
-      triggerEndAt(0);
-      await waitForCommandCount(2);
-      triggerEndAt(1);
-
-      await promise;
     });
 
     it('throws when the source resolution has no suitable quality variant', async () => {
@@ -314,6 +204,16 @@ describe('FFmpegService', () => {
       await expect(
         service.transcodeToDASH('input.mp4', '/tmp/dash-output'),
       ).rejects.toThrow('No suitable quality variants for input resolution');
+    });
+  });
+
+  describe('cleanup', () => {
+    it('does not throw when removing the directory fails', async () => {
+      (require('fs').promises.rm as jest.Mock).mockRejectedValueOnce(
+        new Error('fs error'),
+      );
+
+      await expect(service.cleanup('/tmp/some-dir')).resolves.toBeUndefined();
     });
   });
 });

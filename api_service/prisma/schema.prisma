@@ -75,8 +75,8 @@ model Video {
   videoDislike      BigInt            @default(0) @map("video_dislike")
   userId            String            @map("user_owner")
   owner             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  videoPath         String            @default("") @map("video_url_storage") @db.VarChar(1000)
-  thumbnailPath     String            @default("") @map("thumbnail_url") @db.VarChar(1000)
+  videoUrl          String            @default("") @map("video_url_storage") @db.VarChar(1000)
+  thumbnailUrl      String            @default("") @map("thumbnail_url") @db.VarChar(1000)
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   visibility        VideoVisibility   @default(DRAFT) @map("video_visibility")
@@ -84,10 +84,11 @@ model Video {
   videoDesc         String?           @map("video_desc")
   comments          Comment[]
   likeVideos        LikeVideo[]
-  information       VideoInformation?
+  information        VideoInformation?
   videoHashtags     VideoHashtag[]
   watchHistory      WatchHistory[]
   videoStatus       VideoStatus?      @map("video_status")
+  videoProcessings  VideoProcessing[]
 
   @@index([id, userId])
   @@index([createdAt(sort: Desc)])
@@ -99,38 +100,37 @@ model Video {
 }
 
 model VideoInformation {
-  id               String            @id @default(cuid())
-  mimeType         String            @map("mime_type")
-  fileName         String            @map("file_name")
-  fileSize         BigInt            @map("file_size")
-  objectPath       String            @unique @map("object_path")
-  videoStatus      UploadVideoStatus @default(PENDING) @map("video_status")
-  metaUpdatedAt    DateTime          @default(now()) @map("meta_updated_at")
-  videoUpdatedAt   DateTime          @default(now()) @map("video_updated_at")
-  updatedAt        DateTime          @updatedAt @map("updated_at")
-  videoId          String            @unique @map("video_id")
-  video            Video             @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  metaStatus       UploadMetaStatus  @default(PENDING) @map("meta_status")
-  videoProcessings VideoProcessing[]
+  id             String            @id @default(cuid())
+  mimeType       String            @map("mime_type")
+  fileName       String            @map("file_name")
+  fileSize       BigInt            @map("file_size")
+  r2Path         String            @unique @map("r2_path") // Original video's path
+  videoStatus    UploadVideoStatus @default(PENDING) @map("video_status")
+  metaUpdatedAt  DateTime          @default(now()) @map("meta_updated_at")
+  videoUpdatedAt DateTime          @default(now()) @map("video_updated_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  videoId        String            @unique @map("video_id")
+  video          Video             @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  metaStatus     UploadMetaStatus  @default(PENDING) @map("meta_status")
 
   @@index([metaStatus, videoStatus])
   @@index([videoId, videoStatus, metaStatus])
-  @@map("video_information")
+  @@map("video_upload")
   @@schema("core")
 }
 
 model VideoProcessing {
-  id                 String           @id @default(cuid())
-  status             ProcessingStatus @default(PROCESSING) @map("status")
-  errorMessage       String?          @map("error_message")
-  completedAt        DateTime?        @map("completed_at")
-  startedAt          DateTime?        @map("started_at")
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
-  processingType     ProcessingType   @map("processing_type")
-  videoInformationId String           @map("video_information_id")
-  videoInformation   VideoInformation @relation(fields: [videoInformationId], references: [id], onDelete: Cascade)
-  retryCount         Int              @default(0) @map("retry_count")
+  id             String           @id @default(cuid())
+  status         ProcessingStatus @default(PROCESSING) @map("status")
+  errorMessage   String?          @map("error_message")
+  completedAt    DateTime?        @map("completed_at")
+  startedAt      DateTime?         @map("started_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  processingType ProcessingType   @map("processing_type")
+  videoId        String           @map("video_id")
+  video          Video            @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  retryCount     Int              @default(0) @map("retry_count")
 
   @@index([id])
   @@index([status, createdAt(sort: Desc)])
@@ -226,7 +226,7 @@ enum ProcessingStatus {
   PROCESSING
   COMPLETED
   FAILED
-  DEAD
+  DEAD 
 
   @@schema("core")
 }

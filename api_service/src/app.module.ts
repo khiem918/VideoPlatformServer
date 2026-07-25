@@ -15,8 +15,11 @@ import { VideoModule } from './video/video.module';
 import { NotificationModule } from './notification/notification.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { PublisherModule } from './rabbitmq/publisher.module';
+<<<<<<< HEAD
 import { DevtoolsModule } from '@nestjs/devtools-integration';
 import { ConsumerModule } from './rabbitmq/consumer.module';
+=======
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
 import { VideoMetaDataGrpcModule } from './grpc/server/video-metadata/video-metadata.module';
 
 @Module({
@@ -41,11 +44,6 @@ import { VideoMetaDataGrpcModule } from './grpc/server/video-metadata/video-meta
     NotificationModule,
     RabbitmqModule,
     PublisherModule,
-    DevtoolsModule.register({
-      http: true,
-      port: 3001,
-    }),
-    ConsumerModule,
     VideoMetaDataGrpcModule,
   ],
   controllers: [],

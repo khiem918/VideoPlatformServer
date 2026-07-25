@@ -26,19 +26,16 @@ class SearchService:
 
 
     def _get_search_cache_key(self, user_id: str, query: str) -> str:
-        # Normalize the query to build a stable per-user cache key.
         query_id = normalize_query_to_id(query)
         return f"search:{user_id}:{query_id}"
     
 
     def _arrange_presign_url_result(self, result_metadata: list[dict], ordered_result_ids: list[str]) -> list[dict]:
 
-        # Index metadata by video ID so results can be reordered efficiently.
         data_dict = {item["video_id"]: item for item in result_metadata}
 
-        # Restore ranking order and convert thumbnail paths into public URLs.
         sorted_result = [
-            {**data_dict[video_id], "thumbnail_url": self._s3_client.generate_public_resource_url(data_dict[video_id]["thumbnail_url"])}
+            {**data_dict[video_id], "thumbnail_url": self._s3_client.get_presigned_url(data_dict[video_id]["thumbnail_url"])}
             for video_id in ordered_result_ids
             if video_id in data_dict
         ]
@@ -49,13 +46,11 @@ class SearchService:
     async def get_metadata_grpc(self, video_ids: list[str]) -> list[VideoMetadata]:
 
         try:
-            # Fetch metadata from gRPC for uncached video IDs.
             grpc_response = await self.grpc_service.get_video_metadata(video_ids)
 
             if grpc_response is None:
                 return []
 
-            # Convert gRPC objects into plain metadata dictionaries.
             return [{
                     "video_id": item.video_id,
                     "title": item.title,            
@@ -67,7 +62,6 @@ class SearchService:
                 } for item in grpc_response]
         
         finally:
-            # Release any inflight waiters once metadata fetch completes.
             for video_id in video_ids:
                 
                 if video_id in self._inflight_requests:
@@ -78,21 +72,18 @@ class SearchService:
 
     async def _await_cache_metadata(self, video_ids: list[str]):
 
-        # Wait for concurrent requests to populate cache entries first.
         await asyncio.gather(*(self._inflight_requests[video_id].wait() for video_id in video_ids))
         return await self.redis_service.mget_with_ttl([f"meta:{id}" for id in video_ids])
 
     
     async def _cache_searching_result(self, user_id: str, query: str, ids: list[str]):
         
-        # Store the ordered search result IDs under the user/query cache key.
         redis_key = self._get_search_cache_key(user_id, query)
         await self.redis_service.zadd(redis_key, {id: index for index, id in enumerate(ids)}, expire= config.SEARCH_CACHE_TTL)
         
     
     async def _get_cached_searching_result(self, user_id: str, query: str, limit: int = 10, cursor: int | None = None): 
         
-        # Read the cached ordered IDs for the requested page.
         redis_key = self._get_search_cache_key(user_id, query)
         end_index = cursor + limit - 1
         cached_ids = await self.redis_service.zrange(redis_key, cursor, end_index)
@@ -100,7 +91,6 @@ class SearchService:
         if not cached_ids:
             return None, None  
 
-        # Resolve cached IDs into metadata before returning the page.
         result_metadata = await self._handle_metadata(cached_ids)
 
         if not result_metadata: 
@@ -111,7 +101,6 @@ class SearchService:
 
     async def _handle_metadata(self, video_ids: list[str]) -> list[VideoMetadata]: 
         
-        # Load available metadata from Redis and track missing or expiring items.
         next_caching_data = []
         missing_ids = []
 
@@ -130,7 +119,6 @@ class SearchService:
         #-------------Inflight pattern-----------------------------------------------------     
         if missing_ids:
             
-            # Split missing IDs between those already being fetched and new requests.
             not_on_request_ids = []         
             on_request_ids = []
 
@@ -152,14 +140,12 @@ class SearchService:
 
         
             if grpc_response:
-                # Merge fresh metadata and schedule it for cache refresh.
                 for item in grpc_response:
                     result_metadata.append(item)
 
                     next_caching_data.append((f"meta:{item['video_id']}", item))
 
         if next_caching_data:
-            # Refresh near-expiry metadata asynchronously.
             asyncio.create_task(self.redis_service.mset(next_caching_data, expire=config.META_CACHE_TTL))
 
         return result_metadata        
@@ -171,7 +157,6 @@ class SearchService:
 
         if cursor is not None:
 
-            # Serve paginated results from cache when a cursor is provided.
             ordered_ids, cached_results = await self._get_cached_searching_result(user_id, query, limit, cursor)
             
             if not cached_results:
@@ -183,12 +168,10 @@ class SearchService:
         
         #---------------Handle searching algorithm (THAY THẾ BẰNG GIẢI THUẬT FILE 2)---------------------------
 
-        # Normalize the query before generating embeddings.
         normalized_query = standard_normalize(query)
         
         try:
 
-            # Build dense query vector for chunk search (Multimodal AI).
             query_dense_vector = await self.embedding_service.embed_query(normalized_query)
         
         except Exception as e:
@@ -198,12 +181,7 @@ class SearchService:
 
         try:
 
-            # Query Chunk Qdrant for semantic matching video chunks.
-            fetch_limit = (cursor or 0) + limit * 2
-            chunk_results = await self.chunk_qdrant_service.search_chunks(
-                query_vector=query_dense_vector,
-                limit=fetch_limit,
-            )
+            search_results = await self.qdrant_service.search_points(query_dense_vector, sparse_vector, config.MAX_SEARCH_RESULTS)
         
         except Exception as e:
 
@@ -213,9 +191,7 @@ class SearchService:
         ordered_chunks = sorted(chunk_results, key=lambda c: c.score, reverse=True)
         unique_video_ids = list({c.payload["videoId"] for c in ordered_chunks})
 
-        # Resolve metadata from cache / gRPC.
-        raw_metadata = await self._handle_metadata(unique_video_ids)       
-        metadata_map = {item["video_id"]: item for item in raw_metadata if isinstance(item, dict) and "video_id" in item}
+        result_metadata = await self._handle_metadata(ordered_result_ids)       
 
         # Ghép kết quả, lọc quyền riêng tư (visibility) theo đúng giải thuật của File 2.
         # result_metadata = []
@@ -248,7 +224,7 @@ class SearchService:
                 # }
                 # result_metadata.append(enriched_meta)
 
-            result_metadata = await self._handle_metadata(ordered_result_ids)
+        result_metadata = await self._handle_metadata(ordered_result_ids)
 
         #-----------------Cache searching result in redis (GIỮ NGUYÊN 100% CỦA FILE 1)------------------------
 
