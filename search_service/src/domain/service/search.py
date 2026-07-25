@@ -10,6 +10,8 @@ from src.domain.entity.search_respone import VideoMetadata
 from src.infrastructure.s3.s3_client import S3Client
 from src.domain.service.normalize import standard_normalize, normalize_query_to_id
 
+from src.domain.service.normalize import normalize_search_query
+import logging
 logger = logging.getLogger(__name__)
 
 class SearchService:

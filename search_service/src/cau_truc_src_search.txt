@@ -1,0 +1,27 @@
+.
+├── app
+│   ├── __pycache__
+│   ├── api
+│   ├── container.py
+│   └── worker
+├── cau_truc_src.txt
+├── core
+│   ├── __pycache__
+│   ├── config.py
+│   ├── dependency.py
+│   ├── exception.py
+│   ├── schema
+│   └── security.py
+├── domain
+│   ├── entity
+│   └── service
+└── infrastructure
+    ├── database
+    ├── grpc
+    ├── ml_model
+    ├── queue
+    ├── redis
+    ├── repository
+    └── s3
+
+19 directories, 6 files

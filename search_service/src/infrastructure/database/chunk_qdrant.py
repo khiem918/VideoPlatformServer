@@ -11,8 +11,8 @@ VECTOR_DIMENSION = 1024
 
 CHUNK_VECTOR_NAMES = {
     "transcriptDense": "transcript",
-    "transcriptSparse": "sparse",
 }
+
 
 class ChunkQdrantService:
     def __init__(self):
@@ -83,10 +83,8 @@ class ChunkQdrantService:
             chunks: list chunk từ merge_segments_to_chunks(), mỗi chunk gồm:
                     { text, start, end, no_speech_prob_avg, video_id,
                       user_owner, source, created_at }
-            transcript_vectors: list vector dense (1024 chiều, e5-large) từ
-                                 embed_dense(), thứ tự phải khớp 1-1 với chunks
-            transcript_sparse_vectors: list SparseVector (BM25) từ embed_sparse(),
-                                        thứ tự phải khớp 1-1 với chunks
+            transcript_vectors: list vector 768 chiều từ embed_texts(),
+                                 thứ tự phải khớp 1-1 với chunks
         """
         if not chunks:
             return
