@@ -1,19 +1,9 @@
 import asyncio
-import os
-import sys
 import boto3
 from botocore.config import Config
 
-# Allow running this module as a script by adding the package root to `sys.path`
-try:
-    from src.core.config import config
-except ModuleNotFoundError:
-    base_dir = os.path.normpath(
-        os.path.join(os.path.dirname(__file__), "../../..")
-    )
-    if base_dir not in sys.path:
-        sys.path.insert(0, base_dir)
-    from src.core.config import config
+
+from src.core.config import config
 
 
 class S3Client:
@@ -24,15 +14,8 @@ class S3Client:
         self._bucket = config.S3_BUCKET
         self._endpoint_url = config.CLOUDFRONT_DOMAIN_NAME
 
-        # Lấy S3_ENDPOINT nếu sử dụng Cloudflare R2 hoặc MinIO (fallback về None nếu dùng AWS S3 chuẩn)
-        endpoint_url = getattr(config, "S3_ENDPOINT", getattr(config, "S3_ENDPOINT_URL", None))
-        
-        if not endpoint_url:
-            endpoint_url = None
-
         self._client = boto3.client(
             "s3",
-            endpoint_url=endpoint_url,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
             region_name=region,
