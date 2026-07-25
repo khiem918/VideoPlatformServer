@@ -218,7 +218,7 @@ class SearchService:
         metadata_map = {item["video_id"]: item for item in raw_metadata if isinstance(item, dict) and "video_id" in item}
 
         # Ghép kết quả, lọc quyền riêng tư (visibility) theo đúng giải thuật của File 2.
-        result_metadata = []
+        # result_metadata = []
         ordered_result_ids = []
 
         for chunk in ordered_chunks:
@@ -239,14 +239,16 @@ class SearchService:
             if video_id not in ordered_result_ids:
                 ordered_result_ids.append(video_id)
                 # Ghép thêm các trường dữ liệu của Chunk AI (start, end, text, score) vào metadata để truyền xuống dưới
-                enriched_meta = {
-                    **metadata,
-                    "start": chunk.payload.get("start", 0),
-                    "end": chunk.payload.get("end", 0),
-                    "matched_text": chunk.payload.get("text", ""),
-                    "score": chunk.score,
-                }
-                result_metadata.append(enriched_meta)
+                # enriched_meta = {
+                #     **metadata,
+                #     "start": chunk.payload.get("start", 0),
+                #     "end": chunk.payload.get("end", 0),
+                #     "matched_text": chunk.payload.get("text", ""),
+                #     "score": chunk.score,
+                # }
+                # result_metadata.append(enriched_meta)
+
+            result_metadata = await self._handle_metadata(ordered_result_ids)
 
         #-----------------Cache searching result in redis (GIỮ NGUYÊN 100% CỦA FILE 1)------------------------
 
