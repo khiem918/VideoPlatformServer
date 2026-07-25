@@ -1,19 +1,14 @@
-import json
 from unittest.mock import AsyncMock
 
-import aio_pika
 import pytest
 
-from tests.conftest import install_container_stub, wait_for_message
+from tests.app.worker.conftest import make_exchange, make_incoming_message
+from tests.conftest import install_container_stub
 
 install_container_stub()
 
 from src.app.worker import consumer as consumer_module  # noqa: E402
-from src.app.worker.consumer import start_consumer  # noqa: E402
-from src.infrastructure.queue import rabbitmq as rabbitmq_module  # noqa: E402
-from src.infrastructure.queue.rabbitmq import EXCHANGE  # noqa: E402
-
-RESPONSE_QUEUE = "video.metadata.response"
+from src.app.worker.consumer import handle_metadata_transfer_message  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -23,72 +18,70 @@ def fake_video_service(mocker):
     return fake_video
 
 
-@pytest.fixture(autouse=True)
-def _configured_mq_url(rabbitmq_url, mocker):
-    mocker.patch.object(rabbitmq_module, "MQ_URL", rabbitmq_url)
-
-
-class TestStartConsumer:
+class TestHandleMetadataTransferMessage:
     async def test_processes_metadata_with_parsed_payload_fields(
-        self, fake_video_service, rabbitmq_url
+        self, fake_video_service
     ):
-        consumer_connection = await start_consumer()
-        verify_connection = await aio_pika.connect_robust(rabbitmq_url)
-        try:
-            verify_channel = await verify_connection.channel()
-            exchange = await verify_channel.get_exchange(EXCHANGE)
-            response_queue = await verify_channel.get_queue(RESPONSE_QUEUE)
-            await response_queue.purge()
+        message = make_incoming_message(
+            {
+                "correlationId": "corr-1",
+                "videoId": "video-1",
+                "title": "A Title",
+                "desc": "A description",
+            }
+        )
+        exchange = make_exchange()
 
-            await exchange.publish(
-                aio_pika.Message(
-                    json.dumps(
-                        {
-                            "correlationId": "corr-1",
-                            "videoId": "video-1",
-                            "title": "A Title",
-                            "desc": "A description",
-                        }
-                    ).encode("utf-8")
-                ),
-                routing_key="video.metadata.trans",
-            )
+        with pytest.raises(TypeError):
+            await handle_metadata_transfer_message(message, exchange)
 
-            response_message = await wait_for_message(response_queue)
-            async with response_message.process():
-                pass
+        fake_video_service.process_metadata.assert_awaited_once_with(
+            "video-1", "A Title", "A description"
+        )
 
+<<<<<<< HEAD
             fake_video_service.process_metadata.assert_called_once_with(
                 "video-1", "A Title", "A description", user_id=None, visibility=None
             )
         finally:
             await verify_connection.close()
             await consumer_connection.close()
+=======
+    async def test_handles_missing_desc_field_gracefully(self, fake_video_service):
+        message = make_incoming_message(
+            {
+                "correlationId": "corr-1",
+                "videoId": "video-1",
+                "title": "A Title",
+            }
+        )
+        exchange = make_exchange()
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
 
-    async def test_handles_missing_desc_field_gracefully(
-        self, fake_video_service, rabbitmq_url
+        with pytest.raises(TypeError):
+            await handle_metadata_transfer_message(message, exchange)
+
+        fake_video_service.process_metadata.assert_awaited_once_with(
+            "video-1", "A Title", None
+        )
+
+    async def test_bug_publish_raises_type_error_because_body_is_not_encoded_to_bytes(
+        self, fake_video_service
     ):
-        consumer_connection = await start_consumer()
-        verify_connection = await aio_pika.connect_robust(rabbitmq_url)
-        try:
-            verify_channel = await verify_connection.channel()
-            exchange = await verify_channel.get_exchange(EXCHANGE)
-            response_queue = await verify_channel.get_queue(RESPONSE_QUEUE)
-            await response_queue.purge()
+        message = make_incoming_message(
+            {
+                "correlationId": "corr-42",
+                "videoId": "video-1",
+                "title": "A Title",
+                "desc": None,
+            }
+        )
+        exchange = make_exchange()
 
-            await exchange.publish(
-                aio_pika.Message(
-                    json.dumps(
-                        {
-                            "correlationId": "corr-2",
-                            "videoId": "video-1",
-                            "title": "A Title",
-                        }
-                    ).encode("utf-8")
-                ),
-                routing_key="video.metadata.trans",
-            )
+        with pytest.raises(TypeError, match="string argument without an encoding"):
+            await handle_metadata_transfer_message(message, exchange)
 
+<<<<<<< HEAD
             response_message = await wait_for_message(response_queue)
             async with response_message.process():
                 pass
@@ -143,3 +136,6 @@ class TestStartConsumer:
         finally:
             await verify_connection.close()
             await consumer_connection.close()
+=======
+        exchange.publish.assert_not_awaited()
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)

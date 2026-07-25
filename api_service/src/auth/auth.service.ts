@@ -179,5 +179,4 @@ export class AuthService {
       throw new InternalServerErrorException('Sign out failed');
     }
   }
-
 }

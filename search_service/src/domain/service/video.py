@@ -1,11 +1,8 @@
-import logging
-
 from src.infrastructure.redis.redis import RedisService
 from src.domain.service.normalize import standard_normalize, normalize_desc
 from src.infrastructure.ml_model.embeding_model import EmbeddingService
 from src.infrastructure.database.qdrant import QdrantService
 
-logger = logging.getLogger(__name__)
 
 class Video:
 
@@ -28,16 +25,9 @@ class Video:
         if desc:
             desc = normalize_desc(desc)
 
-        title_vector = await self.embedding.embed_dense(title)
-        desc_vector = await self.embedding.embed_dense(desc) if desc else None
-        sparse_vector = await self.embedding.embed_sparse(title + " " + (desc or ""))
-        sparse_indices = sparse_vector["indices"] if isinstance(sparse_vector, dict) else sparse_vector.indices
-
-        logger.debug(
-            f"Processed metadata for video_id={video_id}: title_vector_length={len(title_vector)}, "
-            f"desc_vector_length={len(desc_vector) if desc_vector else 'None'}, "
-            f"sparse_vector_length={len(sparse_indices)}, user_id={user_id}, visibility={visibility}"
-        )
+        title_vector = self.embedding.embed_dense(title)
+        desc_vector = self.embedding.embed_dense(desc) if desc else None
+        sparse_vector = self.embedding.embed_sparse(title + " " + (desc or ""))
 
         """
             not yet, insert connoncial tag into postgre
@@ -54,11 +44,14 @@ class Video:
             visibility=visibility,
         )
 
-        logger.debug(f"Upserted video point into Qdrant for video_id={video_id}")
-
-
     async def delete_video(self, video_id: str):
         patterns = [
             f"meta:{video_id}", 
         ]
+
         self.redis.delete_by_pattern(patterns)
+        
+        
+
+        
+

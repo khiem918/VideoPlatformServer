@@ -14,7 +14,7 @@ export class TranscodingDataDto {
   @IsString()
   @IsNotEmpty()
   @Length(1, 500)
-  objectPath!: string;
+  r2Path!: string;
 
   @IsString()
   @IsNotEmpty()
@@ -41,4 +41,5 @@ export interface TranscodingResponse {
 export interface TranscodedVideoPaths {
   manifestPath: string;
   thumbnailPath: string;
+  metadataPath: string;
 }

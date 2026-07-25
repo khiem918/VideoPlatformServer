@@ -30,7 +30,7 @@ export class VideoMetaDataGrpcService {
       videoName: v.videoName,
       videoView: v.videoView,
       channel: v.owner.userName ? v.owner.userName : v.owner.id,
-      thumbnailUrl: v.thumbnailPath,
+      thumbnailUrl: v.thumbnailUrl,
       videoReleasedDate: v.videoReleasedDate,
       videoDesc: v.videoDesc?.slice(0, 50),
       visibility: v.visibility,

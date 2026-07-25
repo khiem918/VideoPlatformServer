@@ -8,7 +8,7 @@ from src.core.config import config
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "videos"
-VECTOR_DIMENSION = 1024
+VECTOR_DEMENSION = 768
 
 VECTOR_NAMES = { 
     "titleDense": "title", 
@@ -193,7 +193,6 @@ class QdrantService:
 
     # Giữ lại phương thức xóa video từ nhánh main
     async def delete_video_point(self, video_id: str) -> None:
-
         await self._client.delete(
             collection_name=COLLECTION_NAME,
             points_selector=models.PointIdsList(

@@ -22,7 +22,7 @@ describe('VideoProcessingQueueService', () => {
       const result = await service.addTranscodingJob({
         processingId: 'proc-1',
         inforId: 'info-1',
-        objectPath: 'r2/path',
+        r2Path: 'r2/path',
         mimeType: 'video/mp4',
       });
 

@@ -11,7 +11,6 @@ import { VideoProcessingQueueService } from '../video-processing/video-processin
 import { v4 as uuidv4 } from 'uuid';
 import {
   UploadVideoStatus,
-  UploadMetaStatus,
   ProcessingType,
   VideoVisibility,
   VideoStatus,
@@ -56,7 +55,7 @@ export class VideoService {
   ): Promise<{
     videoId: string;
     presignedUrl: string;
-    objectPath: string;
+    r2Path: string;
   }> {
     if (!this.allowedMimeTypes.includes(mimeType)) {
       throw new BadRequestException(
@@ -71,22 +70,25 @@ export class VideoService {
 
     const videoId = uuidv4();
 
-    const { presignedUrl, objectPath } =
-      await this.s3Service.getPresignedUploadUrl(fileName, videoId, mimeType);
+    const { presignedUrl, r2Path } = await this.s3Service.getPresignedUploadUrl(
+      fileName,
+      videoId,
+      mimeType,
+    );
 
     await this.videorepository.initVideoUpload(
       userId,
       videoId,
       fileName,
       fileSize,
-      objectPath,
+      r2Path,
       mimeType,
     );
 
     return {
       videoId: videoId,
       presignedUrl,
-      objectPath,
+      r2Path,
     };
   }
 
@@ -102,14 +104,14 @@ export class VideoService {
     }
 
     const isExistInR2 = await this.s3Service.fileExists(
-      video.information.objectPath,
+      video.information.r2Path,
     );
     if (!isExistInR2) {
       throw new NotFoundException('Uploaded file not found in storage');
     }
 
     const [processing] = await Promise.all([
-      this.videorepository.createVideoProcessing(video.information.id, ProcessingType.VIDEO),
+      this.videorepository.createVideoProcessing(videoId, ProcessingType.VIDEO),
       this.videorepository.updateVideoInfo(
         videoId,
         undefined,
@@ -123,7 +125,7 @@ export class VideoService {
     await this.VideoProcessingQueueService.addTranscodingJob({
       processingId: processing.id,
       inforId: video.information.id,
-      objectPath: video.information.objectPath,
+      r2Path: video.information.r2Path,
       mimeType: video.information.mimeType,
     });
   }
@@ -136,13 +138,18 @@ export class VideoService {
     }
 
     try {
+      let directoryPath = `videos/${videoId}/`;
+      if (video.videoUrl) {
+        const match = video.videoUrl.match(
+          new RegExp(`(videos\\/[a-z0-9]+\\/[a-z0-9]+\\/${videoId})`, 'i'),
+        );
+        if (match) {
+          directoryPath = `${match[1]}/`;
+        }
+      }
+
       await Promise.all([
-        this.s3Service.deleteDirectory(
-          this.s3Service.buildPrivatePrefix(videoId),
-        ),
-        this.s3Service.deleteDirectory(
-          this.s3Service.buildPublicPrefix(videoId),
-        ),
+        this.s3Service.deleteDirectory(directoryPath),
         this.qdrantService.deleteVideoVector(videoId),
         this.videorepository.deleteVideo(userId, videoId),
         this.grpcClientService.deleteVideo(videoId),
@@ -160,14 +167,15 @@ export class VideoService {
       videos.map(async (video) => {
         const isDraft = video.visibility === 'DRAFT';
 
-        if (video.thumbnailPath) {
+        if (video.thumbnailUrl) {
           try {
-            video.thumbnailPath = this.s3Service.generatePublicResourceUrl(
-              video.thumbnailPath,
+            video.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(
+              video.thumbnailUrl,
+              3600,
             );
           } catch (error) {
             console.error(
-              `Failed to generate public URL for thumbnail ${video.thumbnailPath}:`,
+              `Failed to get presigned URL for thumbnail ${video.thumbnailUrl}:`,
               error,
             );
           }
@@ -177,8 +185,8 @@ export class VideoService {
           id: video.id,
           videoName: isDraft ? 'draft' : video.videoName,
           duration: video.duration,
-          videoUrl: isDraft ? null : video.videoPath,
-          thumbnailUrl: isDraft ? null : video.thumbnailPath,
+          videoUrl: isDraft ? null : video.videoUrl,
+          thumbnailUrl: isDraft ? null : video.thumbnailUrl,
           videoView: Number(video.videoView),
           videoLike: Number(video.videoLike),
           videoDislike: Number(video.videoDislike),
@@ -220,10 +228,11 @@ export class VideoService {
                                               ||--- if video.status is AVAILABLE, then its visibility can be changed to PUBLIC or PRIVATE.     
     */
 
-    const visbilityUpadate =
-      video.videoStatus === VideoStatus.PROCESSING
+    const visbilityUpadate = visibility
+      ? undefined
+      : video.videoStatus === VideoStatus.PROCESSING
         ? VideoVisibility.DRAFT
-        : (visibility ?? video.visibility);
+        : video.visibility;
 
     const result = await this.videorepository.updateVideo(
       userId,
@@ -237,16 +246,14 @@ export class VideoService {
       throw new NotFoundException('Video not found or not owned by user');
     }
 
-    const videoInfo = await this.videorepository.updateVideoInfo(
-      videoId,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      UploadMetaStatus.PROCESSING,
+    await this.publisherService.transferVideoMetadata(
+      result.id,
+      title ? title : undefined,
+      description ? description : undefined,
+      tags ? tags : undefined,
     );
 
+<<<<<<< HEAD
     if (tags || title || description) {
       const processingId = uuidv4();
 
@@ -267,13 +274,17 @@ export class VideoService {
     }
 
     if (result.thumbnailPath) {
+=======
+    if (result.thumbnailUrl) {
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
       try {
-        result.thumbnailPath = this.s3Service.generatePublicResourceUrl(
-          result.thumbnailPath,
+        result.thumbnailUrl = await this.s3Service.getPresignedDownloadUrl(
+          result.thumbnailUrl,
+          3600,
         );
       } catch (error) {
         console.error(
-          `Failed to generate public URL for thumbnail ${result.thumbnailPath}:`,
+          `Failed to get presigned URL for thumbnail ${result.thumbnailUrl}:`,
           error,
         );
       }
@@ -283,8 +294,8 @@ export class VideoService {
       id: result.id,
       videoName: result.videoName,
       duration: result.duration,
-      videoUrl: result.videoPath,
-      thumbnailUrl: result.thumbnailPath,
+      videoUrl: result.videoUrl,
+      thumbnailUrl: result.thumbnailUrl,
       videoView: Number(result.videoView),
       videoLike: Number(result.videoLike),
       videoDislike: Number(result.videoDislike),
@@ -305,7 +316,7 @@ export class VideoService {
       videoId,
     );
 
-    if (!video || video.res1?.videoPath === null) {
+    if (!video || video.res1?.videoUrl === null) {
       throw new NotFoundException('Video not found or processing not complete');
     }
 
@@ -348,10 +359,10 @@ export class VideoService {
   async getWatchVideoUrl(
     userId: string,
     videoId: string,
-  ): Promise<{ mpdUrl: string; cookies: any }> {
+  ): Promise<WatchVideoUrlResponse> {
     const video = await this.videorepository.findVideo(videoId);
 
-    if (!video || video.videoPath === null) {
+    if (!video || video.videoUrl === null) {
       throw new NotFoundException('Video not found or processing not complete');
     }
 
@@ -364,13 +375,14 @@ export class VideoService {
       }
     }
 
-    const result = await this.s3Service.generateCookieToGetVideo(
-      video.videoPath,
-    );
+    const expiresAt = Date.now() + 100 * 60 * 1000;
+    const sig = await this.s3Service.signUrl(expiresAt);
+    const mdpUrl = await this.s3Service.getDownloadUrl(video.videoUrl);
 
     return {
-      mpdUrl: result.url,
-      cookies: result.cookies,
+      signature: sig,
+      expiresAt: expiresAt,
+      mpdUrl: mdpUrl,
     };
   }
 

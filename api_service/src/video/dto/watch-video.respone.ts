@@ -52,6 +52,12 @@ export class WatchVideoResponse {
 export class WatchVideoUrlResponse {
   @Field(() => String)
   mpdUrl!: string;
+
+  @Field(() => String)
+  signature!: string;
+
+  @Field(() => Int)
+  expiresAt!: number;
 }
 
 @ObjectType()

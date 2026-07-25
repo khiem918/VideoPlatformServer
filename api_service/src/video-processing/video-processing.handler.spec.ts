@@ -48,7 +48,7 @@ describe('VideoProcessingHandler', () => {
     const job = createJob('transcode-video', {
       processingId: 'proc-1',
       inforId: 'info-1',
-      objectPath: 'r2/path',
+      r2Path: 'r2/path',
       mimeType: 'video/unsupported',
     });
 
@@ -59,12 +59,13 @@ describe('VideoProcessingHandler', () => {
     const job = createJob('transcode-video', {
       processingId: 'proc-1',
       inforId: 'info-1',
-      objectPath: 'r2/path',
+      r2Path: 'r2/path',
       mimeType: 'video/mp4',
     });
     processingService.transcodeVideo.mockResolvedValue({
       manifestPath: 'manifest',
       thumbnailPath: 'thumb',
+      metadataPath: 'meta',
     });
 
     await handler.process(job);

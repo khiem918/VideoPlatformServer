@@ -48,9 +48,13 @@ def grpc_service():
 @pytest.fixture
 def s3_client():
     mock = MagicMock()
+<<<<<<< HEAD
     mock.generate_public_resource_url = MagicMock(
         side_effect=lambda path, *a, **kw: f"https://cdn.example.test/{path}"
     )
+=======
+    mock.get_presigned_url = MagicMock(side_effect=lambda path, *a, **kw: f"https://cdn.example.test/{path}")
+>>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
     return mock
 
 

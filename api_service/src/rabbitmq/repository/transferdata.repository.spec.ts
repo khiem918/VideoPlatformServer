@@ -1,4 +1,4 @@
-import { ProcessingStatus, UploadMetaStatus } from '@prisma/client';
+import { ProcessingStatus } from '@prisma/client';
 import { TransferDataRepository } from './transferdata.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
 
@@ -11,31 +11,36 @@ describe('TransferDataRepository', () => {
     repository = new TransferDataRepository(prisma as unknown as PrismaService);
   });
 
-  it('marks the processing and video metadata as completed on success', async () => {
-    await repository.updateMetaProcessingStatus('proc-1', 'succeeded');
+  it('marks the processing job as completed on success', async () => {
+    await repository.updateProcessingStatus('proc-1', 'successed');
 
     expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
       where: { id: 'proc-1' },
-      data: {
+      data: expect.objectContaining({
         status: ProcessingStatus.COMPLETED,
-        videoInformation: {
-          update: { metaStatus: UploadMetaStatus.PROCESSED },
-        },
-      },
+        completedAt: expect.any(Date),
+      }),
     });
   });
 
-  it('marks the processing and video metadata as failed', async () => {
-    await repository.updateMetaProcessingStatus('proc-1', 'failed');
+  it('marks the processing job as failed with the error message', async () => {
+    await repository.updateProcessingStatus('proc-1', 'failed', 'boom');
 
     expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
       where: { id: 'proc-1' },
-      data: {
+      data: expect.objectContaining({
         status: ProcessingStatus.FAILED,
-        videoInformation: {
-          update: { metaStatus: UploadMetaStatus.FAILED },
-        },
-      },
+        error: 'boom',
+      }),
+    });
+  });
+
+  it('marks the processing job as dead when the status is dead', async () => {
+    await repository.updateProcessingStatus('proc-1', 'dead');
+
+    expect(prisma.videoProcessing.update).toHaveBeenCalledWith({
+      where: { id: 'proc-1' },
+      data: { status: ProcessingStatus.DEAD },
     });
   });
 });
