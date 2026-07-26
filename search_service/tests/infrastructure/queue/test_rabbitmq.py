@@ -51,28 +51,8 @@ class TestDeclare:
         transfer_queue.bind.assert_awaited_once_with(
             exchange, routing_key="video.metadata.trans"
         )
-<<<<<<< HEAD
-        response_queue = await channel.get_queue("video.metadata.response")
-
-        await transfer_queue.purge()
-        await dead_letter_queue.purge()
-        await response_queue.purge()
-        
-        await exchange.publish(
-            aio_pika.Message(json.dumps({"which": "transfer"}).encode()),
-            routing_key="video.metadata.trans",
-        )
-        await exchange.publish(
-            aio_pika.Message(json.dumps({"which": "response"}).encode()),
-            routing_key="video.metadata.res",
-        )
-        await dlx_exchange.publish(
-            aio_pika.Message(json.dumps({"which": "dead-letter"}).encode()),
-            routing_key="anything",
-=======
         response_queue.bind.assert_awaited_once_with(
             exchange, routing_key="video.metadata.res"
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
         )
         dead_letter_queue.bind.assert_awaited_once_with(dlx_exchange, routing_key="#")
 
@@ -83,44 +63,9 @@ class TestDeclare:
 
         await declare(channel)
 
-<<<<<<< HEAD
-        dead_letter_message = await wait_for_message(dead_letter_queue)
-        async with dead_letter_message.process():
-            assert json.loads(dead_letter_message.body.decode()) == {
-                "which": "dead-letter"
-            }
-
-        await connection.close()
-
-    async def test_rejected_transfer_message_is_dead_lettered(self):
-        connection = await get_mq_connection()
-        channel = await connection.channel()
-
-        exchange, _, transfer_queue, dead_letter_queue = await declare(channel)
-        
-        await transfer_queue.purge()
-        await dead_letter_queue.purge()
-
-        await exchange.publish(
-            aio_pika.Message(json.dumps({"correlationId": "corr-1"}).encode()),
-            routing_key="video.metadata.trans",
-        )
-
-        transfer_message = await wait_for_message(transfer_queue)
-        await transfer_message.reject(requeue=False)
-
-        dead_lettered = await wait_for_message(dead_letter_queue)
-        async with dead_lettered.process():
-            assert json.loads(dead_lettered.body.decode()) == {
-                "correlationId": "corr-1"
-            }
-
-        await connection.close()
-=======
         first_queue_call = channel.declare_queue.await_args_list[0]
         assert first_queue_call.args[0] == "video.metadata.transfer"
         assert first_queue_call.kwargs["arguments"] == {
             "x-dead-letter-exchange": "video.processing.dlx",
             "x-dead-letter-routing-key": "video.metadata.trans",
         }
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)

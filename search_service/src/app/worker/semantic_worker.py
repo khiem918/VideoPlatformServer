@@ -23,22 +23,27 @@ async def process_job(job, job_token):
     r2_path       = data.get("r2Path")
     mime_type     = data.get("mimeType")
     user_owner    = data.get("userId")
+    visibility    = data.get("visibility", "DRAFT")
 
     logger.info(
         f"Nhận job: infor_id={infor_id}, "
         f"processing_id={processing_id}, r2_path={r2_path}"
     )
+    
+    try:
+        await container.video_processing.process(
+            infor_id=infor_id,
+            processing_id=processing_id,
+            r2_path=r2_path,
+            mime_type=mime_type,
+            user_owner=user_owner,
+            visibility=visibility,
+        )
 
-    await container.video_processing.process(
-        infor_id=infor_id,
-        processing_id=processing_id,
-        r2_path=r2_path,
-        mime_type=mime_type,
-        user_owner=user_owner,
-    )
-
-    logger.info(f"Hoàn thành job: infor_id={infor_id}")
-
+        logger.info(f"Hoàn thành job: infor_id={infor_id}")
+    except:
+        logger.error(f"❌ Job thất bại (infor_id={infor_id}): {str(e)}", exc_info=True)
+        raise
 
 async def start_semantic_worker():
     """

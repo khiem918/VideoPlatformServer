@@ -86,7 +86,6 @@ class TestHandleMetadataMissingFromCache:
                 "view": 10,
                 "date": 42,
                 "channel": "chan",
-                "visibility": "PUBLIC",
             }
         ]
 

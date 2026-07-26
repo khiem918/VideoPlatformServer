@@ -96,16 +96,15 @@ class TranscriptionService:
 
         return chunks
 
-    def process_audio_file(
+    def process_audio_transcript(
         self,
-        audio_path: str,
-        video_id: str,
-        user_owner: str,
-        created_at: int,
-        language: str | None = None,
+        segments: list,
     ) -> list[dict] | None:
         """
-        Xử lý toàn bộ transcript của 1 video.
+        Xử lý toàn bộ transcript của 1 video từ danh sách segments thô.
+
+        Args:
+            segments: Danh sách các segment thu được từ Whisper.
 
         Returns:
             list[dict]: các chunk audio nếu có lời nói rõ ràng
@@ -146,7 +145,9 @@ class TranscriptionService:
             None:       nếu không có lời nói → caller cần xử lý fallback caption
         """
         segments = self.transcribe(audio_path, language=language)
-        chunks = self.process_video_transcript(segments)
+        
+        # [ĐÃ SỬA]: Gọi hàm process_audio_transcript với đúng 1 tham số segments
+        chunks = self.process_audio_transcript(segments)
 
         if chunks is None:
             return None

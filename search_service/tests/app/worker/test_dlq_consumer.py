@@ -55,47 +55,21 @@ class TestHandleDeadLetterMessageRequeue:
         await handle_dead_letter_message(message, exchange)
 
         fake_sleep.assert_awaited_once_with(4)
-
-
+    
 class TestHandleDeadLetterMessageMaxRetriesExceeded:
-<<<<<<< HEAD
-    async def test_publishes_failure_message_when_max_retries_reached(
-        self, broker, fake_sleep
-    ):
-        await _publish_with_real_death_count(
-            broker, {"correlationId": "corr-1", "videoId": "video-1"}, death_count=3
-=======
-    async def test_bug_publish_failure_message_raises_type_error_for_unencoded_body(
+    async def test_does_not_requeue_and_publishes_to_dlq_when_max_retries_reached(
         self, fake_sleep
     ):
         message = make_message_with_headers(
             {"correlationId": "corr-1", "videoId": "video-1"},
             headers={"x-death": [{"count": 3}]},
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
         )
         exchange = make_exchange()
+        exchange.publish = AsyncMock()
 
-<<<<<<< HEAD
-        await handle_dead_letter_message(message, broker.dlx_exchange)
-=======
-        with pytest.raises(TypeError, match="string argument without an encoding"):
-            await handle_dead_letter_message(message, exchange)
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
+        await handle_dead_letter_message(message, exchange)
 
         fake_sleep.assert_not_awaited()
-
-    async def test_does_not_requeue_when_max_retries_reached(self, fake_sleep):
-        message = make_message_with_headers(
-            {"correlationId": "corr-1", "videoId": "video-1"},
-            headers={"x-death": [{"count": 3}]},
-        )
-        exchange = make_exchange()
-
-<<<<<<< HEAD
-        await handle_dead_letter_message(message, broker.dlx_exchange)
-=======
-        with pytest.raises(TypeError):
-            await handle_dead_letter_message(message, exchange)
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
-
-        fake_sleep.assert_not_awaited()
+        assert exchange.publish.await_count == 1
+        published_msg = exchange.publish.call_args[0][0]
+        assert isinstance(published_msg.body, bytes)

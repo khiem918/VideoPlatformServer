@@ -83,7 +83,7 @@ class ChunkQdrantService:
             chunks: list chunk từ merge_segments_to_chunks(), mỗi chunk gồm:
                     { text, start, end, no_speech_prob_avg, video_id,
                       user_owner, source, created_at }
-            transcript_vectors: list vector 768 chiều từ embed_texts(),
+            transcript_vectors: list vector 1024 chiều từ embed_texts(),
                                  thứ tự phải khớp 1-1 với chunks
         """
         if not chunks:
@@ -106,7 +106,7 @@ class ChunkQdrantService:
                     "visibility": chunk.get("visibility", "DRAFT"),
                 },
             )
-            for i, (chunk, vector, sparse_vector) in enumerate(
+            for i, (chunk, vector) in enumerate(
                 zip(chunks, transcript_vectors)
             )
         ]

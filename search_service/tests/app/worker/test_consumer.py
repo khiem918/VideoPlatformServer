@@ -1,5 +1,5 @@
-from unittest.mock import AsyncMock
-
+from unittest.mock import AsyncMock, MagicMock
+import json
 import pytest
 
 from tests.app.worker.conftest import make_exchange, make_incoming_message
@@ -27,27 +27,30 @@ class TestHandleMetadataTransferMessage:
                 "correlationId": "corr-1",
                 "videoId": "video-1",
                 "title": "A Title",
-                "desc": "A description",
+                "description": "A description",  # Sử dụng chuẩn tên description từ NestJS
+                "userId": "user-1",
+                "visibility": "PUBLIC",
             }
         )
         exchange = make_exchange()
+        exchange.publish = AsyncMock()
 
-        with pytest.raises(TypeError):
-            await handle_metadata_transfer_message(message, exchange)
+        await handle_metadata_transfer_message(message, exchange)
 
         fake_video_service.process_metadata.assert_awaited_once_with(
-            "video-1", "A Title", "A description"
+            "video-1", 
+            "A Title", 
+            "A description", 
+            user_id="user-1", 
+            visibility="PUBLIC"
         )
 
-<<<<<<< HEAD
-            fake_video_service.process_metadata.assert_called_once_with(
-                "video-1", "A Title", "A description", user_id=None, visibility=None
-            )
-        finally:
-            await verify_connection.close()
-            await consumer_connection.close()
-=======
-    async def test_handles_missing_desc_field_gracefully(self, fake_video_service):
+    async def test_handles_missing_desc_and_privacy_fields_gracefully(
+        self, fake_video_service
+    ):
+        """
+        Kiểm tra khả năng tương thích ngược khi payload thiếu description, userId hoặc visibility.
+        """
         message = make_incoming_message(
             {
                 "correlationId": "corr-1",
@@ -56,16 +59,19 @@ class TestHandleMetadataTransferMessage:
             }
         )
         exchange = make_exchange()
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
+        exchange.publish = AsyncMock()
 
-        with pytest.raises(TypeError):
-            await handle_metadata_transfer_message(message, exchange)
+        await handle_metadata_transfer_message(message, exchange)
 
         fake_video_service.process_metadata.assert_awaited_once_with(
-            "video-1", "A Title", None
+            "video-1", 
+            "A Title", 
+            None, 
+            user_id=None, 
+            visibility="PUBLIC"
         )
 
-    async def test_bug_publish_raises_type_error_because_body_is_not_encoded_to_bytes(
+    async def test_publishes_encoded_bytes_response_after_processing(
         self, fake_video_service
     ):
         message = make_incoming_message(
@@ -73,69 +79,23 @@ class TestHandleMetadataTransferMessage:
                 "correlationId": "corr-42",
                 "videoId": "video-1",
                 "title": "A Title",
-                "desc": None,
             }
         )
         exchange = make_exchange()
+        exchange.publish = AsyncMock()
 
-        with pytest.raises(TypeError, match="string argument without an encoding"):
-            await handle_metadata_transfer_message(message, exchange)
+        await handle_metadata_transfer_message(message, exchange)
 
-<<<<<<< HEAD
-            response_message = await wait_for_message(response_queue)
-            async with response_message.process():
-                pass
+        # Kiểm tra lệnh exchange.publish đã được gọi
+        assert exchange.publish.await_count == 1
+        
+        # Bóc tách tin nhắn phản hồi được gửi đi
+        published_message = exchange.publish.call_args[0][0]
+        routing_key = exchange.publish.call_args[1].get("routing_key") or exchange.publish.call_args[0][1]
 
-            fake_video_service.process_metadata.assert_called_once_with(
-                "video-1", "A Title", None, user_id=None, visibility=None
-            )
-        finally:
-            await verify_connection.close()
-            await consumer_connection.close()
-
-    async def test_publishes_encoded_response_after_processing(
-        self, fake_video_service, rabbitmq_url
-    ):
-        """
-        Regression test for the fix to the previous bug where the response
-        body was passed to aio_pika.Message as a str instead of bytes,
-        raising TypeError. Publishing a real message through the real broker
-        exercises consumer.py's actual `.encode("utf-8")` call: if that fix
-        regressed, `exchange.publish` inside the handler would raise and no
-        response message would ever reach this queue.
-        """
-        consumer_connection = await start_consumer()
-        verify_connection = await aio_pika.connect_robust(rabbitmq_url)
-        try:
-            verify_channel = await verify_connection.channel()
-            exchange = await verify_channel.get_exchange(EXCHANGE)
-            response_queue = await verify_channel.get_queue(RESPONSE_QUEUE)
-            await response_queue.purge()
-
-            await exchange.publish(
-                aio_pika.Message(
-                    json.dumps(
-                        {
-                            "correlationId": "corr-42",
-                            "videoId": "video-1",
-                            "title": "A Title",
-                            "desc": None,
-                        }
-                    ).encode("utf-8")
-                ),
-                routing_key="video.metadata.trans",
-            )
-
-            response_message = await wait_for_message(response_queue)
-            async with response_message.process():
-                assert isinstance(response_message.body, bytes)
-                assert json.loads(response_message.body.decode()) == {
-                    "correlationId": "corr-42",
-                    "status": "succeeded",
-                }
-        finally:
-            await verify_connection.close()
-            await consumer_connection.close()
-=======
-        exchange.publish.assert_not_awaited()
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
+        assert routing_key == "video.metadata.res"
+        assert isinstance(published_message.body, bytes)
+        assert json.loads(published_message.body.decode("utf-8")) == {
+            "correlationId": "corr-42",
+            "status": "succeeded",
+        }

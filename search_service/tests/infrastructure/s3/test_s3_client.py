@@ -24,11 +24,7 @@ class TestS3ClientConstruction:
         S3Client()
 
         _, kwargs = s3_client_module.boto3.client.call_args
-<<<<<<< HEAD
-        assert "endpoint_url" in kwargs
-=======
         assert kwargs["endpoint_url"] == "https://s3.test"
->>>>>>> parent of 2247c5d (Merge pull request #5 from khiem918/feat/aws-integration)
         assert kwargs["aws_access_key_id"] == "fake-access-key"
         assert kwargs["aws_secret_access_key"] == "fake-secret-key"
         assert kwargs["region_name"] == "us-east-1"

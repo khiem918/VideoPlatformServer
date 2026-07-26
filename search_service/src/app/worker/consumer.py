@@ -18,6 +18,9 @@ async def handle_metadata_transfer_message(
         video_id = payload.get('videoId')
         title = payload.get('title')
         desc = payload.get('desc')
+        desc = payload.get('desc') or payload.get('description')
+        user_id = payload.get('userId') or payload.get('userOwner')
+        visibility = payload.get('visibility', 'PUBLIC')
 
         logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}")
         
@@ -31,7 +34,7 @@ async def handle_metadata_transfer_message(
                 body=json.dumps({
                     "correlationId": correlation_id,
                     "status": "succeeded",
-                }),
+                }).encode("utf-8"),
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
                 content_type="application/json",
             ),

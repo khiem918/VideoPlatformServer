@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import tempfile
@@ -78,7 +79,7 @@ class VideoProcessingService:
             # Bước 2: Extract audio bằng ffmpeg
             audio_extracted = True
             try:
-                self._extract_audio(video_path, audio_path)
+                await asyncio.to_thread(self._extract_audio, video_path, audio_path)
                 logger.info(f"Extracted audio: {audio_path}")
             except RuntimeError as e:
                 logger.info(f"Video {infor_id} không có audio track ({e}) → chuyển sang BLIP caption fallback")
@@ -259,12 +260,9 @@ class VideoProcessingService:
 
         for frame in frames:
             try:
-                caption = self.caption.generate_caption(frame["frame_path"])
+                caption = await asyncio.to_thread(self.caption.generate_caption, frame["frame_path"])
             except Exception as e:
                 logger.warning(f"Lỗi sinh caption cho frame {frame['frame_path']}: {e}")
-                continue
-
-            if not caption or not caption.strip():
                 continue
 
             chunks.append({

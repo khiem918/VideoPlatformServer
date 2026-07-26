@@ -8,7 +8,7 @@ from src.core.config import config
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "videos"
-VECTOR_DEMENSION = 768
+VECTOR_DIMENSION = 1024
 
 VECTOR_NAMES = { 
     "titleDense": "title", 
