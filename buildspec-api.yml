@@ -37,6 +37,8 @@ phases:
       - echo "[post_build] pushing image to ECR"
       - docker push $REPO_URI:latest
       - docker push $REPO_URI:$IMAGE_TAG
+      - echo "[post_build] returning to repo root for S3 sync + SSM"
+      - cd $CODEBUILD_SRC_DIR
       - echo "[post_build] syncing docker/ folder to s3://$DEPLOY_S3_BUCKET/$DEPLOY_S3_PREFIX/"
       - aws s3 sync docker/ s3://$DEPLOY_S3_BUCKET/$DEPLOY_S3_PREFIX/ --delete
       - echo "[post_build] triggering EC2 deploy via SSM"
