@@ -9,8 +9,6 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
-  @IsNumber()
-  SERVER_PORT!: number;
 
   @IsNotEmpty()
   @IsString()
@@ -30,14 +28,6 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   JWT_SECRET!: string;
-
-  @IsNotEmpty()
-  @IsNumber()
-  ACCESS_TOKEN_EXPIRES_IN!: number;
-
-  @IsNotEmpty()
-  @IsNumber()
-  REFRESH_TOKEN_EXPIRES_IN!: number;
 
   @IsNotEmpty()
   @IsString()
@@ -109,11 +99,6 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   CDN_DOMAIN!: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  FFMPEG_THREADS_PER_STREAM?: number;
 }
 
 export function validateEnv(

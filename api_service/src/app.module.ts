@@ -17,6 +17,7 @@ import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { PublisherModule } from './rabbitmq/publisher.module';
 import { ConsumerModule } from './rabbitmq/consumer.module';
 import { VideoMetaDataGrpcModule } from './grpc/server/video-metadata/video-metadata.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { VideoMetaDataGrpcModule } from './grpc/server/video-metadata/video-meta
     ConsumerModule,
     VideoMetaDataGrpcModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [S3Service],
 })
 export class AppModule {}

@@ -70,7 +70,7 @@ describe('AuthService', () => {
           userId: 'user-1',
           refreshToken: 'hashed-token',
         }),
-        3600,
+        7 * 24 * 60 * 60,
       );
       expect(result.userId).toBe('user-1');
       expect(result.accessToken).toBe('signed-access-token');
@@ -108,7 +108,7 @@ describe('AuthService', () => {
       expect(redisService.set).toHaveBeenCalledWith(
         expect.stringMatching(/^s:/),
         expect.objectContaining({ userId: 'user-1' }),
-        3600,
+        7 * 24 * 60 * 60,
       );
       expect(result.newAccessToken).toBe('signed-access-token');
       expect(result.newFreshToken).toEqual(expect.any(String));

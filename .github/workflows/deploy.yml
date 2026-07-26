@@ -1,0 +1,129 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push api_service image
+        id: build-api
+        env:
+          REPOSITORY: ${{ secrets.ECR_API_REPOSITORY }}
+        run: |
+          docker build -f api_service/Dockerfile -t "$REPOSITORY:$IMAGE_TAG" .
+          docker push "$REPOSITORY:$IMAGE_TAG"
+          echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Generate gRPC stubs for search_service
+        run: |
+          pip install grpcio-tools
+          bash search_service/src/infrastructure/grpc/generate_proto.sh
+
+      - name: Build and push search_service image
+        id: build-search
+        env:
+          REPOSITORY: ${{ secrets.ECR_SEARCH_REPOSITORY }}
+        working-directory: search_service
+        run: |
+          docker build -t "$REPOSITORY:$IMAGE_TAG" .
+          docker push "$REPOSITORY:$IMAGE_TAG"
+          echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Run Prisma migration as a one-off ECS task
+        env:
+          CLUSTER: ${{ secrets.ECS_CLUSTER_NAME }}
+          TASK_FAMILY: ${{ secrets.ECS_API_TASK_FAMILY }}
+          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
+          SECURITY_GROUP: ${{ secrets.ECS_SECURITY_GROUP_ID }}
+          IMAGE: ${{ steps.build-api.outputs.image }}
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_FAMILY" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
+            --overrides "{\"containerOverrides\":[{\"name\":\"api-service\",\"image\":\"$IMAGE\",\"command\":[\"npx\",\"prisma\",\"migrate\",\"deploy\"]}]}" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migration task failed with exit code $EXIT_CODE"
+            aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN"
+            exit 1
+          fi
+
+      - name: Download api_service task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.ECS_API_TASK_FAMILY }}" \
+            --query taskDefinition > api-task-definition.json
+
+      - name: Render new api_service task definition
+        id: render-api
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: api-task-definition.json
+          container-name: api-service
+          image: ${{ steps.build-api.outputs.image }}
+
+      - name: Deploy api_service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-api.outputs.task-definition }}
+          service: ${{ secrets.ECS_API_SERVICE_NAME }}
+          cluster: ${{ secrets.ECS_CLUSTER_NAME }}
+          wait-for-service-stability: true
+
+      - name: Download search_service task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.ECS_SEARCH_TASK_FAMILY }}" \
+            --query taskDefinition > search-task-definition.json
+
+      - name: Render new search_service task definition
+        id: render-search
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: search-task-definition.json
+          container-name: search-service
+          image: ${{ steps.build-search.outputs.image }}
+
+      - name: Deploy search_service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-search.outputs.task-definition }}
+          service: ${{ secrets.ECS_SEARCH_SERVICE_NAME }}
+          cluster: ${{ secrets.ECS_CLUSTER_NAME }}
+          wait-for-service-stability: true
