@@ -56,34 +56,6 @@ jobs:
           docker push "$REPOSITORY:$IMAGE_TAG"
           echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Run Prisma migration as a one-off ECS task
-        env:
-          CLUSTER: ${{ secrets.ECS_CLUSTER_NAME }}
-          TASK_FAMILY: ${{ secrets.ECS_API_TASK_FAMILY }}
-          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
-          SECURITY_GROUP: ${{ secrets.ECS_SECURITY_GROUP_ID }}
-          IMAGE: ${{ steps.build-api.outputs.image }}
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster "$CLUSTER" \
-            --task-definition "$TASK_FAMILY" \
-            --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
-            --overrides "{\"containerOverrides\":[{\"name\":\"api-service\",\"image\":\"$IMAGE\",\"command\":[\"npx\",\"prisma\",\"migrate\",\"deploy\"]}]}" \
-            --query 'tasks[0].taskArn' --output text)
-
-          echo "Migration task: $TASK_ARN"
-          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
-
-          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
-            --query 'tasks[0].containers[0].exitCode' --output text)
-
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "Migration task failed with exit code $EXIT_CODE"
-            aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN"
-            exit 1
-          fi
-
       - name: Download api_service task definition
         run: |
           aws ecs describe-task-definition \
@@ -98,13 +70,52 @@ jobs:
           container-name: api-service
           image: ${{ steps.build-api.outputs.image }}
 
+      - name: Register new api_service task definition
+        id: register-api
+        run: |
+          TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "file://${{ steps.render-api.outputs.task-definition }}" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task-definition-arn=$TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Run Prisma migration as a one-off ECS task
+        env:
+          CLUSTER: ${{ secrets.ECS_CLUSTER_NAME }}
+          TASK_DEFINITION_ARN: ${{ steps.register-api.outputs.task-definition-arn }}
+          SUBNETS: ${{ secrets.ECS_SUBNET_IDS }}
+          SECURITY_GROUP: ${{ secrets.ECS_SECURITY_GROUP_ID }}
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEFINITION_ARN" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
+            --overrides '{"containerOverrides":[{"name":"api-service","command":["npx","prisma","migrate","deploy"]}]}' \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "Migration task failed with exit code $EXIT_CODE"
+            aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN"
+            exit 1
+          fi
+
       - name: Deploy api_service
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-api.outputs.task-definition }}
-          service: ${{ secrets.ECS_API_SERVICE_NAME }}
-          cluster: ${{ secrets.ECS_CLUSTER_NAME }}
-          wait-for-service-stability: true
+        env:
+          CLUSTER: ${{ secrets.ECS_CLUSTER_NAME }}
+          SERVICE: ${{ secrets.ECS_API_SERVICE_NAME }}
+          TASK_DEFINITION_ARN: ${{ steps.register-api.outputs.task-definition-arn }}
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --task-definition "$TASK_DEFINITION_ARN" > /dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
 
       - name: Download search_service task definition
         run: |
