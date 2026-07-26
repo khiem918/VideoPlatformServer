@@ -11,7 +11,7 @@ import type { Request } from 'express';
 export class GqlAuthGuard extends AuthGuard('jwt') {
   getRequest(context: ExecutionContext): Request {
     const gqlContext = GqlExecutionContext.create(context);
-    const req = gqlContext.getContext().req as Request | undefined;
+    const req = gqlContext.getContext<{ req?: Request }>().req;
 
     if (!req) {
       throw new UnauthorizedException('Request context not found');

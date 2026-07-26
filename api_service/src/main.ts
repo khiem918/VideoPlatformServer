@@ -41,7 +41,7 @@ async function bootstrap() {
   await app.startAllMicroservices();
 
   app.use(cookieParser(configservice.get<string>('COOKIE_SECRET')));
-  // app.use(helmet());
+  app.use(helmet());
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({
     origin: configservice.get<string>('CLIENT_URL') ?? 'http://localhost:5173',
@@ -51,4 +51,7 @@ async function bootstrap() {
   await app.listen(8080);
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  console.error('Failed to bootstrap application', error);
+  process.exit(1);
+});

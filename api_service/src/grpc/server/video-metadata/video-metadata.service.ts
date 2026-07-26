@@ -16,7 +16,10 @@ export class VideoMetaDataGrpcService {
     
     */
   async getVideoMetaData(videoId: string[]) {
-    const video = await this.videoMetaDataRepository.getVideoMetaData(videoId, VideoVisibility.PUBLIC);
+    const video = await this.videoMetaDataRepository.getVideoMetaData(
+      videoId,
+      VideoVisibility.PUBLIC,
+    );
 
     if (!video) {
       throw new RpcException({
@@ -38,9 +41,3 @@ export class VideoMetaDataGrpcService {
     }));
   }
 }
-
-
-
-
-
-

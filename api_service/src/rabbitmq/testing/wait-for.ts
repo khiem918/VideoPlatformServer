@@ -13,7 +13,10 @@ const DEFAULT_INTERVAL_MS = 100;
  */
 export async function waitFor(
   predicate: () => boolean,
-  { timeoutMs = DEFAULT_TIMEOUT_MS, intervalMs = DEFAULT_INTERVAL_MS }: WaitForOptions = {},
+  {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    intervalMs = DEFAULT_INTERVAL_MS,
+  }: WaitForOptions = {},
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
 

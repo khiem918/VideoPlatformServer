@@ -1,23 +1,27 @@
 import { VideoProcessingQueueService } from './video-processing.queue';
 import { Queue } from 'bullmq';
 
+function createQueueMock() {
+  return {
+    add: jest.fn(),
+    getJob: jest.fn(),
+  };
+}
+
 describe('VideoProcessingQueueService', () => {
   let service: VideoProcessingQueueService;
-  let queue: jest.Mocked<Queue>;
+  let queue: ReturnType<typeof createQueueMock>;
 
   beforeEach(() => {
-    queue = {
-      add: jest.fn(),
-      getJob: jest.fn(),
-    } as unknown as jest.Mocked<Queue>;
+    queue = createQueueMock();
 
-    service = new VideoProcessingQueueService(queue);
+    service = new VideoProcessingQueueService(queue as unknown as Queue);
   });
 
   describe('addTranscodingJob', () => {
     it('enqueues a transcode-video job with retry configuration and returns the job id', async () => {
       const job = { id: 'job-1', updateProgress: jest.fn() };
-      queue.add.mockResolvedValue(job as any);
+      queue.add.mockResolvedValue(job);
 
       const result = await service.addTranscodingJob({
         processingId: 'proc-1',
@@ -54,7 +58,7 @@ describe('VideoProcessingQueueService', () => {
         failedReason: undefined,
         processedOn: 1000,
         finishedOn: 2000,
-      } as any);
+      });
 
       const result = await service.getJobStatus('job-1');
 
@@ -86,7 +90,7 @@ describe('VideoProcessingQueueService', () => {
 
     it('removes the job when it exists', async () => {
       const remove = jest.fn().mockResolvedValue(undefined);
-      queue.getJob.mockResolvedValue({ remove } as any);
+      queue.getJob.mockResolvedValue({ remove });
 
       await service.removeJob('job-1');
 

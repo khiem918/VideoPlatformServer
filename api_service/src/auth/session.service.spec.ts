@@ -89,7 +89,7 @@ describe('RedisService (auth session store)', () => {
         JSON.stringify({ userId: 'user-1' }),
       );
 
-      const result = await service.get('key-1');
+      const result: unknown = await service.get('key-1');
 
       expect(result).toEqual({ userId: 'user-1' });
     });
@@ -97,7 +97,7 @@ describe('RedisService (auth session store)', () => {
     it('returns null when the key does not exist', async () => {
       mockRedisInstance.get.mockResolvedValue(null);
 
-      const result = await service.get('key-1');
+      const result: unknown = await service.get('key-1');
 
       expect(result).toBeNull();
     });
@@ -105,7 +105,7 @@ describe('RedisService (auth session store)', () => {
     it('returns null when the stored value is not valid JSON', async () => {
       mockRedisInstance.get.mockResolvedValue('not-json');
 
-      const result = await service.get('key-1');
+      const result: unknown = await service.get('key-1');
 
       expect(result).toBeNull();
     });

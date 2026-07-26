@@ -39,8 +39,9 @@ describe('validateEnv', () => {
   it('returns a validated instance when all required variables are present', () => {
     const result = validateEnv(createValidConfig());
 
-    expect((result as any).SERVER_PORT).toBe(3000);
-    expect((result as any).DATABASE_URL).toBe('postgres://localhost');
+    const resultRecord = result as unknown as Record<string, unknown>;
+    expect(resultRecord.SERVER_PORT).toBe(3000);
+    expect(resultRecord.DATABASE_URL).toBe('postgres://localhost');
   });
 
   it('throws a descriptive error when a required variable is missing', () => {

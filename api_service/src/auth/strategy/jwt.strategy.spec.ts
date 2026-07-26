@@ -61,13 +61,18 @@ describe('JwtStrategy', () => {
     });
   });
 
+  interface StrategyWithJwtExtractor {
+    _jwtFromRequest: (request: unknown) => string | null;
+  }
+
   describe('token extraction from request', () => {
     let strategy: JwtStrategy;
-    let extractToken: (request: any) => string | null;
+    let extractToken: (request: unknown) => string | null;
 
     beforeEach(() => {
       strategy = new JwtStrategy(createConfig('secret'));
-      extractToken = (strategy as any)._jwtFromRequest;
+      extractToken = (strategy as unknown as StrategyWithJwtExtractor)
+        ._jwtFromRequest;
     });
 
     it('extracts the token from the Authorization bearer header', () => {

@@ -2,17 +2,23 @@ import { firstValueFrom, Subject, take, toArray } from 'rxjs';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 
+function createNotificationServiceMock() {
+  return {
+    subscribe: jest.fn(),
+    unsubscribe: jest.fn(),
+  };
+}
+
 describe('NotificationController', () => {
   let controller: NotificationController;
-  let notificationService: jest.Mocked<NotificationService>;
+  let notificationService: ReturnType<typeof createNotificationServiceMock>;
 
   beforeEach(() => {
-    notificationService = {
-      subscribe: jest.fn(),
-      unsubscribe: jest.fn(),
-    } as unknown as jest.Mocked<NotificationService>;
+    notificationService = createNotificationServiceMock();
 
-    controller = new NotificationController(notificationService);
+    controller = new NotificationController(
+      notificationService as unknown as NotificationService,
+    );
   });
 
   it('subscribes the user and maps events into SSE message events', async () => {
@@ -22,7 +28,7 @@ describe('NotificationController', () => {
       type: string;
       payload: string;
     }>();
-    notificationService.subscribe.mockReturnValue(subject as any);
+    notificationService.subscribe.mockReturnValue(subject);
 
     const resultPromise = firstValueFrom(
       controller.stream({ userId: 'user-1' }).pipe(take(1)),
@@ -51,8 +57,8 @@ describe('NotificationController', () => {
   });
 
   it('unsubscribes the user once the stream completes', async () => {
-    const subject = new Subject<any>();
-    notificationService.subscribe.mockReturnValue(subject as any);
+    const subject = new Subject<unknown>();
+    notificationService.subscribe.mockReturnValue(subject);
 
     const resultPromise = firstValueFrom(
       controller.stream({ userId: 'user-1' }).pipe(toArray()),

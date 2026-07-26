@@ -1,15 +1,8 @@
-import {
-  IsNotEmpty,
-  IsNumber,
-  IsString,
-  IsOptional,
-  Min,
-} from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsOptional } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
-
   @IsNotEmpty()
   @IsString()
   DATABASE_URL!: string;

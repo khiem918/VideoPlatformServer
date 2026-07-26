@@ -1,22 +1,24 @@
 import { ConfigService } from '@nestjs/config';
 import { FirebaseService } from './firebase.service';
 
-const mockCert = jest.fn((options) => ({ options }));
+const mockCert = jest.fn();
 const mockInitializeApp = jest.fn();
 const mockGetApp = jest.fn();
 const mockGetApps = jest.fn();
 const mockVerifyIdToken = jest.fn();
-const mockGetAuth = jest.fn((app?: unknown) => ({ verifyIdToken: mockVerifyIdToken }));
+const mockGetAuth = jest.fn(() => ({
+  verifyIdToken: mockVerifyIdToken,
+}));
 
 jest.mock('firebase-admin/app', () => ({
-  cert: (options: unknown) => mockCert(options),
-  initializeApp: (options: unknown) => mockInitializeApp(options),
-  getApp: () => mockGetApp(),
-  getApps: () => mockGetApps(),
+  cert: (...args: unknown[]): unknown => mockCert(...args),
+  initializeApp: (...args: unknown[]): unknown => mockInitializeApp(...args),
+  getApp: (): unknown => mockGetApp(),
+  getApps: (): unknown => mockGetApps(),
 }));
 
 jest.mock('firebase-admin/auth', () => ({
-  getAuth: (app: unknown) => mockGetAuth(app),
+  getAuth: (): unknown => mockGetAuth(),
 }));
 
 describe('FirebaseService', () => {

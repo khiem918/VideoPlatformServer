@@ -1,16 +1,22 @@
 import { VideoMetaDataGrpcController } from './video-metadata.controller';
 import { VideoMetaDataGrpcService } from './video-metadata.service';
 
+function createServiceMock() {
+  return {
+    getVideoMetaData: jest.fn(),
+  };
+}
+
 describe('VideoMetaDataGrpcController', () => {
   let controller: VideoMetaDataGrpcController;
-  let service: jest.Mocked<VideoMetaDataGrpcService>;
+  let service: ReturnType<typeof createServiceMock>;
 
   beforeEach(() => {
-    service = {
-      getVideoMetaData: jest.fn(),
-    } as unknown as jest.Mocked<VideoMetaDataGrpcService>;
+    service = createServiceMock();
 
-    controller = new VideoMetaDataGrpcController(service);
+    controller = new VideoMetaDataGrpcController(
+      service as unknown as VideoMetaDataGrpcService,
+    );
   });
 
   it('maps service results into the gRPC response shape', async () => {
@@ -26,7 +32,7 @@ describe('VideoMetaDataGrpcController', () => {
         visibility: 'PUBLIC',
         duration: 120,
       },
-    ] as any);
+    ]);
 
     const result = await controller.getVideoMetaData({ videoId: ['video-1'] });
 

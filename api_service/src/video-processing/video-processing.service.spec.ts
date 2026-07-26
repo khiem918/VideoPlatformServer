@@ -35,12 +35,38 @@ const fsMocks = fs as unknown as {
   };
 };
 
+function createFfmpegServiceMock() {
+  return {
+    getVideoMetadata: jest.fn(),
+    transcodeToDASH: jest.fn(),
+    extractThumbnail: jest.fn(),
+  };
+}
+
+function createRepositoryMock() {
+  return {
+    completeVideoProcessing: jest.fn(),
+    recordFailure: jest.fn(),
+    publicVideo: jest.fn(),
+  };
+}
+
+function createS3ServiceMock() {
+  return {
+    getFileStream: jest.fn(),
+    parseVideoIdFromPrivatePath: jest.fn(),
+    buildPrivateSegmentPath: jest.fn(),
+    buildPublicThumbnailPath: jest.fn(),
+    uploadFileStream: jest.fn(),
+  };
+}
+
 describe('VideoProcessingService', () => {
   const tempDir = '/tmp/video-streaming-system/processing';
   let service: VideoProcessingService;
-  let ffmpegService: jest.Mocked<FFmpegService>;
-  let repository: jest.Mocked<VideoProcessingRepository>;
-  let s3Service: jest.Mocked<S3Service>;
+  let ffmpegService: ReturnType<typeof createFfmpegServiceMock>;
+  let repository: ReturnType<typeof createRepositoryMock>;
+  let s3Service: ReturnType<typeof createS3ServiceMock>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -51,34 +77,22 @@ describe('VideoProcessingService', () => {
     fsMocks.promises.rm.mockResolvedValue(undefined);
     (pipeline as jest.Mock).mockResolvedValue(undefined);
 
-    ffmpegService = {
-      getVideoMetadata: jest.fn(),
-      transcodeToDASH: jest.fn(),
-      extractThumbnail: jest.fn(),
-    } as unknown as jest.Mocked<FFmpegService>;
+    ffmpegService = createFfmpegServiceMock();
+    repository = createRepositoryMock();
+    s3Service = createS3ServiceMock();
 
-    repository = {
-      completeVideoProcessing: jest.fn(),
-      recordFailure: jest.fn(),
-      publicVideo: jest.fn(),
-    } as unknown as jest.Mocked<VideoProcessingRepository>;
-
-    s3Service = {
-      getFileStream: jest.fn(),
-      parseVideoIdFromPrivatePath: jest.fn(),
-      buildPrivateSegmentPath: jest.fn(),
-      buildPublicThumbnailPath: jest.fn(),
-      uploadFileStream: jest.fn(),
-    } as unknown as jest.Mocked<S3Service>;
-
-    service = new VideoProcessingService(ffmpegService, repository, s3Service);
+    service = new VideoProcessingService(
+      ffmpegService as unknown as FFmpegService,
+      repository as unknown as VideoProcessingRepository,
+      s3Service as unknown as S3Service,
+    );
   });
 
   function mockArtifactDirectory(workDir: string) {
     const dashDir = path.join(workDir, 'dash');
     const thumbDir = path.join(workDir, 'thumb');
 
-    fsMocks.promises.readdir.mockImplementation(async (dir: string) => {
+    fsMocks.promises.readdir.mockImplementation((dir: string) => {
       if (dir === workDir) {
         return [
           { name: 'dash', isDirectory: () => true },
@@ -100,7 +114,7 @@ describe('VideoProcessingService', () => {
       const workDir = path.join(tempDir, 'info-1');
       mockArtifactDirectory(workDir);
 
-      s3Service.getFileStream.mockResolvedValue({} as any);
+      s3Service.getFileStream.mockResolvedValue({});
       ffmpegService.getVideoMetadata.mockResolvedValue({
         duration: 65.7,
         width: 1920,
@@ -121,7 +135,7 @@ describe('VideoProcessingService', () => {
           `public/user/${videoId}/thumbnail/${relativePath}`,
       );
       s3Service.uploadFileStream.mockImplementation(
-        async (_filePath: string, objectPath: string) => objectPath,
+        (_filePath: string, objectPath: string) => objectPath,
       );
       repository.completeVideoProcessing.mockResolvedValue({
         videoId: 'video-1',
@@ -159,7 +173,7 @@ describe('VideoProcessingService', () => {
       const workDir = path.join(tempDir, 'info-2');
       mockArtifactDirectory(workDir);
 
-      s3Service.getFileStream.mockResolvedValue({} as any);
+      s3Service.getFileStream.mockResolvedValue({});
       ffmpegService.getVideoMetadata.mockResolvedValue({
         duration: 10,
         width: 1920,
@@ -180,7 +194,7 @@ describe('VideoProcessingService', () => {
           `public/user/${videoId}/thumbnail/${relativePath}`,
       );
       s3Service.uploadFileStream.mockImplementation(
-        async (_filePath: string, objectPath: string) => objectPath,
+        (_filePath: string, objectPath: string) => objectPath,
       );
       repository.completeVideoProcessing.mockResolvedValue({
         videoId: 'video-2',
@@ -218,7 +232,7 @@ describe('VideoProcessingService', () => {
     });
 
     it('wraps an unexpected error from ffmpeg metadata extraction', async () => {
-      s3Service.getFileStream.mockResolvedValue({} as any);
+      s3Service.getFileStream.mockResolvedValue({});
       ffmpegService.getVideoMetadata.mockRejectedValue(
         new Error('probe failed'),
       );
@@ -240,7 +254,7 @@ describe('VideoProcessingService', () => {
     });
 
     it('propagates an InvalidVideoException without wrapping it', async () => {
-      s3Service.getFileStream.mockResolvedValue({} as any);
+      s3Service.getFileStream.mockResolvedValue({});
       ffmpegService.getVideoMetadata.mockRejectedValue(
         new InvalidVideoException('bad video', 'info-5'),
       );
@@ -259,7 +273,7 @@ describe('VideoProcessingService', () => {
       const workDir = path.join(tempDir, 'info-6');
       fsMocks.promises.readdir.mockResolvedValue([]);
 
-      s3Service.getFileStream.mockResolvedValue({} as any);
+      s3Service.getFileStream.mockResolvedValue({});
       ffmpegService.getVideoMetadata.mockResolvedValue({
         duration: 10,
         width: 1920,

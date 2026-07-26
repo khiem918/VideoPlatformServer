@@ -24,10 +24,10 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     await this.notificationService.ensureConsumerGroup();
     this.running = true;
-    this.startConsuming();
+    void this.startConsuming();
   }
 
-  async onModuleDestroy() {
+  onModuleDestroy() {
     this.running = false;
   }
 
@@ -96,8 +96,9 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
         id,
       );
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
-        `Error processing notification for user ${id}: ${error.message}`,
+        `Error processing notification for user ${id}: ${message}`,
       );
     }
   }

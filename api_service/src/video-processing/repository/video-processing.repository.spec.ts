@@ -7,24 +7,29 @@ import {
   VideoVisibility,
 } from '@prisma/client';
 
+function createTxMock() {
+  return {
+    videoInformation: { update: jest.fn() },
+    video: { update: jest.fn() },
+    videoProcessing: { update: jest.fn() },
+  };
+}
+
+function createPrismaMock(tx: ReturnType<typeof createTxMock>) {
+  return {
+    $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(tx)),
+    video: { update: jest.fn() },
+  };
+}
+
 describe('VideoProcessingRepository', () => {
   let repository: VideoProcessingRepository;
-  let prisma: any;
-  let tx: any;
+  let prisma: ReturnType<typeof createPrismaMock>;
+  let tx: ReturnType<typeof createTxMock>;
 
   beforeEach(() => {
-    tx = {
-      videoInformation: { update: jest.fn() },
-      video: { update: jest.fn() },
-      videoProcessing: { update: jest.fn() },
-    };
-
-    prisma = {
-      $transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
-        callback(tx),
-      ),
-      video: { update: jest.fn() },
-    };
+    tx = createTxMock();
+    prisma = createPrismaMock(tx);
 
     repository = new VideoProcessingRepository(
       prisma as unknown as PrismaService,
@@ -47,11 +52,12 @@ describe('VideoProcessingRepository', () => {
         120,
       );
 
+      const completedInfoData: unknown = expect.objectContaining({
+        videoStatus: UploadVideoStatus.PROCESSED,
+      });
       expect(tx.videoInformation.update).toHaveBeenCalledWith({
         where: { id: 'info-1' },
-        data: expect.objectContaining({
-          videoStatus: UploadVideoStatus.PROCESSED,
-        }),
+        data: completedInfoData,
       });
       expect(tx.video.update).toHaveBeenCalledWith({
         where: { id: 'video-1' },
@@ -61,9 +67,12 @@ describe('VideoProcessingRepository', () => {
           duration: 120,
         },
       });
+      const completedProcessingData: unknown = expect.objectContaining({
+        status: ProcessingStatus.COMPLETED,
+      });
       expect(tx.videoProcessing.update).toHaveBeenCalledWith({
         where: { id: 'proc-1' },
-        data: expect.objectContaining({ status: ProcessingStatus.COMPLETED }),
+        data: completedProcessingData,
       });
       expect(result).toEqual({
         videoId: 'video-1',
@@ -77,18 +86,20 @@ describe('VideoProcessingRepository', () => {
     it('marks the video information and processing job as failed', async () => {
       await repository.recordFailure('info-1', 'proc-1', 'boom');
 
+      const failedInfoData: unknown = expect.objectContaining({
+        videoStatus: UploadVideoStatus.FAILED,
+      });
       expect(tx.videoInformation.update).toHaveBeenCalledWith({
         where: { id: 'info-1' },
-        data: expect.objectContaining({
-          videoStatus: UploadVideoStatus.FAILED,
-        }),
+        data: failedInfoData,
+      });
+      const failedProcessingData: unknown = expect.objectContaining({
+        status: ProcessingStatus.FAILED,
+        errorMessage: 'boom',
       });
       expect(tx.videoProcessing.update).toHaveBeenCalledWith({
         where: { id: 'proc-1' },
-        data: expect.objectContaining({
-          status: ProcessingStatus.FAILED,
-          errorMessage: 'boom',
-        }),
+        data: failedProcessingData,
       });
     });
   });

@@ -60,7 +60,8 @@ export class RedisNotifyService implements OnModuleInit, OnModuleDestroy {
       await this.sub.quit();
       this.logger.log('pub and sub disconnected');
     } catch (error) {
-      this.logger.error('Error disconnecting from Redis');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error disconnecting from Redis: ${message}`);
     }
   }
 

@@ -4,7 +4,6 @@ import { Job } from 'bullmq';
 import { VideoProcessingService } from './video-processing.service';
 import { TranscodingDataDto } from './dto/transcodingdata.dto';
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
-import { TranscodedVideoPaths } from './dto/transcodingdata.dto';
 
 @Processor(process.env.QUEUE_NAME || 'video-processing')
 export class VideoProcessingHandler extends WorkerHost {
@@ -27,13 +26,12 @@ export class VideoProcessingHandler extends WorkerHost {
 
     const jobData = this.validateJobData(job.data);
 
-    const assetPaths: TranscodedVideoPaths =
-      await this.processingService.transcodeVideo(jobData);
+    await this.processingService.transcodeVideo(jobData);
 
     await job.updateProgress(90);
   }
 
-  private validateJobData(data: any): TranscodingDataDto {
+  private validateJobData(data: unknown): TranscodingDataDto {
     if (!data || typeof data !== 'object') {
       throw new InvalidVideoException(
         'Invalid job data: not an object',
@@ -41,17 +39,18 @@ export class VideoProcessingHandler extends WorkerHost {
       );
     }
 
+    const record = data as Record<string, unknown>;
     const dto = new TranscodingDataDto();
 
-    dto.processingId = data.processingId as string;
-    dto.inforId = data.inforId as string;
-    dto.objectPath = data.objectPath as string;
-    dto.mimeType = data.mimeType as string;
+    dto.processingId = record.processingId as string;
+    dto.inforId = record.inforId as string;
+    dto.objectPath = record.objectPath as string;
+    dto.mimeType = record.mimeType as string;
 
     if (!dto.inforId || !dto.objectPath || !dto.mimeType || !dto.processingId) {
       throw new InvalidVideoException(
         'Missing required fields: inforId, objectPath, mimeType, processingId',
-        (data.inforId as string) || 'unknown',
+        (record.inforId as string) || 'unknown',
       );
     }
 

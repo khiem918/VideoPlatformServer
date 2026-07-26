@@ -14,41 +14,59 @@ jest.mock('bcryptjs', () => ({
   hash: jest.fn(),
 }));
 
+function createAuthRepositoryMock() {
+  return {
+    findByEmail: jest.fn(),
+    findById: jest.fn(),
+  };
+}
+
+function createRedisServiceMock() {
+  return {
+    set: jest.fn(),
+    get: jest.fn(),
+    del: jest.fn(),
+  };
+}
+
+function createJwtServiceMock() {
+  return {
+    sign: jest.fn(),
+  };
+}
+
+function createConfigServiceMock() {
+  return {
+    get: jest.fn((key: string) => {
+      const values: Record<string, string> = {
+        JWT_SECRET: 'secret',
+        ACCESS_TOKEN_EXPIRES_IN: '15m',
+        REFRESH_TOKEN_EXPIRES_IN: '3600',
+      };
+      return values[key];
+    }),
+  };
+}
+
 describe('AuthService', () => {
   let service: AuthService;
-  let authRepository: jest.Mocked<AuthRepository>;
-  let redisService: jest.Mocked<RedisService>;
-  let jwtService: jest.Mocked<JwtService>;
-  let config: jest.Mocked<ConfigService>;
+  let authRepository: ReturnType<typeof createAuthRepositoryMock>;
+  let redisService: ReturnType<typeof createRedisServiceMock>;
+  let jwtService: ReturnType<typeof createJwtServiceMock>;
+  let config: ReturnType<typeof createConfigServiceMock>;
 
   beforeEach(() => {
-    authRepository = {
-      findByEmail: jest.fn(),
-      findById: jest.fn(),
-    } as unknown as jest.Mocked<AuthRepository>;
+    authRepository = createAuthRepositoryMock();
+    redisService = createRedisServiceMock();
+    jwtService = createJwtServiceMock();
+    config = createConfigServiceMock();
 
-    redisService = {
-      set: jest.fn(),
-      get: jest.fn(),
-      del: jest.fn(),
-    } as unknown as jest.Mocked<RedisService>;
-
-    jwtService = {
-      sign: jest.fn(),
-    } as unknown as jest.Mocked<JwtService>;
-
-    config = {
-      get: jest.fn((key: string) => {
-        const values: Record<string, string> = {
-          JWT_SECRET: 'secret',
-          ACCESS_TOKEN_EXPIRES_IN: '15m',
-          REFRESH_TOKEN_EXPIRES_IN: '3600',
-        };
-        return values[key];
-      }),
-    } as unknown as jest.Mocked<ConfigService>;
-
-    service = new AuthService(authRepository, redisService, jwtService, config);
+    service = new AuthService(
+      authRepository as unknown as AuthRepository,
+      redisService as unknown as RedisService,
+      jwtService as unknown as JwtService,
+      config as unknown as ConfigService,
+    );
 
     jest.clearAllMocks();
     (hash as jest.Mock).mockResolvedValue('hashed-token');
@@ -57,7 +75,7 @@ describe('AuthService', () => {
 
   describe('signIn', () => {
     it('returns tokens and stores a hashed session when the user is found', async () => {
-      authRepository.findByEmail.mockResolvedValue({ id: 'user-1' } as any);
+      authRepository.findByEmail.mockResolvedValue({ id: 'user-1' });
 
       const result = await service.signIn('user@example.com');
 

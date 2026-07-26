@@ -15,7 +15,9 @@ export class AuthRepository {
         select: { id: true },
       });
     } catch (error) {
-      throw new Error('Error occurred while finding user by email');
+      throw new Error('Error occurred while finding user by email', {
+        cause: error,
+      });
     }
   }
 
@@ -26,8 +28,9 @@ export class AuthRepository {
         select: { id: true, userEmail: true },
       });
     } catch (error) {
-      throw new Error('Error occurred while finding user by ID');
+      throw new Error('Error occurred while finding user by ID', {
+        cause: error,
+      });
     }
   }
 }
-

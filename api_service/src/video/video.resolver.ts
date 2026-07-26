@@ -72,7 +72,7 @@ export class VideoResolver {
     @gqlCurrentUser() user: { userId: string },
   ): Promise<UserVideosListResponse> {
     const result = await this.videoService.getUserVideos(user.userId);
-    return result as any;
+    return result as unknown as UserVideosListResponse;
   }
 
   @Mutation(() => UserVideoResponse)

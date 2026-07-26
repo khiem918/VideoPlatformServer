@@ -1,34 +1,45 @@
 import { VideoResolver } from './video.resolver';
 import { VideoService } from './video.service';
 import { ConfigService } from '@nestjs/config';
+import type { Response } from 'express';
+
+function createVideoServiceMock() {
+  return {
+    initUpload: jest.fn(),
+    completeUpload: jest.fn(),
+    deleteVideo: jest.fn(),
+    getUserVideos: jest.fn(),
+    updateVideo: jest.fn(),
+    getWatchVideoMetadata: jest.fn(),
+    getWatchVideoUrl: jest.fn(),
+    commentOnVideo: jest.fn(),
+    getVideoComments: jest.fn(),
+    updateVideoHistory: jest.fn(),
+    likeOrDislikeVideo: jest.fn(),
+    subscribeChannel: jest.fn(),
+    trackVideoWatchProgress: jest.fn(),
+  };
+}
+
+function createConfigServiceMock() {
+  return {
+    get: jest.fn().mockReturnValue('.example.com'),
+  };
+}
 
 describe('VideoResolver', () => {
   let resolver: VideoResolver;
-  let videoService: jest.Mocked<VideoService>;
-  let config: jest.Mocked<ConfigService>;
+  let videoService: ReturnType<typeof createVideoServiceMock>;
+  let config: ReturnType<typeof createConfigServiceMock>;
 
   beforeEach(() => {
-    videoService = {
-      initUpload: jest.fn(),
-      completeUpload: jest.fn(),
-      deleteVideo: jest.fn(),
-      getUserVideos: jest.fn(),
-      updateVideo: jest.fn(),
-      getWatchVideoMetadata: jest.fn(),
-      getWatchVideoUrl: jest.fn(),
-      commentOnVideo: jest.fn(),
-      getVideoComments: jest.fn(),
-      updateVideoHistory: jest.fn(),
-      likeOrDislikeVideo: jest.fn(),
-      subscribeChannel: jest.fn(),
-      trackVideoWatchProgress: jest.fn(),
-    } as unknown as jest.Mocked<VideoService>;
+    videoService = createVideoServiceMock();
+    config = createConfigServiceMock();
 
-    config = {
-      get: jest.fn().mockReturnValue('.example.com'),
-    } as unknown as jest.Mocked<ConfigService>;
-
-    resolver = new VideoResolver(videoService, config);
+    resolver = new VideoResolver(
+      videoService as unknown as VideoService,
+      config as unknown as ConfigService,
+    );
   });
 
   it('initUploadVideo returns the videoId and presignedUrl from the service', async () => {
@@ -84,7 +95,7 @@ describe('VideoResolver', () => {
     videoService.getUserVideos.mockResolvedValue({
       total: 0,
       videos: [],
-    } as any);
+    });
 
     const result = await resolver.getUserVideos({ userId: 'user-1' });
 
@@ -93,7 +104,7 @@ describe('VideoResolver', () => {
   });
 
   it('updateVideo forwards all fields to the service', async () => {
-    videoService.updateVideo.mockResolvedValue({ id: 'video-1' } as any);
+    videoService.updateVideo.mockResolvedValue({ id: 'video-1' });
 
     const result = await resolver.updateVideo(
       { userId: 'user-1' },
@@ -125,7 +136,7 @@ describe('VideoResolver', () => {
   it('getWatchVideoMetadata delegates to the service', async () => {
     videoService.getWatchVideoMetadata.mockResolvedValue({
       id: 'video-1',
-    } as any);
+    });
 
     const result = await resolver.getWatchVideoMetadata('video-1', {
       userId: 'user-1',
@@ -147,14 +158,14 @@ describe('VideoResolver', () => {
         'CloudFront-Key-Pair-Id': 'key-pair-id',
         'CloudFront-Signature': 'signature',
       },
-    } as any);
+    });
 
-    const res = { cookie: jest.fn() } as any;
+    const res = { cookie: jest.fn() };
 
     const result = await resolver.getWatchVideoUrl(
       'video-1',
       { userId: 'user-1' },
-      res,
+      res as unknown as Response,
     );
 
     expect(videoService.getWatchVideoUrl).toHaveBeenCalledWith(
@@ -183,7 +194,7 @@ describe('VideoResolver', () => {
   });
 
   it('commentOnVideo delegates to the service', async () => {
-    videoService.commentOnVideo.mockResolvedValue({ id: '1' } as any);
+    videoService.commentOnVideo.mockResolvedValue({ id: '1' });
 
     const result = await resolver.commentOnVideo(
       'video-1',

@@ -51,7 +51,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       await this.redisClient.quit();
       this.logger.log('Redis disconnected');
     } catch (error) {
-      this.logger.error('Error disconnecting from Redis');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error disconnecting from Redis: ${message}`);
     }
   }
 
@@ -68,7 +69,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async get(key: string): Promise<any | null> {
+  async get(key: string): Promise<any> {
     try {
       if (!key || key.trim() === '') {
         throw new Error('Key cannot be empty');

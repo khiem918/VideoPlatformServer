@@ -31,7 +31,7 @@ export class VideoProcessingQueueService {
       `Added transcoding job for inforId: ${data.inforId}, processingId: ${data.processingId}, jobId: ${job.id}`,
     );
 
-    job.updateProgress(5);
+    void job.updateProgress(5);
 
     return job.id as string;
   }
@@ -49,7 +49,7 @@ export class VideoProcessingQueueService {
 
       const progress =
         typeof job.progress === 'function'
-          ? (job.progress() as number | null)
+          ? ((job.progress as unknown as () => number)() as number | null)
           : (job.progress as unknown as number | null);
 
       return {

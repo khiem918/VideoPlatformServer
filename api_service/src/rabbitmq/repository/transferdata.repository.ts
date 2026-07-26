@@ -5,27 +5,28 @@ import { ProcessingStatus } from '@prisma/client';
 
 @Injectable()
 export class TransferDataRepository {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async updateMetaProcessingStatus(
     processingId: string,
     status: 'succeeded' | 'failed',
   ): Promise<void> {
-
     await this.prisma.videoProcessing.update({
       where: { id: processingId },
       data: {
-        status: status === 'succeeded' ? ProcessingStatus.COMPLETED : ProcessingStatus.FAILED,
+        status:
+          status === 'succeeded'
+            ? ProcessingStatus.COMPLETED
+            : ProcessingStatus.FAILED,
         videoInformation: {
           update: {
-            metaStatus: status === 'succeeded' ? UploadMetaStatus.PROCESSED : UploadMetaStatus.FAILED,
-          }
-        }
-      }
+            metaStatus:
+              status === 'succeeded'
+                ? UploadMetaStatus.PROCESSED
+                : UploadMetaStatus.FAILED,
+          },
+        },
+      },
     });
-
   }
 }
-
-
-
