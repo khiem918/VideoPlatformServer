@@ -92,6 +92,8 @@ class QdrantService:
         sparse_vector: SparseVector,
         title: str, 
         desc: str | None, 
+        user_id: str | None = None,
+        visibility: str | None = None,
     ) -> None:
         vector = {}
 
@@ -107,6 +109,10 @@ class QdrantService:
         payload["title"] = title
         if desc:
             payload["desc"] = desc
+        if user_id:
+            payload["userId"] = user_id
+        if visibility:
+            payload["visibility"] = visibility
 
         await self._client.upsert(
             collection_name=COLLECTION_NAME,

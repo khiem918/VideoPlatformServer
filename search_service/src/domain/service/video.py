@@ -14,7 +14,14 @@ class Video:
         self.qdrant : QdrantService = qdrant
         self.redis : RedisService =  redis
 
-    async def process_metadata(self, video_id: str, title: str, desc: str | None) -> None:
+    async def process_metadata(
+        self,
+        video_id: str,
+        title: str,
+        desc: str | None,
+        user_id: str | None = None,
+        visibility: str | None = None,
+    ) -> None:
 
         title = standard_normalize(title)
 
@@ -39,57 +46,17 @@ class Video:
             sparse_vector=sparse_vector,
             title=title,
             desc=desc if desc else "",
-
+            user_id=user_id,
+            visibility=visibility,
         )
 
         logger.debug(f"Upserted video point into Qdrant for video_id={video_id}")
 
 
     async def delete_video(self, video_id: str):
-        
+
         patterns = [
-            f"meta:{video_id}", 
+            f"meta:{video_id}",
         ]
 
-        self.redis.delete_by_pattern(patterns)
-        
-        
-
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        await self.redis.delete_by_pattern(patterns)

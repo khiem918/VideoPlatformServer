@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from fastapi import logger
 import onnxruntime
 from src.domain.entity.base_embeding import BaseEmbedding
 from fastembed import TextEmbedding, SparseTextEmbedding

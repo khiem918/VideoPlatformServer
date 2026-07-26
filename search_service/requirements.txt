@@ -12,3 +12,8 @@ grpcio-tools>=1.68
 python-jose==3.5.0
 redis==7.2.2
 boto3>=1.34,<2.0
+bullmq==2.26.0
+Unidecode==1.4.0
+emoji==2.15.0
+transformers==5.14.1
+faster-whisper==1.2.1
