@@ -67,7 +67,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: api-task-definition.json
-          container-name: api-service
+          container-name: video-streaming-platform-api-service-container
           image: ${{ steps.build-api.outputs.image }}
 
       - name: Register new api_service task definition
@@ -90,7 +90,7 @@ jobs:
             --task-definition "$TASK_DEFINITION_ARN" \
             --launch-type FARGATE \
             --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}" \
-            --overrides '{"containerOverrides":[{"name":"api-service","command":["npx","prisma","migrate","deploy"]}]}' \
+            --overrides '{"containerOverrides":[{"name":"video-streaming-platform-api-service-container","command":["npx","prisma","migrate","deploy"]}]}' \
             --query 'tasks[0].taskArn' --output text)
 
           echo "Migration task: $TASK_ARN"
@@ -128,7 +128,7 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: search-task-definition.json
-          container-name: search-service
+          container-name: video-streaming-platform-search-service-container
           image: ${{ steps.build-search.outputs.image }}
 
       - name: Deploy search_service
