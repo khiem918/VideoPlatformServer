@@ -32,29 +32,63 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Check if api_service image tag already exists in ECR
+        id: check-api-image
+        env:
+          REPOSITORY: ${{ secrets.ECR_API_REPOSITORY }}
+        run: |
+          REPO_NAME="${REPOSITORY#*/}"
+          if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push api_service image
-        id: build-api
+        if: steps.check-api-image.outputs.exists != 'true'
         env:
           REPOSITORY: ${{ secrets.ECR_API_REPOSITORY }}
         run: |
           docker build -f api_service/Dockerfile -t "$REPOSITORY:$IMAGE_TAG" .
           docker push "$REPOSITORY:$IMAGE_TAG"
-          echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set api_service image reference
+        id: build-api
+        env:
+          REPOSITORY: ${{ secrets.ECR_API_REPOSITORY }}
+        run: echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Generate gRPC stubs for search_service
         run: |
           pip install grpcio-tools
           bash search_service/src/infrastructure/grpc/generate_proto.sh
 
+      - name: Check if search_service image tag already exists in ECR
+        id: check-search-image
+        env:
+          REPOSITORY: ${{ secrets.ECR_SEARCH_REPOSITORY }}
+        run: |
+          REPO_NAME="${REPOSITORY#*/}"
+          if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push search_service image
-        id: build-search
+        if: steps.check-search-image.outputs.exists != 'true'
         env:
           REPOSITORY: ${{ secrets.ECR_SEARCH_REPOSITORY }}
         working-directory: search_service
         run: |
           docker build -t "$REPOSITORY:$IMAGE_TAG" .
           docker push "$REPOSITORY:$IMAGE_TAG"
-          echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Set search_service image reference
+        id: build-search
+        env:
+          REPOSITORY: ${{ secrets.ECR_SEARCH_REPOSITORY }}
+        run: echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Download api_service task definition
         run: |
