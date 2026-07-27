@@ -33,8 +33,6 @@ export class VideoService {
     'video/quicktime',
   ];
 
-
-
   private readonly logger = new Logger(VideoService.name);
 
   constructor(
