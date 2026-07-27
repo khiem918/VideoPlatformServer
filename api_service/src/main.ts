@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { GRPC_PACKAGE, GRPC_PROTO_PATH } from './grpc/constants';
+import { resolveGrpcBindUrl } from './grpc/resolve-grpc-bind-url';
 
 async function bootstrap() {
   const bootstrapConfigService = new ConfigService();
@@ -34,7 +35,9 @@ async function bootstrap() {
     options: {
       package: GRPC_PACKAGE,
       protoPath: GRPC_PROTO_PATH,
-      url: configservice.get<string>('GRPC_URL') ?? 'localhost:50051',
+      url: resolveGrpcBindUrl(
+        configservice.get<string>('GRPC_URL') ?? 'localhost:50051',
+      ),
     },
   });
 

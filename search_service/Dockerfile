@@ -24,6 +24,11 @@ SparseTextEmbedding('Qdrant/bm25')"
 
 COPY . .
 
+# prisma-client-py generates the client straight into site-packages/prisma
+# rather than a project subdirectory, so this must run in this image after
+# the schema is copied and before the app imports `prisma`.
+RUN prisma generate
+
 EXPOSE 8000 50052
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
