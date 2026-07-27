@@ -27,6 +27,7 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
+ENV CHECKPOINT_DISABLE=1
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
