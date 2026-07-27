@@ -22,6 +22,8 @@ import { PublisherService } from 'src/rabbitmq/publisher.service';
 import { GrpcClientService } from 'src/grpc/client/grpc-client.service';
 import type { CloudfrontSignedCookiesOutput } from '@aws-sdk/cloudfront-signer';
 
+const MAX_FILE_SIZE = 10737418240;
+
 @Injectable()
 export class VideoService {
   private readonly allowedMimeTypes = [
@@ -31,9 +33,7 @@ export class VideoService {
     'video/quicktime',
   ];
 
-  private readonly maxFileSize = parseInt(
-    process.env.MAX_FILE_SIZE || '10737418240',
-  );
+
 
   private readonly logger = new Logger(VideoService.name);
 
@@ -61,7 +61,7 @@ export class VideoService {
         `Invalid video format. Allowed: ${this.allowedMimeTypes.join(', ')}`,
       );
     }
-    if (fileSize > this.maxFileSize) {
+    if (fileSize > MAX_FILE_SIZE) {
       throw new BadRequestException(
         `File size exceeds maximum of 10GB (received: ${(fileSize / 1024 / 1024 / 1024).toFixed(2)}GB)`,
       );

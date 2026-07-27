@@ -51,9 +51,6 @@ export class EnvironmentVariables {
   BUCKET_NAME!: string;
 
   @IsNotEmpty()
-  MAX_FILE_SIZE!: number;
-
-  @IsNotEmpty()
   @IsString()
   QUEUE_NAME!: string;
 
