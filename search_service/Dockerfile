@@ -1,5 +1,5 @@
 # ---- Stage 1: build ----
-FROM python:3.10-slim AS builder
+FROM public.ecr.aws/docker/library/python:3.10-slim AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 # ---- Stage 2: runtime ----
-FROM python:3.10-slim AS runtime
+FROM public.ecr.aws/docker/library/python:3.10-slim AS runtime
 
 WORKDIR /app
 
