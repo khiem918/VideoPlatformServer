@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urlsplit
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.models import SparseVector, Modifier
@@ -19,7 +20,8 @@ VECTOR_NAMES = {
 class QdrantService:
     def __init__(self):
         self._client = AsyncQdrantClient(
-            url=config.QDRANT_URL
+            url=config.QDRANT_URL,
+            https=urlsplit(config.QDRANT_URL).scheme == "https",
         )
 
     async def init_collection(self): 
