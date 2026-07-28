@@ -42,4 +42,4 @@ phases:
       - echo "[post_build] syncing docker/ folder to s3://$DEPLOY_S3_BUCKET/$DEPLOY_S3_PREFIX/"
       - aws s3 sync docker/ s3://$DEPLOY_S3_BUCKET/$DEPLOY_S3_PREFIX/ --delete
       - echo "[post_build] triggering EC2 deploy via SSM"
-      - aws ssm send-command --document-name "AWS-RunShellScript" --targets "Key=instanceids,Values=$EC2_INSTANCE_ID" --parameters '{"commands":["/app/deploy.sh api"]}'
+      - aws ssm send-command --document-name "AWS-RunShellScript" --instance-ids "$EC2_INSTANCE_ID" --parameters '{"commands":["/app/deploy.sh api"]}'
