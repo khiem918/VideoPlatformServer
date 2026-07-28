@@ -12,7 +12,7 @@ COPY prisma ./prisma
 COPY prisma.config.ts ./
 
 # Install ALL deps (including devDeps) for build
-RUN npm ci
+RUN npm install
 
 # Generate Prisma Client
 RUN npx prisma generate
