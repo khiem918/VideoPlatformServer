@@ -47,6 +47,6 @@ prisma/migrations/**/migration.sql.bak
 =*
 
 # Docker files at this level
+# (do NOT ignore docker-entrypoint.sh — the Dockerfile COPYs it as a runtime script)
 Dockerfile
 .dockerignore
-docker-entrypoint.sh

@@ -21,7 +21,6 @@ RUN npx prisma generate
 COPY tsconfig*.json ./
 COPY nest-cli.json ./
 COPY src ./src
-COPY test ./test
 RUN npm run build
 
 # Prune devDependencies for production image
