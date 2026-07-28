@@ -20,71 +20,90 @@ import { QdrantService } from 'src/qdrant/qdrant.service';
 import { PublisherService } from 'src/rabbitmq/publisher.service';
 import { GrpcClientService } from 'src/grpc/client/grpc-client.service';
 
+function createS3ServiceMock() {
+  return {
+    getPresignedUploadUrl: jest.fn(),
+    fileExists: jest.fn(),
+    deleteDirectory: jest.fn(),
+    getPresignedDownloadUrl: jest.fn(),
+    generatePublicResourceUrl: jest.fn(),
+    generateCookieToGetVideo: jest.fn(),
+    buildPrivatePrefix: jest.fn(
+      (videoId: string) => `private/user/${videoId}/`,
+    ),
+    buildPublicPrefix: jest.fn((videoId: string) => `public/user/${videoId}/`),
+  };
+}
+
+function createVideoRepositoryMock() {
+  return {
+    initVideoUpload: jest.fn(),
+    findVideo: jest.fn(),
+    createVideoProcessing: jest.fn(),
+    updateVideoInfo: jest.fn().mockResolvedValue({ id: 'info-1' }),
+    deleteVideo: jest.fn(),
+    getUserAllVideos: jest.fn(),
+    updateVideo: jest.fn(),
+    getVideoForWatching: jest.fn(),
+    watchVideo: jest.fn(),
+    getVideoComments: jest.fn(),
+    createComment: jest.fn(),
+    updateHistory: jest.fn(),
+    likeOrDislikeVideo: jest.fn(),
+    subscribeChannel: jest.fn(),
+  };
+}
+
+function createVideoProcessingQueueServiceMock() {
+  return {
+    addTranscodingJob: jest.fn(),
+  };
+}
+
+function createQdrantServiceMock() {
+  return {
+    deleteVideoVector: jest.fn(),
+  };
+}
+
+function createPublisherServiceMock() {
+  return {
+    transferVideoMetadata: jest.fn(),
+  };
+}
+
+function createGrpcClientServiceMock() {
+  return {
+    deleteVideo: jest.fn(),
+  };
+}
+
 describe('VideoService', () => {
   let service: VideoService;
-  let s3Service: jest.Mocked<S3Service>;
-  let videorepository: jest.Mocked<VideoRepository>;
-  let videoProcessingQueueService: jest.Mocked<VideoProcessingQueueService>;
-  let qdrantService: jest.Mocked<QdrantService>;
-  let publisherService: jest.Mocked<PublisherService>;
-  let grpcClientService: jest.Mocked<GrpcClientService>;
+  let s3Service: ReturnType<typeof createS3ServiceMock>;
+  let videorepository: ReturnType<typeof createVideoRepositoryMock>;
+  let videoProcessingQueueService: ReturnType<
+    typeof createVideoProcessingQueueServiceMock
+  >;
+  let qdrantService: ReturnType<typeof createQdrantServiceMock>;
+  let publisherService: ReturnType<typeof createPublisherServiceMock>;
+  let grpcClientService: ReturnType<typeof createGrpcClientServiceMock>;
 
   beforeEach(() => {
-    s3Service = {
-      getPresignedUploadUrl: jest.fn(),
-      fileExists: jest.fn(),
-      deleteDirectory: jest.fn(),
-      getPresignedDownloadUrl: jest.fn(),
-      generatePublicResourceUrl: jest.fn(),
-      generateCookieToGetVideo: jest.fn(),
-      buildPrivatePrefix: jest.fn(
-        (videoId: string) => `private/user/${videoId}/`,
-      ),
-      buildPublicPrefix: jest.fn(
-        (videoId: string) => `public/user/${videoId}/`,
-      ),
-    } as unknown as jest.Mocked<S3Service>;
-
-    videorepository = {
-      initVideoUpload: jest.fn(),
-      findVideo: jest.fn(),
-      createVideoProcessing: jest.fn(),
-      updateVideoInfo: jest.fn().mockResolvedValue({ id: 'info-1' }),
-      deleteVideo: jest.fn(),
-      getUserAllVideos: jest.fn(),
-      updateVideo: jest.fn(),
-      getVideoForWatching: jest.fn(),
-      watchVideo: jest.fn(),
-      getVideoComments: jest.fn(),
-      createComment: jest.fn(),
-      updateHistory: jest.fn(),
-      likeOrDislikeVideo: jest.fn(),
-      subscribeChannel: jest.fn(),
-    } as unknown as jest.Mocked<VideoRepository>;
-
-    videoProcessingQueueService = {
-      addTranscodingJob: jest.fn(),
-    } as unknown as jest.Mocked<VideoProcessingQueueService>;
-
-    qdrantService = {
-      deleteVideoVector: jest.fn(),
-    } as unknown as jest.Mocked<QdrantService>;
-
-    publisherService = {
-      transferVideoMetadata: jest.fn(),
-    } as unknown as jest.Mocked<PublisherService>;
-
-    grpcClientService = {
-      deleteVideo: jest.fn(),
-    } as unknown as jest.Mocked<GrpcClientService>;
+    s3Service = createS3ServiceMock();
+    videorepository = createVideoRepositoryMock();
+    videoProcessingQueueService = createVideoProcessingQueueServiceMock();
+    qdrantService = createQdrantServiceMock();
+    publisherService = createPublisherServiceMock();
+    grpcClientService = createGrpcClientServiceMock();
 
     service = new VideoService(
-      s3Service,
-      videorepository,
-      videoProcessingQueueService,
-      qdrantService,
-      publisherService,
-      grpcClientService,
+      s3Service as unknown as S3Service,
+      videorepository as unknown as VideoRepository,
+      videoProcessingQueueService as unknown as VideoProcessingQueueService,
+      qdrantService as unknown as QdrantService,
+      publisherService as unknown as PublisherService,
+      grpcClientService as unknown as GrpcClientService,
     );
   });
 
@@ -268,7 +287,7 @@ describe('VideoService', () => {
       const result = await service.getUserVideos('user-1');
 
       expect(result.total).toBe(1);
-      const [video] = await result.videos;
+      const [video] = result.videos;
       expect(video.videoName).toBe('draft');
       expect(video.videoUrl).toBeNull();
       expect(video.thumbnailUrl).toBeNull();
@@ -298,7 +317,7 @@ describe('VideoService', () => {
       });
 
       const result = await service.getUserVideos('user-1');
-      const [video] = await result.videos;
+      const [video] = result.videos;
 
       expect(video.thumbnailUrl).toBe('thumb.jpg');
     });
@@ -589,7 +608,7 @@ describe('VideoService', () => {
         userId: 'owner-1',
         visibility: 'PUBLIC',
       } as any);
-      s3Service.generateCookieToGetVideo.mockResolvedValue({
+      s3Service.generateCookieToGetVideo.mockReturnValue({
         url: 'https://cdn.example.com/private/user/video-1/segment/manifest.mpd',
         cookies: {
           'CloudFront-Key-Pair-Id': 'key-pair-id',
@@ -731,7 +750,7 @@ describe('VideoService', () => {
       videorepository.findVideo.mockResolvedValue({
         visibility: 'PUBLIC',
       } as any);
-      videorepository.likeOrDislikeVideo.mockResolvedValue(null as any);
+      videorepository.likeOrDislikeVideo.mockResolvedValue(null);
 
       await expect(
         service.likeOrDislikeVideo('user-1', 'video-1', true),
@@ -765,7 +784,7 @@ describe('VideoService', () => {
     });
 
     it('throws NotFoundException when the subscription operation fails', async () => {
-      videorepository.subscribeChannel.mockResolvedValue(null as any);
+      videorepository.subscribeChannel.mockResolvedValue(null);
 
       await expect(
         service.subscribeChannel('user-1', 'channel-1', true),
@@ -775,7 +794,7 @@ describe('VideoService', () => {
     it('returns the updated subscriber count', async () => {
       videorepository.subscribeChannel.mockResolvedValue({
         subscribeCount: 42,
-      } as any);
+      });
 
       const result = await service.subscribeChannel(
         'user-1',

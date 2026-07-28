@@ -7,44 +7,49 @@ import {
   UploadMetaStatus,
 } from '@prisma/client';
 
+function createTxMock() {
+  return {
+    video: { create: jest.fn(), update: jest.fn() },
+    videoInformation: { create: jest.fn() },
+    watchHistory: { upsert: jest.fn() },
+  };
+}
+
+function createPrismaMock(tx: ReturnType<typeof createTxMock>) {
+  return {
+    $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(tx)),
+    video: {
+      findMany: jest.fn(),
+      update: jest.fn(),
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+    },
+    videoInformation: { update: jest.fn() },
+    videoProcessing: { create: jest.fn() },
+    likeVideo: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      create: jest.fn(),
+    },
+    subscribe: {
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+      create: jest.fn(),
+    },
+    watchHistory: { upsert: jest.fn() },
+    comment: { findMany: jest.fn(), create: jest.fn() },
+    user: { findUnique: jest.fn(), update: jest.fn() },
+  };
+}
+
 describe('VideoRepository', () => {
   let repository: VideoRepository;
-  let prisma: any;
-  let tx: any;
+  let prisma: ReturnType<typeof createPrismaMock>;
+  let tx: ReturnType<typeof createTxMock>;
 
   beforeEach(() => {
-    tx = {
-      video: { create: jest.fn(), update: jest.fn() },
-      videoInformation: { create: jest.fn() },
-      watchHistory: { upsert: jest.fn() },
-    };
-
-    prisma = {
-      $transaction: jest.fn(async (callback: (tx: unknown) => unknown) =>
-        callback(tx),
-      ),
-      video: {
-        findMany: jest.fn(),
-        update: jest.fn(),
-        findUnique: jest.fn(),
-        delete: jest.fn(),
-      },
-      videoInformation: { update: jest.fn() },
-      videoProcessing: { create: jest.fn() },
-      likeVideo: {
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        create: jest.fn(),
-      },
-      subscribe: {
-        findUnique: jest.fn(),
-        delete: jest.fn(),
-        create: jest.fn(),
-      },
-      watchHistory: { upsert: jest.fn() },
-      comment: { findMany: jest.fn(), create: jest.fn() },
-      user: { findUnique: jest.fn(), update: jest.fn() },
-    };
+    tx = createTxMock();
+    prisma = createPrismaMock(tx);
 
     repository = new VideoRepository(prisma as unknown as PrismaService);
   });
@@ -299,17 +304,17 @@ describe('VideoRepository', () => {
 
     await repository.getVideoComments('video-1', cursor);
 
+    const whereMatcher: unknown = expect.objectContaining({
+      videoId: 'video-1',
+      parentId: null,
+      OR: [
+        { createdAt: { lt: cursor.createdAt } },
+        { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+      ],
+    });
+
     expect(prisma.comment.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          videoId: 'video-1',
-          parentId: null,
-          OR: [
-            { createdAt: { lt: cursor.createdAt } },
-            { createdAt: cursor.createdAt, id: { lt: cursor.id } },
-          ],
-        }),
-      }),
+      expect.objectContaining({ where: whereMatcher }),
     );
   });
 });

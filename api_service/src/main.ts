@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { GRPC_PACKAGE, GRPC_PROTO_PATH } from './grpc/constants';
+import { resolveGrpcBindUrl } from './grpc/resolve-grpc-bind-url';
 
 async function bootstrap() {
   const bootstrapConfigService = new ConfigService();
@@ -34,22 +35,26 @@ async function bootstrap() {
     options: {
       package: GRPC_PACKAGE,
       protoPath: GRPC_PROTO_PATH,
-      url: configservice.get<string>('GRPC_URL') ?? 'localhost:50051',
+      url: resolveGrpcBindUrl(
+        configservice.get<string>('GRPC_URL') ?? 'localhost:50051',
+      ),
     },
   });
 
   await app.startAllMicroservices();
 
   app.use(cookieParser(configservice.get<string>('COOKIE_SECRET')));
-  // app.use(helmet());
+  app.use(helmet());
   app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({
     origin: configservice.get<string>('CLIENT_URL') ?? 'http://localhost:5173',
     credentials: true,
   });
 
-  const server_port = configservice.get('SERVER_PORT');
-  await app.listen(server_port);
+  await app.listen(8080);
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  console.error('Failed to bootstrap application', error);
+  process.exit(1);
+});

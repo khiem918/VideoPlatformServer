@@ -1,0 +1,147 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check if api_service image tag already exists in ECR
+        id: check-api-image
+        env:
+          REPOSITORY: ${{ secrets.ECR_API_REPOSITORY }}
+        run: |
+          REPO_NAME="${REPOSITORY#*/}"
+          if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push api_service image
+        if: steps.check-api-image.outputs.exists != 'true'
+        env:
+          REPOSITORY: ${{ secrets.ECR_API_REPOSITORY }}
+        run: |
+          docker build -f api_service/Dockerfile -t "$REPOSITORY:$IMAGE_TAG" .
+          docker push "$REPOSITORY:$IMAGE_TAG"
+
+      - name: Set api_service image reference
+        id: build-api
+        env:
+          REPOSITORY: ${{ secrets.ECR_API_REPOSITORY }}
+        run: echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Generate gRPC stubs for search_service
+        run: |
+          pip install grpcio-tools
+          bash search_service/src/infrastructure/grpc/generate_proto.sh
+
+      - name: Check if search_service image tag already exists in ECR
+        id: check-search-image
+        env:
+          REPOSITORY: ${{ secrets.ECR_SEARCH_REPOSITORY }}
+        run: |
+          REPO_NAME="${REPOSITORY#*/}"
+          if aws ecr describe-images --repository-name "$REPO_NAME" --image-ids imageTag="$IMAGE_TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push search_service image
+        if: steps.check-search-image.outputs.exists != 'true'
+        env:
+          REPOSITORY: ${{ secrets.ECR_SEARCH_REPOSITORY }}
+        working-directory: search_service
+        run: |
+          docker build -t "$REPOSITORY:$IMAGE_TAG" .
+          docker push "$REPOSITORY:$IMAGE_TAG"
+
+      - name: Set search_service image reference
+        id: build-search
+        env:
+          REPOSITORY: ${{ secrets.ECR_SEARCH_REPOSITORY }}
+        run: echo "image=$REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Download api_service task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.ECS_API_TASK_FAMILY }}" \
+            --query taskDefinition > api-task-definition.json
+
+      - name: Render new api_service task definition
+        id: render-api
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: api-task-definition.json
+          container-name: ${{ secrets.ECS_API_CONTAINER_NAME }}
+          image: ${{ steps.build-api.outputs.image }}
+
+      - name: Register new api_service task definition
+        id: register-api
+        run: |
+          TASK_DEFINITION_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "file://${{ steps.render-api.outputs.task-definition }}" \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task-definition-arn=$TASK_DEFINITION_ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy api_service
+        env:
+          CLUSTER: ${{ secrets.ECS_CLUSTER_NAME }}
+          SERVICE: ${{ secrets.ECS_API_SERVICE_NAME }}
+          TASK_DEFINITION_ARN: ${{ steps.register-api.outputs.task-definition-arn }}
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --task-definition "$TASK_DEFINITION_ARN" > /dev/null
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SERVICE"
+
+      - name: Download search_service task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.ECS_SEARCH_TASK_FAMILY }}" \
+            --query taskDefinition > search-task-definition.json
+
+      - name: Render new search_service task definition
+        id: render-search
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: search-task-definition.json
+          container-name: ${{ secrets.ECS_SEARCH_CONTAINER_NAME }}
+          image: ${{ steps.build-search.outputs.image }}
+
+      - name: Deploy search_service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-search.outputs.task-definition }}
+          service: ${{ secrets.ECS_SEARCH_SERVICE_NAME }}
+          cluster: ${{ secrets.ECS_CLUSTER_NAME }}
+          wait-for-service-stability: true

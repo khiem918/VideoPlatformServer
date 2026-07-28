@@ -1,38 +1,55 @@
+import { Job } from 'bullmq';
 import { VideoProcessingHandler } from './video-processing.handler';
 import { VideoProcessingService } from './video-processing.service';
 import { InvalidVideoException } from './exceptions/invalid-video.exception';
 
+interface MockJob {
+  name: string;
+  data: unknown;
+  updateProgress: jest.Mock;
+}
+
+function createProcessingServiceMock() {
+  return {
+    transcodeVideo: jest.fn(),
+  };
+}
+
 describe('VideoProcessingHandler', () => {
   let handler: VideoProcessingHandler;
-  let processingService: jest.Mocked<VideoProcessingService>;
+  let processingService: ReturnType<typeof createProcessingServiceMock>;
 
-  function createJob(name: string, data: unknown) {
+  function createJob(name: string, data: unknown): MockJob {
     return {
       name,
       data,
       updateProgress: jest.fn(),
-    } as any;
+    };
   }
 
   beforeEach(() => {
-    processingService = {
-      transcodeVideo: jest.fn(),
-    } as unknown as jest.Mocked<VideoProcessingService>;
+    processingService = createProcessingServiceMock();
 
-    handler = new VideoProcessingHandler(processingService);
+    handler = new VideoProcessingHandler(
+      processingService as unknown as VideoProcessingService,
+    );
   });
 
   it('throws InvalidVideoException when the job name is unexpected', async () => {
     const job = createJob('unexpected-job', {});
 
-    await expect(handler.process(job)).rejects.toThrow(InvalidVideoException);
+    await expect(handler.process(job as unknown as Job)).rejects.toThrow(
+      InvalidVideoException,
+    );
     expect(processingService.transcodeVideo).not.toHaveBeenCalled();
   });
 
   it('throws InvalidVideoException when job data is not an object', async () => {
     const job = createJob('transcode-video', null);
 
-    await expect(handler.process(job)).rejects.toThrow(InvalidVideoException);
+    await expect(handler.process(job as unknown as Job)).rejects.toThrow(
+      InvalidVideoException,
+    );
   });
 
   it('throws InvalidVideoException when required fields are missing', async () => {
@@ -41,7 +58,9 @@ describe('VideoProcessingHandler', () => {
       inforId: 'info-1',
     });
 
-    await expect(handler.process(job)).rejects.toThrow(InvalidVideoException);
+    await expect(handler.process(job as unknown as Job)).rejects.toThrow(
+      InvalidVideoException,
+    );
   });
 
   it('throws InvalidVideoException when the mime type is unsupported', async () => {
@@ -52,7 +71,9 @@ describe('VideoProcessingHandler', () => {
       mimeType: 'video/unsupported',
     });
 
-    await expect(handler.process(job)).rejects.toThrow(InvalidVideoException);
+    await expect(handler.process(job as unknown as Job)).rejects.toThrow(
+      InvalidVideoException,
+    );
   });
 
   it('transcodes the video and reports progress for a valid job', async () => {
@@ -67,7 +88,7 @@ describe('VideoProcessingHandler', () => {
       thumbnailPath: 'thumb',
     });
 
-    await handler.process(job);
+    await handler.process(job as unknown as Job);
 
     expect(job.updateProgress).toHaveBeenCalledWith(10);
     expect(processingService.transcodeVideo).toHaveBeenCalledWith(

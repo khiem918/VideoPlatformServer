@@ -7,7 +7,7 @@ import { TransferDataRepository } from './repository/transferdata.repository';
 @Injectable()
 export class ConsumerService {
   private readonly logger = new Logger(ConsumerService.name);
-  
+
   constructor(
     private readonly transferDataRepository: TransferDataRepository,
   ) {}
@@ -25,7 +25,6 @@ export class ConsumerService {
   async handleVideoMetadataRespone(
     message: TransferVideoMetaDataResponse,
   ): Promise<void> {
-
     this.logger.debug(`Received message: ${JSON.stringify(message)}`);
 
     if (message.status === 'succeeded') {

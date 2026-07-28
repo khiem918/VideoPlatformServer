@@ -5,21 +5,32 @@ const mockSend = jest.fn();
 
 jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send: mockSend })),
-  PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
-  HeadObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
-  GetObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
-  ListObjectsV2Command: jest.fn().mockImplementation((input) => ({ input })),
-  DeleteObjectsCommand: jest.fn().mockImplementation((input) => ({ input })),
+  PutObjectCommand: jest
+    .fn()
+    .mockImplementation((input: unknown) => ({ input })),
+  HeadObjectCommand: jest
+    .fn()
+    .mockImplementation((input: unknown) => ({ input })),
+  GetObjectCommand: jest
+    .fn()
+    .mockImplementation((input: unknown) => ({ input })),
+  ListObjectsV2Command: jest
+    .fn()
+    .mockImplementation((input: unknown) => ({ input })),
+  DeleteObjectsCommand: jest
+    .fn()
+    .mockImplementation((input: unknown) => ({ input })),
 }));
 
 const mockGetSignedUrl = jest.fn();
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: (...args: unknown[]) => mockGetSignedUrl(...args),
+  getSignedUrl: (...args: unknown[]): unknown => mockGetSignedUrl(...args),
 }));
 
 const mockGetSignedCookies = jest.fn();
 jest.mock('@aws-sdk/cloudfront-signer', () => ({
-  getSignedCookies: (...args: unknown[]) => mockGetSignedCookies(...args),
+  getSignedCookies: (...args: unknown[]): unknown =>
+    mockGetSignedCookies(...args),
 }));
 
 const mockUploadDone = jest.fn();
@@ -33,7 +44,8 @@ jest.mock('@aws-sdk/lib-storage', () => ({
 
 const mockCreateReadStream = jest.fn();
 jest.mock('fs', () => ({
-  createReadStream: (...args: unknown[]) => mockCreateReadStream(...args),
+  createReadStream: (...args: unknown[]): unknown =>
+    mockCreateReadStream(...args),
 }));
 
 import { S3Service } from './s3.service';
@@ -174,14 +186,13 @@ describe('S3Service', () => {
       expect(mockCreateReadStream).toHaveBeenCalledWith(
         '/tmp/dash/segment-1.m4s',
       );
+      const paramsMatcher: unknown = expect.objectContaining({
+        Key: 'private/user/video-1/segment/segment-1.m4s',
+        Body: 'fake-read-stream',
+        ContentType: 'video/iso.segment',
+      });
       expect(mockUploadCtor).toHaveBeenCalledWith(
-        expect.objectContaining({
-          params: expect.objectContaining({
-            Key: 'private/user/video-1/segment/segment-1.m4s',
-            Body: 'fake-read-stream',
-            ContentType: 'video/iso.segment',
-          }),
-        }),
+        expect.objectContaining({ params: paramsMatcher }),
       );
     });
 
@@ -235,7 +246,6 @@ describe('S3Service', () => {
         'download failed',
       );
     });
-
   });
 
   describe('getPresignedDownloadUrl', () => {
@@ -288,14 +298,14 @@ describe('S3Service', () => {
   });
 
   describe('generateCookieToGetVideo', () => {
-    it('returns the resource url and signed cookies', async () => {
+    it('returns the resource url and signed cookies', () => {
       mockGetSignedCookies.mockReturnValue({
         'CloudFront-Policy': 'policy',
         'CloudFront-Signature': 'signature',
         'CloudFront-Key-Pair-Id': 'key-pair-id',
       });
 
-      const result = await service.generateCookieToGetVideo(
+      const result = service.generateCookieToGetVideo(
         'private/user/video-1/segment/manifest.mpd',
       );
 
@@ -305,16 +315,16 @@ describe('S3Service', () => {
       expect(result.cookies['CloudFront-Key-Pair-Id']).toBe('key-pair-id');
     });
 
-    it('throws InternalServerErrorException when signing fails', async () => {
+    it('throws InternalServerErrorException when signing fails', () => {
       mockGetSignedCookies.mockImplementation(() => {
         throw new Error('sign failed');
       });
 
-      await expect(
+      expect(() =>
         service.generateCookieToGetVideo(
           'private/user/video-1/segment/manifest.mpd',
         ),
-      ).rejects.toThrow(InternalServerErrorException);
+      ).toThrow(InternalServerErrorException);
     });
   });
 });

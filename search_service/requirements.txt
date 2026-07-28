@@ -17,3 +17,4 @@ Unidecode==1.4.0
 emoji==2.15.0
 transformers==5.14.1
 faster-whisper==1.2.1
+

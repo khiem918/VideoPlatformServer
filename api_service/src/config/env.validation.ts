@@ -1,17 +1,8 @@
-import {
-  IsNotEmpty,
-  IsNumber,
-  IsString,
-  IsOptional,
-  Min,
-} from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsOptional } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
 export class EnvironmentVariables {
-  @IsNumber()
-  SERVER_PORT!: number;
-
   @IsNotEmpty()
   @IsString()
   DATABASE_URL!: string;
@@ -30,14 +21,6 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   JWT_SECRET!: string;
-
-  @IsNotEmpty()
-  @IsNumber()
-  ACCESS_TOKEN_EXPIRES_IN!: number;
-
-  @IsNotEmpty()
-  @IsNumber()
-  REFRESH_TOKEN_EXPIRES_IN!: number;
 
   @IsNotEmpty()
   @IsString()
@@ -66,9 +49,6 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   BUCKET_NAME!: string;
-
-  @IsNotEmpty()
-  MAX_FILE_SIZE!: number;
 
   @IsNotEmpty()
   @IsString()
@@ -109,11 +89,6 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   @IsString()
   CDN_DOMAIN!: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  FFMPEG_THREADS_PER_STREAM?: number;
 }
 
 export function validateEnv(

@@ -17,12 +17,12 @@ import {
   VideoStatus,
 } from '@prisma/client';
 import { QdrantService } from 'src/qdrant/qdrant.service';
-import {
-  WatchVideoResponse,
-  WatchVideoUrlResponse,
-} from './dto/watch-video.respone';
+import { WatchVideoResponse } from './dto/watch-video.respone';
 import { PublisherService } from 'src/rabbitmq/publisher.service';
 import { GrpcClientService } from 'src/grpc/client/grpc-client.service';
+import type { CloudfrontSignedCookiesOutput } from '@aws-sdk/cloudfront-signer';
+
+const MAX_FILE_SIZE = 10737418240;
 
 @Injectable()
 export class VideoService {
@@ -32,10 +32,6 @@ export class VideoService {
     'video/x-msvideo',
     'video/quicktime',
   ];
-
-  private readonly maxFileSize = parseInt(
-    process.env.MAX_FILE_SIZE || '10737418240',
-  );
 
   private readonly logger = new Logger(VideoService.name);
 
@@ -63,7 +59,7 @@ export class VideoService {
         `Invalid video format. Allowed: ${this.allowedMimeTypes.join(', ')}`,
       );
     }
-    if (fileSize > this.maxFileSize) {
+    if (fileSize > MAX_FILE_SIZE) {
       throw new BadRequestException(
         `File size exceeds maximum of 10GB (received: ${(fileSize / 1024 / 1024 / 1024).toFixed(2)}GB)`,
       );
@@ -109,7 +105,10 @@ export class VideoService {
     }
 
     const [processing] = await Promise.all([
-      this.videorepository.createVideoProcessing(video.information.id, ProcessingType.VIDEO),
+      this.videorepository.createVideoProcessing(
+        video.information.id,
+        ProcessingType.VIDEO,
+      ),
       this.videorepository.updateVideoInfo(
         videoId,
         undefined,
@@ -156,43 +155,41 @@ export class VideoService {
   async getUserVideos(userId: string) {
     const videos = await this.videorepository.getUserAllVideos(userId);
 
-    const processedVideos = Promise.all(
-      videos.map(async (video) => {
-        const isDraft = video.visibility === 'DRAFT';
+    const processedVideos = videos.map((video) => {
+      const isDraft = video.visibility === 'DRAFT';
 
-        if (video.thumbnailPath) {
-          try {
-            video.thumbnailPath = this.s3Service.generatePublicResourceUrl(
-              video.thumbnailPath,
-            );
-          } catch (error) {
-            console.error(
-              `Failed to generate public URL for thumbnail ${video.thumbnailPath}:`,
-              error,
-            );
-          }
+      if (video.thumbnailPath) {
+        try {
+          video.thumbnailPath = this.s3Service.generatePublicResourceUrl(
+            video.thumbnailPath,
+          );
+        } catch (error) {
+          console.error(
+            `Failed to generate public URL for thumbnail ${video.thumbnailPath}:`,
+            error,
+          );
         }
+      }
 
-        return {
-          id: video.id,
-          videoName: isDraft ? 'draft' : video.videoName,
-          duration: video.duration,
-          videoUrl: isDraft ? null : video.videoPath,
-          thumbnailUrl: isDraft ? null : video.thumbnailPath,
-          videoView: Number(video.videoView),
-          videoLike: Number(video.videoLike),
-          videoDislike: Number(video.videoDislike),
-          visibility: video.visibility,
-          rawDesc: isDraft ? null : video.videoDesc,
-          tags: isDraft ? [] : video.videoHashtags?.map((vh) => vh.displayTag),
-          createdAt: video.createdAt,
-          updatedAt: video.updatedAt,
-        };
-      }),
-    );
+      return {
+        id: video.id,
+        videoName: isDraft ? 'draft' : video.videoName,
+        duration: video.duration,
+        videoUrl: isDraft ? null : video.videoPath,
+        thumbnailUrl: isDraft ? null : video.thumbnailPath,
+        videoView: Number(video.videoView),
+        videoLike: Number(video.videoLike),
+        videoDislike: Number(video.videoDislike),
+        visibility: video.visibility,
+        rawDesc: isDraft ? null : video.videoDesc,
+        tags: isDraft ? [] : video.videoHashtags?.map((vh) => vh.displayTag),
+        createdAt: video.createdAt,
+        updatedAt: video.updatedAt,
+      };
+    });
 
     return {
-      total: (await processedVideos).length,
+      total: processedVideos.length,
       videos: processedVideos,
     };
   }
@@ -248,17 +245,15 @@ export class VideoService {
     );
 
     if (tags || title || description) {
-      
       const processingId = uuidv4();
 
       await Promise.all([
-        
         this.videorepository.createVideoProcessing(
           videoInfo.id,
           ProcessingType.META,
           processingId,
         ),
-        
+
         this.publisherService.transferVideoMetadata(
           processingId,
           result.id,
@@ -266,9 +261,7 @@ export class VideoService {
           description ? description : undefined,
           tags ? tags : undefined,
         ),
-
       ]);
-
     }
 
     if (result.thumbnailPath) {
@@ -353,7 +346,7 @@ export class VideoService {
   async getWatchVideoUrl(
     userId: string,
     videoId: string,
-  ): Promise<{ mpdUrl: string; cookies: any }> {
+  ): Promise<{ mpdUrl: string; cookies: CloudfrontSignedCookiesOutput }> {
     const video = await this.videorepository.findVideo(videoId);
 
     if (!video || video.videoPath === null) {
@@ -369,9 +362,7 @@ export class VideoService {
       }
     }
 
-    const result = await this.s3Service.generateCookieToGetVideo(
-      video.videoPath,
-    );
+    const result = this.s3Service.generateCookieToGetVideo(video.videoPath);
 
     return {
       mpdUrl: result.url,

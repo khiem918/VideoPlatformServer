@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { GqlContextType } from '@nestjs/graphql';
 import { GraphQLError } from 'graphql';
+import type { Response } from 'express';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -32,7 +33,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         typeof response === 'object' &&
         response !== null &&
         'message' in response
-          ? (response as any).message
+          ? (response as Record<string, unknown>).message
           : exception.message;
 
       const extra =
@@ -78,7 +79,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private handleHttpException(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
-    const response = ctx.getResponse();
+    const response = ctx.getResponse<Response>();
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();

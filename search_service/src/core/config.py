@@ -17,8 +17,8 @@ class Config(BaseSettings):
 
     
     QDRANT_URL: str = os.getenv("QDRANT_URL")
-    
-    
+
+
     REDIS_URL: str = os.getenv("REDIS_URL")
     
     

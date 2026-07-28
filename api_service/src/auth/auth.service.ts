@@ -12,6 +12,9 @@ import { Session } from './type/session.type';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
+const ACCESS_TOKEN_EXPIRES_IN = 15 * 60; // 15 minutes
+const REFRESH_TOKEN_EXPIRES_IN = 7 * 24 * 60 * 60; // 7 days
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -21,11 +24,9 @@ export class AuthService {
     private readonly config: ConfigService,
   ) {}
 
-  
   private async hashToken(token: string): Promise<string> {
     return hash(token, 10);
   }
-
 
   async signIn(userEmail: string): Promise<{
     userId: string;
@@ -43,7 +44,7 @@ export class AuthService {
         { userId } as Record<string, any>,
         {
           secret: this.config.get('JWT_SECRET'),
-          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+          expiresIn: ACCESS_TOKEN_EXPIRES_IN,
         },
       );
 
@@ -57,7 +58,7 @@ export class AuthService {
       await this.redisService.set(
         `s:${sessionId}`,
         session_data,
-        parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
+        REFRESH_TOKEN_EXPIRES_IN,
       );
 
       return {
@@ -75,7 +76,6 @@ export class AuthService {
       throw new InternalServerErrorException('Sign in failed');
     }
   }
-
 
   async rotateToken(
     userId: string,
@@ -106,7 +106,7 @@ export class AuthService {
         await this.redisService.set(
           `s:${newSessionId}`,
           new_sesssion_data,
-          parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN')),
+          REFRESH_TOKEN_EXPIRES_IN,
         );
 
         return {
@@ -114,7 +114,7 @@ export class AuthService {
             { userId } as Record<string, any>,
             {
               secret: this.config.get('JWT_SECRET'),
-              expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+              expiresIn: ACCESS_TOKEN_EXPIRES_IN,
             },
           ),
           newFreshToken: newRefreshToken,
@@ -138,7 +138,7 @@ export class AuthService {
         { userId: finalUserId } as Record<string, any>,
         {
           secret: this.config.get('JWT_SECRET'),
-          expiresIn: this.config.get('ACCESS_TOKEN_EXPIRES_IN'),
+          expiresIn: ACCESS_TOKEN_EXPIRES_IN,
         },
       );
 
@@ -157,9 +157,7 @@ export class AuthService {
       }
       throw new InternalServerErrorException('Token rotation failed');
     }
-
   }
-
 
   async signOut(userId: string, sessionId: string): Promise<void> {
     try {
@@ -180,5 +178,4 @@ export class AuthService {
       throw new InternalServerErrorException('Sign out failed');
     }
   }
-
 }

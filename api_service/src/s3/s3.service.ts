@@ -5,6 +5,7 @@ import {
   HeadObjectCommand,
   GetObjectCommand,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -27,14 +28,21 @@ export class S3Service {
   private readonly privateKey: string;
 
   constructor(private readonly configService: ConfigService) {
-
-    const accessKeyId = this.configService.get<string>('S3_ACCESS_KEY_ID') || '';
-    const secretAccessKey = this.configService.get<string>('S3_SECRET_ACCESS_KEY') || '';
+    const accessKeyId =
+      this.configService.get<string>('S3_ACCESS_KEY_ID') || '';
+    const secretAccessKey =
+      this.configService.get<string>('S3_SECRET_ACCESS_KEY') || '';
     const region = this.configService.get<string>('S3_REGION') || '';
     this.bucketName = this.configService.get<string>('BUCKET_NAME') || '';
-    this.cloudfrontDomainName = this.configService.get<string>('CLOUDFRONT_DOMAIN_NAME') || '';
-    this.keyPairId = this.configService.get<string>('CLOUDFRONT_KEY_PAIR_ID') || '';
-    this.privateKey = Buffer.from(this.configService.get<string>('CLOUDFRONT_PRIVATE_KEY') || '', 'base64').toString('utf-8') || '';
+    this.cloudfrontDomainName =
+      this.configService.get<string>('CLOUDFRONT_DOMAIN_NAME') || '';
+    this.keyPairId =
+      this.configService.get<string>('CLOUDFRONT_KEY_PAIR_ID') || '';
+    this.privateKey =
+      Buffer.from(
+        this.configService.get<string>('CLOUDFRONT_PRIVATE_KEY') || '',
+        'base64',
+      ).toString('utf-8') || '';
 
     this.s3Client = new S3Client({
       region: region,
@@ -43,34 +51,27 @@ export class S3Service {
         secretAccessKey: secretAccessKey,
       },
     });
-
   }
 
-  
   buildPrivateOriginalPath(videoId: string, fileName: string): string {
     return `private/user/${videoId}/original/${fileName.replace(/^\/+/, '')}`;
   }
-
 
   buildPrivateSegmentPath(videoId: string, relativePath: string): string {
     return `private/user/${videoId}/segment/${relativePath.replace(/^\/+/, '')}`;
   }
 
-
   buildPublicThumbnailPath(videoId: string, fileName: string): string {
     return `public/user/${videoId}/thumbnail/${fileName.replace(/^\/+/, '')}`;
   }
-
 
   buildPrivatePrefix(videoId: string): string {
     return `private/user/${videoId}/`;
   }
 
-
   buildPublicPrefix(videoId: string): string {
     return `public/user/${videoId}/`;
   }
-
 
   parseVideoIdFromPrivatePath(objectPath: string): string {
     const parts = objectPath.replace(/^\/+/, '').split('/');
@@ -81,7 +82,6 @@ export class S3Service {
 
     return parts[2];
   }
-
 
   async getPresignedUploadUrl(
     fileName: string,
@@ -110,7 +110,6 @@ export class S3Service {
     }
   }
 
-
   async uploadFile(
     fileBuffer: Buffer,
     objectPath: string,
@@ -126,8 +125,9 @@ export class S3Service {
       await this.s3Client.send(command);
       this.logger.log(`File uploaded successfully: ${objectPath}`);
       return objectPath;
-    } catch (error : any) {
-      this.logger.error(`Failed to upload file: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to upload file: ${message}`);
       throw error;
     }
   }
@@ -150,12 +150,12 @@ export class S3Service {
       await upload.done();
       this.logger.log(`File uploaded successfully: ${objectPath}`);
       return objectPath;
-    } catch (error: any) {
-      this.logger.error(`Failed to upload file: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to upload file: ${message}`);
       throw error;
     }
   }
-
 
   async fileExists(objectPath: string): Promise<boolean> {
     try {
@@ -165,15 +165,15 @@ export class S3Service {
       });
       await this.s3Client.send(command);
       return true;
-    } catch (error : any) {
-      if (error.name === 'NotFound') {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'NotFound') {
         return false;
       }
-      this.logger.error(`Error checking file existence: ${error.message}`);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error checking file existence: ${message}`);
       throw error;
     }
   }
-
 
   async getFileStream(objectPath: string): Promise<Readable> {
     try {
@@ -184,13 +184,13 @@ export class S3Service {
 
       const response = await this.s3Client.send(command);
       return response.Body as Readable;
-    } catch (error : any) {
-      this.logger.error(`Failed to download file: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to download file: ${message}`);
       throw error;
     }
   }
 
-  
   async getPresignedDownloadUrl(
     objectPath: string,
     expiresIn: number = 3600,
@@ -201,14 +201,12 @@ export class S3Service {
         Key: objectPath,
       });
       return await getSignedUrl(this.s3Client, command, { expiresIn });
-    } catch (error: any) {
-      this.logger.error(
-        `Error generating download presigned URL: ${error.message}`,
-      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Error generating download presigned URL: ${message}`);
       throw new InternalServerErrorException('Failed to generate download URL');
     }
   }
-
 
   async deleteDirectory(prefix: string): Promise<void> {
     try {
@@ -224,7 +222,8 @@ export class S3Service {
           ContinuationToken: continuationToken,
         });
 
-        const listResponse: any = await this.s3Client.send(listCommand);
+        const listResponse: ListObjectsV2CommandOutput =
+          await this.s3Client.send(listCommand);
 
         if (!listResponse.Contents || listResponse.Contents.length === 0) {
           break;
@@ -251,9 +250,10 @@ export class S3Service {
       this.logger.log(
         `Successfully deleted directory contents for prefix: ${normalizedPrefix}`,
       );
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
-        `Failed to delete directory contents for prefix ${prefix}: ${error.message}`,
+        `Failed to delete directory contents for prefix ${prefix}: ${message}`,
       );
       throw new InternalServerErrorException(
         'Failed to delete directory contents',
@@ -261,8 +261,7 @@ export class S3Service {
     }
   }
 
-
-  async generateCookieToGetVideo(path: string) {
+  generateCookieToGetVideo(path: string) {
     const normalizedPath = path.replace(/^\/+/, '');
     const resourceUrl = `https://${this.cloudfrontDomainName}/${normalizedPath}`;
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -279,16 +278,17 @@ export class S3Service {
         url: resourceUrl,
         cookies: cookies,
       };
-
     } catch (error) {
-      this.logger.error(`Failed to generate signed cookies for path ${path}: ${error}`);
-      throw new InternalServerErrorException('Failed to generate signed cookies for cloudfront');
+      this.logger.error(
+        `Failed to generate signed cookies for path ${path}: ${error}`,
+      );
+      throw new InternalServerErrorException(
+        'Failed to generate signed cookies for cloudfront',
+      );
     }
   }
-
 
   generatePublicResourceUrl(path: string) {
     return `https://${this.cloudfrontDomainName}/public/user/${path}`;
   }
-
 }

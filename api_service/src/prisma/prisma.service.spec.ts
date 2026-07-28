@@ -11,7 +11,7 @@ jest.mock('@prisma/client', () => ({
     $connect = mockConnect;
     $disconnect = mockDisconnect;
     $queryRaw = mockQueryRaw;
-    constructor(_options: unknown) {}
+    constructor() {}
   },
 }));
 

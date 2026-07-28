@@ -2,26 +2,36 @@ import { NotificationService } from './notification.service';
 import { NotificationRepository } from './repository/notification.repository';
 import { RedisNotifyService } from './redis.service';
 
+function createRepositoryMock() {
+  return {
+    createNotification: jest.fn(),
+    getSubscribedChannelUserIds: jest.fn(),
+    markAsRead: jest.fn(),
+    getNotifications: jest.fn(),
+    getUnreadNotifications: jest.fn(),
+  };
+}
+
+function createRedisNotifyServiceMock() {
+  return {
+    publishToRedisStream: jest.fn(),
+    ensureConsumerGroup: jest.fn(),
+  };
+}
+
 describe('NotificationService', () => {
   let service: NotificationService;
-  let repository: jest.Mocked<NotificationRepository>;
-  let redisNotifyService: jest.Mocked<RedisNotifyService>;
+  let repository: ReturnType<typeof createRepositoryMock>;
+  let redisNotifyService: ReturnType<typeof createRedisNotifyServiceMock>;
 
   beforeEach(() => {
-    repository = {
-      createNotification: jest.fn(),
-      getSubscribedChannelUserIds: jest.fn(),
-      markAsRead: jest.fn(),
-      getNotifications: jest.fn(),
-      getUnreadNotifications: jest.fn(),
-    } as unknown as jest.Mocked<NotificationRepository>;
+    repository = createRepositoryMock();
+    redisNotifyService = createRedisNotifyServiceMock();
 
-    redisNotifyService = {
-      publishToRedisStream: jest.fn(),
-      ensureConsumerGroup: jest.fn(),
-    } as unknown as jest.Mocked<RedisNotifyService>;
-
-    service = new NotificationService(repository, redisNotifyService);
+    service = new NotificationService(
+      repository as unknown as NotificationRepository,
+      redisNotifyService as unknown as RedisNotifyService,
+    );
   });
 
   describe('subscribe', () => {
@@ -99,10 +109,10 @@ describe('NotificationService', () => {
 
   describe('sendNotification', () => {
     it('persists the notification and publishes it to the redis stream', async () => {
-      repository.createNotification.mockResolvedValue({ id: 'notif-1' } as any);
+      repository.createNotification.mockResolvedValue({ id: 'notif-1' });
       repository.getSubscribedChannelUserIds.mockResolvedValue([
         { userId: 'sub-1' },
-      ] as any);
+      ]);
 
       await service.sendNotification('user-1', 'subject', 'payload', 'SYSTEM');
 
@@ -138,7 +148,7 @@ describe('NotificationService', () => {
 
   describe('getUnread', () => {
     it('returns notifications from the repository', async () => {
-      repository.getNotifications.mockResolvedValue([{ id: 'n-1' }] as any);
+      repository.getNotifications.mockResolvedValue([{ id: 'n-1' }]);
 
       const result = await service.getUnread('user-1');
 
@@ -159,9 +169,7 @@ describe('NotificationService', () => {
 
   describe('getNotifications', () => {
     it('returns unread notifications from the repository', async () => {
-      repository.getUnreadNotifications.mockResolvedValue([
-        { id: 'n-1' },
-      ] as any);
+      repository.getUnreadNotifications.mockResolvedValue([{ id: 'n-1' }]);
 
       const result = await service.getNotifications('user-1');
 

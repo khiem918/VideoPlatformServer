@@ -66,7 +66,11 @@ export class VideoRepository {
     });
   }
 
-  async createVideoProcessing(videoInformationId: string, type: ProcessingType, id?: string) {
+  async createVideoProcessing(
+    videoInformationId: string,
+    type: ProcessingType,
+    id?: string,
+  ) {
     return await this.prisma.videoProcessing.create({
       data: {
         ...(id !== undefined && { id: id }),

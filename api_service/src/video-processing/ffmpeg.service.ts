@@ -171,9 +171,7 @@ export class FFmpegService {
   private async hasAudioStream(filePath: string): Promise<boolean> {
     // Probe media streams and report whether an audio stream is present.
     const metadata = await this.probe(filePath);
-    return metadata.streams.some(
-      (stream: any) => stream.codec_type === 'audio',
-    );
+    return metadata.streams.some((stream) => stream.codec_type === 'audio');
   }
 
   private buildDownscaleFilterGraph(qualities: QualityVariant[]): {
@@ -411,12 +409,12 @@ export class FFmpegService {
     return Math.max(1, Math.round(duration));
   }
 
-  private async probe(filePath: string): Promise<any> {
+  private async probe(filePath: string): Promise<ffmpeg.FfprobeData> {
     return new Promise((resolve, reject) => {
       ffmpeg.ffprobe(filePath, (err, metadata) => {
         if (err) {
           this.logger.error(`Failed to probe video metadata: ${err}`);
-          reject(err);
+          reject(err instanceof Error ? err : new Error(String(err)));
           return;
         }
 
@@ -425,7 +423,10 @@ export class FFmpegService {
     });
   }
 
-  private getDurationFromMetadata(metadata: any, videoStream?: any): number {
+  private getDurationFromMetadata(
+    metadata: ffmpeg.FfprobeData,
+    videoStream?: ffmpeg.FfprobeStream,
+  ): number {
     const parseToNumber = (value: unknown): number => {
       if (typeof value === 'number') return value;
       if (typeof value === 'string') {

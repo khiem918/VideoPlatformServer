@@ -2,6 +2,25 @@ import { NotificationConsumer } from './notification.consumer';
 import { NotificationService } from './notification.service';
 import { RedisNotifyService } from './redis.service';
 
+interface ConsumerInternals {
+  running: boolean;
+  handleMessage: (id: string, fields: string[]) => Promise<void>;
+}
+
+function createNotificationServiceMock() {
+  return {
+    ensureConsumerGroup: jest.fn().mockResolvedValue(undefined),
+    pushToDedicatedUser: jest.fn(),
+  };
+}
+
+function createRedisNotifyServiceMock() {
+  return {
+    consumeFromRedisStream: jest.fn(),
+    acknowledgeMessage: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
 async function flushPromises(times = 5): Promise<void> {
   for (let i = 0; i < times; i += 1) {
     await new Promise((resolve) => setImmediate(resolve));
@@ -10,43 +29,38 @@ async function flushPromises(times = 5): Promise<void> {
 
 describe('NotificationConsumer', () => {
   let consumer: NotificationConsumer;
-  let notificationService: jest.Mocked<NotificationService>;
-  let redisNotifyService: jest.Mocked<RedisNotifyService>;
+  let internals: ConsumerInternals;
+  let notificationService: ReturnType<typeof createNotificationServiceMock>;
+  let redisNotifyService: ReturnType<typeof createRedisNotifyServiceMock>;
   let setTimeoutSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    notificationService = {
-      ensureConsumerGroup: jest.fn().mockResolvedValue(undefined),
-      pushToDedicatedUser: jest.fn(),
-    } as unknown as jest.Mocked<NotificationService>;
-
-    redisNotifyService = {
-      consumeFromRedisStream: jest.fn(),
-      acknowledgeMessage: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<RedisNotifyService>;
+    notificationService = createNotificationServiceMock();
+    redisNotifyService = createRedisNotifyServiceMock();
 
     consumer = new NotificationConsumer(
-      notificationService,
-      redisNotifyService,
+      notificationService as unknown as NotificationService,
+      redisNotifyService as unknown as RedisNotifyService,
     );
+    internals = consumer as unknown as ConsumerInternals;
 
-    setTimeoutSpy = jest
-      .spyOn(global, 'setTimeout')
-      .mockImplementation((callback: any) => {
-        callback();
-        return 0 as any;
-      });
+    setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation(((
+      callback: () => void,
+    ) => {
+      callback();
+      return 0;
+    }) as unknown as typeof setTimeout);
   });
 
   afterEach(() => {
-    (consumer as any).running = false;
+    internals.running = false;
     setTimeoutSpy.mockRestore();
   });
 
   describe('onModuleInit', () => {
     it('ensures the consumer group and begins polling the stream', async () => {
-      redisNotifyService.consumeFromRedisStream.mockImplementation(async () => {
-        (consumer as any).running = false;
+      redisNotifyService.consumeFromRedisStream.mockImplementation(() => {
+        internals.running = false;
         return [];
       });
 
@@ -65,7 +79,7 @@ describe('NotificationConsumer', () => {
 
     it('processes a batch of messages and dispatches them to subscribers', async () => {
       let callCount = 0;
-      redisNotifyService.consumeFromRedisStream.mockImplementation(async () => {
+      redisNotifyService.consumeFromRedisStream.mockImplementation(() => {
         callCount += 1;
         if (callCount === 1) {
           return [
@@ -89,7 +103,7 @@ describe('NotificationConsumer', () => {
             ],
           ];
         }
-        (consumer as any).running = false;
+        internals.running = false;
         return [];
       });
 
@@ -109,12 +123,12 @@ describe('NotificationConsumer', () => {
 
     it('waits and retries when consuming the stream throws', async () => {
       let callCount = 0;
-      redisNotifyService.consumeFromRedisStream.mockImplementation(async () => {
+      redisNotifyService.consumeFromRedisStream.mockImplementation(() => {
         callCount += 1;
         if (callCount === 1) {
           throw new Error('stream unavailable');
         }
-        (consumer as any).running = false;
+        internals.running = false;
         return [];
       });
 
@@ -129,12 +143,12 @@ describe('NotificationConsumer', () => {
   });
 
   describe('onModuleDestroy', () => {
-    it('stops the polling loop', async () => {
-      (consumer as any).running = true;
+    it('stops the polling loop', () => {
+      internals.running = true;
 
-      await consumer.onModuleDestroy();
+      consumer.onModuleDestroy();
 
-      expect((consumer as any).running).toBe(false);
+      expect(internals.running).toBe(false);
     });
   });
 
@@ -153,7 +167,7 @@ describe('NotificationConsumer', () => {
         'notif-1',
       ];
 
-      await (consumer as any).handleMessage('msg-1', fields);
+      await internals.handleMessage('msg-1', fields);
 
       expect(notificationService.pushToDedicatedUser).toHaveBeenCalledWith(
         ['user-1', 'user-2'],
@@ -169,7 +183,7 @@ describe('NotificationConsumer', () => {
     it('defaults targetUserIds to an empty array when the field is missing', async () => {
       const fields = ['userId', 'user-1', 'payload', 'hello', 'type', 'SYSTEM'];
 
-      await (consumer as any).handleMessage('msg-1', fields);
+      await internals.handleMessage('msg-1', fields);
 
       expect(notificationService.pushToDedicatedUser).toHaveBeenCalledWith([], {
         userId: 'user-1',
@@ -191,7 +205,7 @@ describe('NotificationConsumer', () => {
         'not-json',
       ];
 
-      await (consumer as any).handleMessage('msg-1', fields);
+      await internals.handleMessage('msg-1', fields);
 
       expect(notificationService.pushToDedicatedUser).not.toHaveBeenCalled();
       expect(redisNotifyService.acknowledgeMessage).not.toHaveBeenCalled();

@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { ArgumentsHost, BadRequestException, HttpStatus } from '@nestjs/common';
 import { GraphQLError } from 'graphql';
 import { AllExceptionsFilter } from './all-exceptions.filter';

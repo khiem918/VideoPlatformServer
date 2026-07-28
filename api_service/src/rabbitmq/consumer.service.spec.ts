@@ -16,19 +16,23 @@ const MESSAGE_SETTLE_DELAY_MS = 1_000;
 
 jest.setTimeout(120_000);
 
+function createRepositoryMock() {
+  return {
+    updateMetaProcessingStatus: jest.fn(),
+  };
+}
+
 describe('ConsumerService', () => {
   let broker: RabbitMqTestBroker;
   let moduleRef: TestingModule;
-  let repository: jest.Mocked<TransferDataRepository>;
+  let repository: ReturnType<typeof createRepositoryMock>;
   let publishConnection: Awaited<ReturnType<typeof amqp.connect>>;
   let publishChannel: amqp.Channel;
 
   beforeAll(async () => {
     broker = await startRabbitMqTestBroker();
 
-    repository = {
-      updateMetaProcessingStatus: jest.fn(),
-    } as unknown as jest.Mocked<TransferDataRepository>;
+    repository = createRepositoryMock();
 
     moduleRef = await Test.createTestingModule({
       imports: [RabbitMQModule.forRoot(buildRabbitMqConfig(broker.amqpUrl))],

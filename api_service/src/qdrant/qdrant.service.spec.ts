@@ -17,6 +17,11 @@ jest.mock('@qdrant/js-client-rest', () => ({
 }));
 
 import { QdrantService } from './qdrant.service';
+import { VideoPoint } from './type/qdrant.types';
+
+interface UpsertCallArgs {
+  points: Array<{ vector: { desc?: number[]; title?: number[] } }>;
+}
 
 describe('QdrantService', () => {
   let service: QdrantService;
@@ -34,9 +39,10 @@ describe('QdrantService', () => {
 
       await service.onModuleInit();
 
+      const vectorsMatcher: unknown = expect.any(Object);
       expect(mockCreateCollection).toHaveBeenCalledWith(
         'videos',
-        expect.objectContaining({ vectors: expect.any(Object) }),
+        expect.objectContaining({ vectors: vectorsMatcher }),
       );
       expect(mockCreatePayloadIndex).toHaveBeenCalledTimes(3);
     });
@@ -78,7 +84,7 @@ describe('QdrantService', () => {
         id: 'video-1',
         vectors: { titleDense: [0.1, 0.2], descDense: [0.3, 0.4] },
         payload: { videoId: 'video-1' },
-      } as any);
+      } as unknown as VideoPoint);
 
       expect(mockUpsert).toHaveBeenCalledWith(
         'videos',
@@ -100,9 +106,13 @@ describe('QdrantService', () => {
         id: 'video-1',
         vectors: { titleDense: [0.1, 0.2] },
         payload: {},
-      } as any);
+      } as unknown as VideoPoint);
 
-      const call = mockUpsert.mock.calls[0][1];
+      const calls = mockUpsert.mock.calls as unknown as [
+        string,
+        UpsertCallArgs,
+      ][];
+      const call = calls[0][1];
       expect(call.points[0].vector.desc).toEqual([0.1, 0.2]);
       expect(call.points[0].vector.title).toEqual([0.1, 0.2]);
     });
@@ -115,7 +125,7 @@ describe('QdrantService', () => {
           id: 'video-1',
           vectors: { titleDense: [0.1] },
           payload: {},
-        } as any),
+        } as unknown as VideoPoint),
       ).rejects.toThrow('upsert failed');
     });
   });

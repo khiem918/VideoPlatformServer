@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
-import { GRPC_PACKAGE, GRPC_PROTO_PATH, GRPC_CLIENT_PACKAGE } from '../constants';
+import {
+  GRPC_PACKAGE,
+  GRPC_PROTO_PATH,
+  GRPC_CLIENT_PACKAGE,
+} from '../constants';
 import { GrpcClientService } from './grpc-client.service';
 
 @Module({

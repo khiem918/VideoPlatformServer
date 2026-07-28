@@ -1,7 +1,7 @@
 jest.mock('ffmpeg-static', () => '/usr/bin/ffmpeg-fake');
 jest.mock('ffprobe-static', () => ({ path: '/usr/bin/ffprobe-fake' }));
 jest.mock('fs', () => {
-  const actual = jest.requireActual('fs');
+  const actual = jest.requireActual<typeof import('fs')>('fs');
   return {
     ...actual,
     promises: {
@@ -12,8 +12,48 @@ jest.mock('fs', () => {
   };
 });
 
-function createChainableCommand(initialInput?: string) {
-  const command: any = { _inputs: initialInput ? [initialInput] : [] };
+interface MockFfmpegCommand {
+  _inputs: string[];
+  _handlers: Record<string, (...args: unknown[]) => void>;
+  _ran: boolean;
+  input: jest.Mock;
+  inputOptions: jest.Mock;
+  seekInput: jest.Mock;
+  complexFilter: jest.Mock;
+  outputOptions: jest.Mock;
+  output: jest.Mock;
+  on: jest.Mock;
+  run: jest.Mock;
+}
+
+interface MockFfmpegFn extends jest.Mock {
+  setFfmpegPath: jest.Mock;
+  setFfprobePath: jest.Mock;
+  ffprobe: (...args: unknown[]) => unknown;
+}
+
+interface FakeProbeStream {
+  codec_type?: string;
+  width?: number;
+  height?: number;
+  bit_rate?: string;
+  duration?: string;
+}
+
+interface FakeProbeResult {
+  format: { duration?: string | number };
+  streams: FakeProbeStream[];
+}
+
+type ProbeCallback = (err: Error | null, data: FakeProbeResult | null) => void;
+
+function createChainableCommand(initialInput?: string): MockFfmpegCommand {
+  const command = {
+    _inputs: initialInput ? [initialInput] : [],
+    _handlers: {},
+    _ran: false,
+  } as MockFfmpegCommand;
+
   command.input = jest.fn((input: string) => {
     command._inputs.push(input);
     return command;
@@ -23,28 +63,29 @@ function createChainableCommand(initialInput?: string) {
   command.complexFilter = jest.fn().mockReturnValue(command);
   command.outputOptions = jest.fn().mockReturnValue(command);
   command.output = jest.fn().mockReturnValue(command);
-  command.on = jest.fn((event: string, handler: (...args: any[]) => void) => {
-    command._handlers = command._handlers || {};
-    command._handlers[event] = handler;
-    return command;
-  });
+  command.on = jest.fn(
+    (event: string, handler: (...args: unknown[]) => void) => {
+      command._handlers[event] = handler;
+      return command;
+    },
+  );
   command.run = jest.fn(() => {
     command._ran = true;
   });
   return command;
 }
 
-let lastCommand: any;
-let createdCommands: any[];
+let lastCommand: MockFfmpegCommand | undefined;
+let createdCommands: MockFfmpegCommand[];
 const ffprobeMock = jest.fn();
 const ffmpegFn = jest.fn((initialInput?: string) => {
   lastCommand = createChainableCommand(initialInput);
   createdCommands.push(lastCommand);
   return lastCommand;
-});
-(ffmpegFn as any).setFfmpegPath = jest.fn();
-(ffmpegFn as any).setFfprobePath = jest.fn();
-(ffmpegFn as any).ffprobe = (...args: any[]) => ffprobeMock(...args);
+}) as unknown as MockFfmpegFn;
+ffmpegFn.setFfmpegPath = jest.fn();
+ffmpegFn.setFfprobePath = jest.fn();
+ffmpegFn.ffprobe = (...args: unknown[]): unknown => ffprobeMock(...args);
 
 jest.mock('fluent-ffmpeg', () => ffmpegFn);
 
@@ -52,28 +93,35 @@ import { FFmpegService } from './ffmpeg.service';
 import { S3Service } from '../s3/s3.service';
 import { ConfigService } from '@nestjs/config';
 
+function createConfigServiceMock() {
+  return {
+    get: jest.fn().mockReturnValue(undefined),
+  };
+}
+
 describe('FFmpegService', () => {
   let service: FFmpegService;
-  let s3Service: jest.Mocked<S3Service>;
-  let configService: jest.Mocked<ConfigService>;
+  let s3Service: Record<string, never>;
+  let configService: ReturnType<typeof createConfigServiceMock>;
 
   beforeEach(() => {
     jest.clearAllMocks();
     lastCommand = undefined;
     createdCommands = [];
-    s3Service = {} as unknown as jest.Mocked<S3Service>;
-    configService = {
-      get: jest.fn().mockReturnValue(undefined),
-    } as unknown as jest.Mocked<ConfigService>;
-    service = new FFmpegService(s3Service, configService);
+    s3Service = {};
+    configService = createConfigServiceMock();
+    service = new FFmpegService(
+      s3Service as unknown as S3Service,
+      configService as unknown as ConfigService,
+    );
   });
 
   function triggerEnd() {
-    lastCommand._handlers.end();
+    lastCommand!._handlers.end();
   }
 
   function triggerError(error: Error) {
-    lastCommand._handlers.error(error);
+    lastCommand!._handlers.error(error);
   }
 
   async function waitForCommandCount(count: number): Promise<void> {
@@ -99,8 +147,8 @@ describe('FFmpegService', () => {
       triggerEnd();
 
       await expect(promise).resolves.toBeUndefined();
-      expect(lastCommand.seekInput).toHaveBeenCalledWith(3);
-      expect(lastCommand.output).toHaveBeenCalledWith('thumb.jpg');
+      expect(lastCommand!.seekInput).toHaveBeenCalledWith(3);
+      expect(lastCommand!.output).toHaveBeenCalledWith('thumb.jpg');
     });
 
     it('rejects when ffmpeg reports an error', async () => {
@@ -113,7 +161,7 @@ describe('FFmpegService', () => {
 
   describe('getVideoMetadata', () => {
     it('returns parsed duration, resolution, and bitrate', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, {
           format: { duration: '65.4' },
           streams: [
@@ -138,7 +186,7 @@ describe('FFmpegService', () => {
     });
 
     it('throws when there is no video stream', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, { format: { duration: 10 }, streams: [] });
       });
 
@@ -148,7 +196,7 @@ describe('FFmpegService', () => {
     });
 
     it('rejects when ffprobe reports an error', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(new Error('probe failed'), null);
       });
 
@@ -158,7 +206,7 @@ describe('FFmpegService', () => {
     });
 
     it('throws when duration cannot be determined', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, {
           format: {},
           streams: [{ codec_type: 'video', width: 100, height: 100 }],
@@ -173,7 +221,7 @@ describe('FFmpegService', () => {
 
   describe('extractVideoDuration', () => {
     it('falls back to the stream duration when format duration is missing', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, {
           format: {},
           streams: [{ codec_type: 'video', duration: '42.9' }],
@@ -188,7 +236,7 @@ describe('FFmpegService', () => {
 
   describe('transcodeToDASH', () => {
     it('resolves with the manifest path when transcoding succeeds', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, {
           format: { duration: '65.4' },
           streams: [
@@ -230,7 +278,7 @@ describe('FFmpegService', () => {
     });
 
     it('does not start the manifest combination until the variant ladder finishes encoding', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, {
           format: { duration: '65.4' },
           streams: [
@@ -263,15 +311,14 @@ describe('FFmpegService', () => {
 
       triggerEndAt(1);
 
+      const manifestMatcher: unknown = expect.stringContaining('manifest.mpd');
       await expect(promise).resolves.toEqual(
-        expect.objectContaining({
-          manifest: expect.stringContaining('manifest.mpd'),
-        }),
+        expect.objectContaining({ manifest: manifestMatcher }),
       );
     });
 
     it('builds a sequential downscaling filter graph from highest to lowest resolution', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, {
           format: { duration: '10' },
           streams: [
@@ -288,7 +335,9 @@ describe('FFmpegService', () => {
       const promise = service.transcodeToDASH('input.mp4', '/tmp/dash-output');
 
       await waitForCommandCount(1);
-      const filterArg = createdCommands[0].complexFilter.mock.calls[0][0];
+      const complexFilterCalls = createdCommands[0].complexFilter.mock
+        .calls as unknown as [string][];
+      const filterArg = complexFilterCalls[0][0];
 
       expect(filterArg).toBe(
         '[0:v]scale=w=1280:h=720:force_original_aspect_ratio=decrease:force_divisible_by=2,split=2[v720p_out][v720p_next]; ' +
@@ -304,7 +353,7 @@ describe('FFmpegService', () => {
     });
 
     it('throws when the source resolution has no suitable quality variant', async () => {
-      ffprobeMock.mockImplementation((_path: string, cb: any) => {
+      ffprobeMock.mockImplementation((_path: string, cb: ProbeCallback) => {
         cb(null, {
           format: { duration: '10' },
           streams: [{ codec_type: 'video', width: 100, height: 100 }],

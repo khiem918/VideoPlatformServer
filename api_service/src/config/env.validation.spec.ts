@@ -39,8 +39,9 @@ describe('validateEnv', () => {
   it('returns a validated instance when all required variables are present', () => {
     const result = validateEnv(createValidConfig());
 
-    expect(result.SERVER_PORT).toBe(3000);
-    expect(result.DATABASE_URL).toBe('postgres://localhost');
+    const resultRecord = result as unknown as Record<string, unknown>;
+    expect(resultRecord.SERVER_PORT).toBe(3000);
+    expect(resultRecord.DATABASE_URL).toBe('postgres://localhost');
   });
 
   it('throws a descriptive error when a required variable is missing', () => {
@@ -52,9 +53,9 @@ describe('validateEnv', () => {
 
   it('throws when a numeric variable receives a non-numeric value', () => {
     const config = createValidConfig();
-    config.SERVER_PORT = 'not-a-number';
+    config.REDIS_PORT = 'not-a-number';
 
-    expect(() => validateEnv(config)).toThrow(/SERVER_PORT/);
+    expect(() => validateEnv(config)).toThrow(/REDIS_PORT/);
   });
 
   it('allows optional variables to be omitted', () => {

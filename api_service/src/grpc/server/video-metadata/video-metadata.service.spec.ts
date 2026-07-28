@@ -4,16 +4,22 @@ import { VideoVisibility } from '@prisma/client';
 import { VideoMetaDataGrpcService } from './video-metadata.service';
 import { VideoMetaDatarepository } from './repository/video-metadata.repository';
 
+function createRepositoryMock() {
+  return {
+    getVideoMetaData: jest.fn(),
+  };
+}
+
 describe('VideoMetaDataGrpcService', () => {
   let service: VideoMetaDataGrpcService;
-  let repository: jest.Mocked<VideoMetaDatarepository>;
+  let repository: ReturnType<typeof createRepositoryMock>;
 
   beforeEach(() => {
-    repository = {
-      getVideoMetaData: jest.fn(),
-    } as unknown as jest.Mocked<VideoMetaDatarepository>;
+    repository = createRepositoryMock();
 
-    service = new VideoMetaDataGrpcService(repository);
+    service = new VideoMetaDataGrpcService(
+      repository as unknown as VideoMetaDatarepository,
+    );
   });
 
   it('queries only public videos and maps the response shape', async () => {
@@ -29,7 +35,7 @@ describe('VideoMetaDataGrpcService', () => {
         duration: 120,
         owner: { id: 'owner-1', userName: 'owner name' },
       },
-    ] as any);
+    ]);
 
     const result = await service.getVideoMetaData(['video-1']);
 
@@ -60,7 +66,7 @@ describe('VideoMetaDataGrpcService', () => {
         duration: 120,
         owner: { id: 'owner-1', userName: null },
       },
-    ] as any);
+    ]);
 
     const result = await service.getVideoMetaData(['video-1']);
 
@@ -68,7 +74,7 @@ describe('VideoMetaDataGrpcService', () => {
   });
 
   it('throws an RpcException with NOT_FOUND when the repository returns no rows', async () => {
-    repository.getVideoMetaData.mockResolvedValue(null as any);
+    repository.getVideoMetaData.mockResolvedValue(null);
 
     await expect(service.getVideoMetaData(['missing'])).rejects.toThrow(
       RpcException,

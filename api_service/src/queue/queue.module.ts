@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
     ConfigModule,
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         connection: {
           host: configService.getOrThrow<string>('QUEUE_HOST'),
           port: configService.getOrThrow<number>('QUEUE_PORT'),

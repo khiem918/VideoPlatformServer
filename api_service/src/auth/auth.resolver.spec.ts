@@ -15,36 +15,55 @@ import { AuthResolver } from './auth.resolver';
 import { AuthService } from './auth.service';
 import { FirebaseService } from './firebase.service';
 import { ConfigService } from '@nestjs/config';
+import type { Request, Response } from 'express';
+
+function createAuthServiceMock() {
+  return {
+    signIn: jest.fn(),
+    rotateToken: jest.fn(),
+    signOut: jest.fn(),
+  };
+}
+
+function createFirebaseServiceMock() {
+  return {
+    verifyIdToken: jest.fn(),
+  };
+}
+
+function createConfigServiceMock() {
+  return {
+    get: jest.fn().mockReturnValue('3600'),
+  };
+}
+
+function createResponse() {
+  return {
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+  };
+}
+
+function createRequest(signedCookies: Record<string, string>) {
+  return { signedCookies };
+}
 
 describe('AuthResolver', () => {
   let resolver: AuthResolver;
-  let authService: jest.Mocked<AuthService>;
-  let firebaseService: jest.Mocked<FirebaseService>;
-  let config: jest.Mocked<ConfigService>;
-
-  function createResponse() {
-    return {
-      cookie: jest.fn(),
-      clearCookie: jest.fn(),
-    } as any;
-  }
+  let authService: ReturnType<typeof createAuthServiceMock>;
+  let firebaseService: ReturnType<typeof createFirebaseServiceMock>;
+  let config: ReturnType<typeof createConfigServiceMock>;
 
   beforeEach(() => {
-    authService = {
-      signIn: jest.fn(),
-      rotateToken: jest.fn(),
-      signOut: jest.fn(),
-    } as unknown as jest.Mocked<AuthService>;
+    authService = createAuthServiceMock();
+    firebaseService = createFirebaseServiceMock();
+    config = createConfigServiceMock();
 
-    firebaseService = {
-      verifyIdToken: jest.fn(),
-    } as unknown as jest.Mocked<FirebaseService>;
-
-    config = {
-      get: jest.fn().mockReturnValue('3600'),
-    } as unknown as jest.Mocked<ConfigService>;
-
-    resolver = new AuthResolver(authService, firebaseService, config);
+    resolver = new AuthResolver(
+      authService as unknown as AuthService,
+      firebaseService as unknown as FirebaseService,
+      config as unknown as ConfigService,
+    );
   });
 
   describe('verifyFirebaseToken', () => {
@@ -63,7 +82,7 @@ describe('AuthResolver', () => {
     it('returns the decoded token when Firebase verification succeeds', async () => {
       firebaseService.verifyIdToken.mockResolvedValue({
         email: 'user@example.com',
-      } as any);
+      });
 
       const result = await resolver.verifyFirebaseToken('valid-token');
 
@@ -91,7 +110,7 @@ describe('AuthResolver', () => {
     it('sets session cookies and returns the auth payload on success', async () => {
       firebaseService.verifyIdToken.mockResolvedValue({
         email: 'user@example.com',
-      } as any);
+      });
       authService.signIn.mockResolvedValue({
         userId: 'user-1',
         refreshToken: 'refresh-token',
@@ -101,8 +120,8 @@ describe('AuthResolver', () => {
       const res = createResponse();
 
       const result = await resolver.signIn(
-        { clientId: 'client-token' } as any,
-        res,
+        { clientId: 'client-token' },
+        res as unknown as Response,
       );
 
       expect(authService.signIn).toHaveBeenCalledWith('user@example.com');
@@ -123,38 +142,50 @@ describe('AuthResolver', () => {
     });
 
     it('throws UnauthorizedException when Firebase payload has no email', async () => {
-      firebaseService.verifyIdToken.mockResolvedValue({} as any);
+      firebaseService.verifyIdToken.mockResolvedValue({});
       const res = createResponse();
 
       await expect(
-        resolver.signIn({ clientId: 'client-token' } as any, res),
+        resolver.signIn(
+          { clientId: 'client-token' },
+          res as unknown as Response,
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('rotateToken', () => {
     it('throws UnauthorizedException when the refresh token cookie is missing', async () => {
-      const req = { signedCookies: { SSID: 'session-1' } } as any;
+      const req = createRequest({ SSID: 'session-1' });
       const res = createResponse();
 
       await expect(
-        resolver.rotateToken({ userId: 'user-1', iat: 0 }, req, res),
+        resolver.rotateToken(
+          { userId: 'user-1', iat: 0 },
+          req as unknown as Request,
+          res as unknown as Response,
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('throws UnauthorizedException when the session id cookie is missing', async () => {
-      const req = { signedCookies: { FTK: 'refresh-token' } } as any;
+      const req = createRequest({ FTK: 'refresh-token' });
       const res = createResponse();
 
       await expect(
-        resolver.rotateToken({ userId: 'user-1', iat: 0 }, req, res),
+        resolver.rotateToken(
+          { userId: 'user-1', iat: 0 },
+          req as unknown as Request,
+          res as unknown as Response,
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('rotates cookies when a new session is issued', async () => {
-      const req = {
-        signedCookies: { FTK: 'refresh-token', SSID: 'session-1' },
-      } as any;
+      const req = createRequest({
+        FTK: 'refresh-token',
+        SSID: 'session-1',
+      });
       const res = createResponse();
       authService.rotateToken.mockResolvedValue({
         newAccessToken: 'new-access-token',
@@ -165,8 +196,8 @@ describe('AuthResolver', () => {
 
       const result = await resolver.rotateToken(
         { userId: 'user-1', iat: 0 },
-        req,
-        res,
+        req as unknown as Request,
+        res as unknown as Response,
       );
 
       expect(res.cookie).toHaveBeenCalledWith(
@@ -186,16 +217,21 @@ describe('AuthResolver', () => {
     });
 
     it('does not set cookies when the session is simply refreshed', async () => {
-      const req = {
-        signedCookies: { FTK: 'refresh-token', SSID: 'session-1' },
-      } as any;
+      const req = createRequest({
+        FTK: 'refresh-token',
+        SSID: 'session-1',
+      });
       const res = createResponse();
       authService.rotateToken.mockResolvedValue({
         newAccessToken: 'new-access-token',
         userId: 'user-1',
       });
 
-      await resolver.rotateToken({ userId: 'user-1', iat: 0 }, req, res);
+      await resolver.rotateToken(
+        { userId: 'user-1', iat: 0 },
+        req as unknown as Request,
+        res as unknown as Response,
+      );
 
       expect(res.cookie).not.toHaveBeenCalled();
     });
@@ -203,25 +239,29 @@ describe('AuthResolver', () => {
 
   describe('refresh', () => {
     it('throws UnauthorizedException when cookies are missing', async () => {
-      const req = { signedCookies: {} } as any;
+      const req = createRequest({});
       const res = createResponse();
 
-      await expect(resolver.refresh(req, res)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        resolver.refresh(req as unknown as Request, res as unknown as Response),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('returns a new access token when refresh succeeds', async () => {
-      const req = {
-        signedCookies: { FTK: 'refresh-token', SSID: 'session-1' },
-      } as any;
+      const req = createRequest({
+        FTK: 'refresh-token',
+        SSID: 'session-1',
+      });
       const res = createResponse();
       authService.rotateToken.mockResolvedValue({
         newAccessToken: 'new-access-token',
         userId: 'user-1',
       });
 
-      const result = await resolver.refresh(req, res);
+      const result = await resolver.refresh(
+        req as unknown as Request,
+        res as unknown as Response,
+      );
 
       expect(authService.rotateToken).toHaveBeenCalledWith(
         '',
@@ -235,16 +275,20 @@ describe('AuthResolver', () => {
     });
 
     it('returns an empty user_id when no userId is resolved', async () => {
-      const req = {
-        signedCookies: { FTK: 'refresh-token', SSID: 'session-1' },
-      } as any;
+      const req = createRequest({
+        FTK: 'refresh-token',
+        SSID: 'session-1',
+      });
       const res = createResponse();
       authService.rotateToken.mockResolvedValue({
         newAccessToken: 'new-access-token',
         userId: '',
       });
 
-      const result = await resolver.refresh(req, res);
+      const result = await resolver.refresh(
+        req as unknown as Request,
+        res as unknown as Response,
+      );
 
       expect(result.user_id).toBe('');
     });
@@ -252,22 +296,26 @@ describe('AuthResolver', () => {
 
   describe('signOut', () => {
     it('throws UnauthorizedException when the session id cookie is missing', async () => {
-      const req = { signedCookies: {} } as any;
+      const req = createRequest({});
       const res = createResponse();
 
       await expect(
-        resolver.signOut({ userId: 'user-1', iat: 0 }, res, req),
+        resolver.signOut(
+          { userId: 'user-1', iat: 0 },
+          res as unknown as Response,
+          req as unknown as Request,
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('clears cookies and signs the user out', async () => {
-      const req = { signedCookies: { SSID: 'session-1' } } as any;
+      const req = createRequest({ SSID: 'session-1' });
       const res = createResponse();
 
       const result = await resolver.signOut(
         { userId: 'user-1', iat: 0 },
-        res,
-        req,
+        res as unknown as Response,
+        req as unknown as Request,
       );
 
       expect(authService.signOut).toHaveBeenCalledWith('user-1', 'session-1');

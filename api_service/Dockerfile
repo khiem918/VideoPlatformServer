@@ -27,16 +27,16 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
+ENV CHECKPOINT_DISABLE=1
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates curl \
   && rm -rf /var/lib/apt/lists/*
 
 COPY api_service/package.json api_service/package-lock.json ./
-# `prisma` (CLI, used below by `migrate deploy`) and `@prisma/client`
-# (imported directly by prisma.service.ts) are both listed under
+# `@prisma/client` (imported directly by prisma.service.ts) is listed under
 # devDependencies in package.json despite being required at runtime, so
-# `--omit=dev` would silently strip them and break every DB-touching path.
+# `--omit=dev` would silently strip it and break every DB-touching path.
 RUN npm ci
 
 COPY --from=builder /app/dist ./dist
@@ -51,4 +51,4 @@ RUN mkdir -p src
 
 EXPOSE 8080 50051
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["node", "dist/main"]

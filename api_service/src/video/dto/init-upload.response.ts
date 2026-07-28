@@ -6,5 +6,5 @@ export class InitUploadResponse {
   presignedUrl!: string;
 
   @Field()
-  videoId!: string
+  videoId!: string;
 }

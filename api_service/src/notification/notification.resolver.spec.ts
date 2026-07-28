@@ -1,24 +1,30 @@
 import { NotificationResolver } from './notification.resolver';
 import { NotificationService } from './notification.service';
 
+function createNotificationServiceMock() {
+  return {
+    getNotifications: jest.fn(),
+    sendNotification: jest.fn(),
+  };
+}
+
 describe('NotificationResolver', () => {
   let resolver: NotificationResolver;
-  let notificationService: jest.Mocked<NotificationService>;
+  let notificationService: ReturnType<typeof createNotificationServiceMock>;
 
   beforeEach(() => {
-    notificationService = {
-      getNotifications: jest.fn(),
-      sendNotification: jest.fn(),
-    } as unknown as jest.Mocked<NotificationService>;
+    notificationService = createNotificationServiceMock();
 
-    resolver = new NotificationResolver(notificationService);
+    resolver = new NotificationResolver(
+      notificationService as unknown as NotificationService,
+    );
   });
 
   describe('getNotification', () => {
     it('returns the notifications for the hardcoded demo user', async () => {
       notificationService.getNotifications.mockResolvedValue([
         { id: 'n-1', content: 'hello', isRead: false },
-      ] as any);
+      ]);
 
       const result = await resolver.getNotification();
 
