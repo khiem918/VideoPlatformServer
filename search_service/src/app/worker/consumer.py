@@ -18,11 +18,15 @@ async def handle_metadata_transfer_message(
         video_id = payload.get('videoId')
         title = payload.get('title')
         desc = payload.get('description') or payload.get('desc')
+        user_id = payload.get('userId') or payload.get('userOwner') or "default_user"
+        visibility = payload.get('visibility') or "PUBLIC"
 
         logger.debug(f"Received metadata transfer message: correlation_id={correlation_id}, video_id={video_id}")
         
-        await container.video.process_metadata(video_id, title, desc)
-
+        await container.video.process_metadata(
+            video_id, title, desc, user_id=user_id, visibility=visibility
+        )
+        
         logger.debug(f"Metadata processing succeeded: correlation_id={correlation_id}, video_id={video_id}")
 
         await exchange.publish(

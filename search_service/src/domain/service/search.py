@@ -7,19 +7,20 @@ from src.infrastructure.database.qdrant import QdrantService
 from src.infrastructure.grpc.grpc_client import GrpcClient
 from src.domain.entity.search_respone import VideoMetadata
 from src.infrastructure.s3.s3_client import S3Client
-from src.domain.service.normalize import standard_normalize, normalize_query_to_id
+from src.infrastructure.database.chunk_qdrant import ChunkQdrantService
+from src.domain.service.normalize import normalize_transcript_text, normalize_query_to_id
 
 logger = logging.getLogger(__name__)
 
 class SearchService:
-    def __init__(self, embedding_service, qdrant_service, redis_service, grpc_service, s3_client):
-        self.embedding_service : EmbeddingService = embedding_service
-        self.qdrant_service : QdrantService = qdrant_service
-        self.redis_service : RedisService = redis_service
-        self.grpc_service : GrpcClient = grpc_service
-        self._inflight_requests = {} 
-        self._s3_client : S3Client = s3_client
-
+    def __init__(self, embedding_service, qdrant_service, chunk_qdrant_service, redis_service, grpc_service, s3_client):
+        self.embedding_service: EmbeddingService = embedding_service
+        self.qdrant_service: QdrantService = qdrant_service
+        self.chunk_qdrant_service: ChunkQdrantService = chunk_qdrant_service
+        self.redis_service: RedisService = redis_service
+        self.grpc_service: GrpcClient = grpc_service
+        self._inflight_requests = {}
+        self._s3_client: S3Client = s3_client
 
     def _get_search_cache_key(self, user_id: str, query: str) -> str:
         # Normalize the query to build a stable per-user cache key.
@@ -180,33 +181,42 @@ class SearchService:
         #---------------Handle searching algorithm---------------------------------------------
 
         # Normalize the query before generating embeddings.
-        normalized_query = standard_normalize(query)
-        
-        try:
+        normalized_query = normalize_transcript_text(query)        
 
-            # Build dense and sparse query vectors for hybrid search.
+        try:
+            # Dense-only embedding — sparse không được dùng ở đây vì
+            # chunk_qdrant collection chỉ hỗ trợ 1 dense vector (theo benchmark: dense-only tốt hơn hybrid).
             query_dense_vector = await self.embedding_service.embed_query(normalized_query)
-            sparse_vector = await self.embedding_service.embed_sparse(normalized_query)
-        
+
         except Exception as e:
 
             logger.error(f"Error occurred while embedding query: {e}")
             raise Exception("Error occurred while embedding query") from e
 
         try:
+            # Qdrant tự lọc quyền riêng tư ngay trong query filter (PUBLIC hoặc chính chủ).
+            chunk_results = await self.chunk_qdrant_service.search_chunks(
+                query_vector=query_dense_vector,
+                limit=config.MAX_SEARCH_RESULTS,
+                current_user_id=user_id,
+            )
 
-            # Query Qdrant for the best matching search candidates.
-            search_results = await self.qdrant_service.search_points(query_dense_vector, sparse_vector, config.MAX_SEARCH_RESULTS)
-        
         except Exception as e:
 
-            logger.error(f"Error occurred while searching points: {e}")
-            raise Exception("Error occurred while searching points") from e
-        
-        ordered_result_ids = [result.id for result in sorted(search_results, key=lambda x: x.score, reverse=True)]
+            logger.error(f"Error occurred while searching chunks: {e}")
+            raise Exception("Error occurred while searching chunks") from e
 
-        # Resolve metadata and prepare presigned thumbnail URLs.
-        result_metadata = await self._handle_metadata(ordered_result_ids)       
+        ordered_chunks = sorted(chunk_results, key=lambda c: c.score, reverse=True)
+
+        # Loại trùng video_id, giữ thứ tự theo score cao nhất của chunk đầu tiên xuất hiện.
+        ordered_result_ids = []
+        for chunk in ordered_chunks:
+            video_id = chunk.payload["videoId"]
+            if video_id not in ordered_result_ids:
+                ordered_result_ids.append(video_id)
+
+        # Resolve metadata và chuẩn bị presigned thumbnail URL.
+        result_metadata = await self._handle_metadata(ordered_result_ids)
 
         #-----------------Cache searching result in redis--------------------------------------
 

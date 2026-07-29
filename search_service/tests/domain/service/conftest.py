@@ -21,6 +21,13 @@ def qdrant_service():
 
 
 @pytest.fixture
+def chunk_qdrant_service():
+    mock = MagicMock()
+    mock.search_chunks = AsyncMock(return_value=[])
+    return mock
+
+
+@pytest.fixture
 def redis_service():
     mock = MagicMock()
     mock.mget_with_ttl = AsyncMock(return_value=[])
@@ -45,10 +52,11 @@ def s3_client():
 
 
 @pytest.fixture
-def search_service(embedding_service, qdrant_service, redis_service, grpc_service, s3_client):
+def search_service(embedding_service, qdrant_service, chunk_qdrant_service, redis_service, grpc_service, s3_client):
     return SearchService(
         embedding_service=embedding_service,
         qdrant_service=qdrant_service,
+        chunk_qdrant_service=chunk_qdrant_service,
         redis_service=redis_service,
         grpc_service=grpc_service,
         s3_client=s3_client,
@@ -59,6 +67,13 @@ def make_scored_point(point_id, score):
     point = MagicMock()
     point.id = point_id
     point.score = score
+    return point
+
+
+def make_chunk_point(video_id, score):
+    point = MagicMock()
+    point.score = score
+    point.payload = {"videoId": video_id}
     return point
 
 

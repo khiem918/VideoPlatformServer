@@ -22,6 +22,13 @@ RUN python -c "from fastembed import TextEmbedding, SparseTextEmbedding; \
 TextEmbedding('intfloat/multilingual-e5-large'); \
 SparseTextEmbedding('Qdrant/bm25')"
 
+RUN python -c "from faster_whisper import WhisperModel; \
+WhisperModel('small', device='cpu', compute_type='int8')"
+
+RUN python -c "from transformers import BlipProcessor, BlipForConditionalGeneration; \
+BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base'); \
+BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base')"
+
 COPY . .
 
 # prisma-client-py generates the client straight into site-packages/prisma
@@ -30,5 +37,8 @@ COPY . .
 RUN prisma generate
 
 EXPOSE 8000 50052
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8000/api/v1/health || exit 1
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

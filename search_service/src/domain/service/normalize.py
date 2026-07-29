@@ -69,3 +69,17 @@ def normalize_query_to_id(text: str) -> str:
 def hashing_md5(message: str) -> str:
     return hashlib.md5(message.encode('utf-8')).hexdigest()
     
+def normalize_transcript_text(text: str) -> str:
+    if not text:
+        return ""
+
+    text = emoji.replace_emoji(text, replace=' ')
+
+    text = text.lower()
+
+    # Giữ nguyên dấu tiếng Việt (không unidecode), dùng re.UNICODE để \w khớp đúng ký tự có dấu.
+    text = re.sub(r'[^\w\s]', ' ', text, flags=re.UNICODE)
+
+    text = re.sub(r'[ \t]+', ' ', text)
+
+    return text.strip()

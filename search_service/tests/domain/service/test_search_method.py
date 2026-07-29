@@ -3,7 +3,7 @@ import asyncio
 import pytest
 
 from src.core.config import config
-from tests.domain.service.conftest import make_scored_point
+from tests.domain.service.conftest import make_chunk_point
 
 
 class TestSearchWithCursor:
@@ -63,22 +63,36 @@ class TestSearchWithCursor:
 
 
 class TestSearchFullQuery:
-    async def test_embeds_normalized_query_and_searches_qdrant(
-        self, search_service, embedding_service, qdrant_service
+    async def test_embeds_normalized_query_and_searches_chunks(
+        self, search_service, embedding_service, chunk_qdrant_service
     ):
-        qdrant_service.search_points.return_value = []
+        chunk_qdrant_service.search_chunks.return_value = []
 
         await search_service.search("user-1", "Hello World!", limit=10, cursor=None)
 
         embedding_service.embed_query.assert_awaited_once_with("hello world")
-        embedding_service.embed_sparse.assert_awaited_once_with("hello world")
+        embedding_service.embed_sparse.assert_not_awaited()
+
+    async def test_searches_chunks_with_current_user_id_and_configured_limit(
+        self, search_service, chunk_qdrant_service, embedding_service
+    ):
+        embedding_service.embed_query.return_value = [0.1, 0.2]
+        chunk_qdrant_service.search_chunks.return_value = []
+
+        await search_service.search("user-1", "query", limit=10, cursor=None)
+
+        chunk_qdrant_service.search_chunks.assert_awaited_once_with(
+            query_vector=[0.1, 0.2],
+            limit=config.MAX_SEARCH_RESULTS,
+            current_user_id="user-1",
+        )
 
     async def test_orders_results_by_descending_score(
-        self, search_service, qdrant_service, redis_service
+        self, search_service, chunk_qdrant_service, redis_service
     ):
-        qdrant_service.search_points.return_value = [
-            make_scored_point("low", 0.2),
-            make_scored_point("high", 0.9),
+        chunk_qdrant_service.search_chunks.return_value = [
+            make_chunk_point("low", 0.2),
+            make_chunk_point("high", 0.9),
         ]
         redis_service.mget_with_ttl.return_value = [
             {"key": "meta:high", "value": {"video_id": "high", "thumbnail_url": "h.jpg"}, "ttl": 100},
@@ -92,10 +106,27 @@ class TestSearchFullQuery:
         assert [item["video_id"] for item in results] == ["high", "low"]
         assert next_cursor == 10
 
-    async def test_returns_empty_list_when_no_search_results(
-        self, search_service, qdrant_service, redis_service
+    async def test_deduplicates_multiple_chunks_from_same_video(
+        self, search_service, chunk_qdrant_service, redis_service
     ):
-        qdrant_service.search_points.return_value = []
+        chunk_qdrant_service.search_chunks.return_value = [
+            make_chunk_point("a", 0.9),
+            make_chunk_point("a", 0.7),
+            make_chunk_point("b", 0.5),
+        ]
+        redis_service.mget_with_ttl.return_value = [
+            {"key": "meta:a", "value": {"video_id": "a", "thumbnail_url": "a.jpg"}, "ttl": 100},
+            {"key": "meta:b", "value": {"video_id": "b", "thumbnail_url": "b.jpg"}, "ttl": 100},
+        ]
+
+        results, _ = await search_service.search("user-1", "query", limit=10, cursor=None)
+
+        assert [item["video_id"] for item in results] == ["a", "b"]
+
+    async def test_returns_empty_list_when_no_search_results(
+        self, search_service, chunk_qdrant_service, redis_service
+    ):
+        chunk_qdrant_service.search_chunks.return_value = []
         redis_service.mget_with_ttl.return_value = []
 
         results, next_cursor = await search_service.search(
@@ -106,9 +137,9 @@ class TestSearchFullQuery:
         assert next_cursor == 10
 
     async def test_schedules_caching_of_results_when_results_found(
-        self, search_service, qdrant_service, redis_service
+        self, search_service, chunk_qdrant_service, redis_service
     ):
-        qdrant_service.search_points.return_value = [make_scored_point("a", 0.5)]
+        chunk_qdrant_service.search_chunks.return_value = [make_chunk_point("a", 0.5)]
         redis_service.mget_with_ttl.return_value = [
             {"key": "meta:a", "value": {"video_id": "a", "thumbnail_url": "a.jpg"}, "ttl": 100}
         ]
@@ -121,9 +152,9 @@ class TestSearchFullQuery:
         )
 
     async def test_does_not_schedule_caching_when_no_results_found(
-        self, search_service, qdrant_service, redis_service
+        self, search_service, chunk_qdrant_service, redis_service
     ):
-        qdrant_service.search_points.return_value = []
+        chunk_qdrant_service.search_chunks.return_value = []
         redis_service.mget_with_ttl.return_value = []
 
         await search_service.search("user-1", "query", limit=10, cursor=None)
@@ -139,10 +170,10 @@ class TestSearchFullQuery:
         with pytest.raises(Exception, match="Error occurred while embedding query"):
             await search_service.search("user-1", "query", limit=10, cursor=None)
 
-    async def test_raises_wrapped_exception_when_qdrant_search_fails(
-        self, search_service, qdrant_service
+    async def test_raises_wrapped_exception_when_chunk_search_fails(
+        self, search_service, chunk_qdrant_service
     ):
-        qdrant_service.search_points.side_effect = RuntimeError("qdrant down")
+        chunk_qdrant_service.search_chunks.side_effect = RuntimeError("qdrant down")
 
-        with pytest.raises(Exception, match="Error occurred while searching points"):
+        with pytest.raises(Exception, match="Error occurred while searching chunks"):
             await search_service.search("user-1", "query", limit=10, cursor=None)

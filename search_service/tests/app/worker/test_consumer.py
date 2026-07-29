@@ -59,7 +59,8 @@ class TestStartConsumer:
                 pass
 
             fake_video_service.process_metadata.assert_awaited_once_with(
-                "video-1", "A Title", "A description"
+                "video-1", "A Title", "A description",
+                user_id="default_user", visibility="PUBLIC",
             )
         finally:
             await verify_connection.close()
@@ -94,7 +95,8 @@ class TestStartConsumer:
                 pass
 
             fake_video_service.process_metadata.assert_awaited_once_with(
-                "video-1", "A Title", None
+                "video-1", "A Title", None,
+                user_id="default_user", visibility="PUBLIC",
             )
         finally:
             await verify_connection.close()

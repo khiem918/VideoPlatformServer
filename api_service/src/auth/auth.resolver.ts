@@ -13,12 +13,13 @@ import { gqlCurrentUser } from './decorator/gql-current-user.decorator';
 import { ConfigService } from '@nestjs/config';
 import { SignInInput } from './dto/auth.dto';
 
+const REFRESH_TOKEN_EXPIRES_IN = 7 * 24 * 60 * 60;
+
 @Resolver()
 export class AuthResolver {
   constructor(
     private readonly authService: AuthService,
     private readonly firebaseService: FirebaseService,
-    private readonly config: ConfigService,
   ) {}
 
   async verifyFirebaseToken(idToken: string): Promise<{ email?: string }> {
@@ -58,7 +59,7 @@ export class AuthResolver {
       secure: true,
       sameSite: 'lax',
       signed: true,
-      maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
+      maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000, 
     });
 
     res.cookie('FTK', refreshToken, {
@@ -66,7 +67,7 @@ export class AuthResolver {
       secure: true,
       sameSite: 'lax',
       signed: true,
-      maxAge: parseInt(<string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'), 10),
+      maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000,
     });
 
     return {
@@ -102,20 +103,14 @@ export class AuthResolver {
         secure: true,
         sameSite: 'lax',
         signed: true,
-        maxAge: parseInt(
-          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
-          10,
-        ),
+        maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000,
       });
       res.cookie('SSID', newSessionId, {
         httpOnly: true,
         secure: true,
         sameSite: 'lax',
         signed: true,
-        maxAge: parseInt(
-          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
-          10,
-        ),
+        maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000,
       });
     }
     return { user_id: user.userId, accessToken: newAccessToken };
@@ -142,20 +137,14 @@ export class AuthResolver {
         secure: true,
         sameSite: 'strict',
         signed: true,
-        maxAge: parseInt(
-          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
-          10,
-        ),
+        maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000,
       });
       res.cookie('SSID', newSessionId, {
         httpOnly: true,
         secure: true,
         sameSite: 'strict',
         signed: true,
-        maxAge: parseInt(
-          <string>this.config.get('REFRESH_TOKEN_EXPIRES_IN'),
-          10,
-        ),
+        maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000,
       });
     }
 

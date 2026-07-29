@@ -7,6 +7,10 @@ from src.infrastructure.database.postgres import PostgresService
 from src.infrastructure.grpc.grpc_client import GrpcClient
 from src.domain.service.video import Video
 from src.infrastructure.grpc.grpc_server import GrpcServer
+from src.infrastructure.database.chunk_qdrant import ChunkQdrantService
+from src.domain.service.transcription_service import TranscriptionService
+from src.domain.service.caption_service import CaptionService
+from src.domain.service.video_processing_service import VideoProcessingService
 
 class Container:
     def __init__(self):
@@ -17,7 +21,10 @@ class Container:
         self.redis_service = RedisService()
         self.grpc_client = GrpcClient()
         self.s3_client = S3Client()
-        
+        self.chunk_qdrant = ChunkQdrantService()
+        self.transcription = TranscriptionService()
+        self.caption = CaptionService()
+
         self.video = Video(
             embedding=self.embedding,
             qdrant=self.qdrant,
@@ -28,8 +35,17 @@ class Container:
             embedding_service=self.embedding,
             qdrant_service=self.qdrant,
             redis_service=self.redis_service,
+            chunk_qdrant_service=self.chunk_qdrant,
             grpc_service=self.grpc_client,
             s3_client=self.s3_client
+        )
+
+        self.video_processing = VideoProcessingService(
+            transcription=self.transcription,
+            embedding=self.embedding,
+            chunk_qdrant=self.chunk_qdrant,
+            s3_client=self.s3_client,
+            caption=self.caption,
         )
 
         self.grpc_server = GrpcServer()

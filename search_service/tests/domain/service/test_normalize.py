@@ -4,6 +4,7 @@ from src.domain.service.normalize import (
     hashing_md5,
     normalize_desc,
     normalize_query_to_id,
+    normalize_transcript_text,
     standard_normalize,
 )
 
@@ -125,3 +126,42 @@ class TestHashingMd5:
 
         assert isinstance(result, str)
         assert len(result) == 32
+
+
+class TestNormalizeTranscriptText:
+    def test_returns_empty_string_for_empty_input(self):
+        result = normalize_transcript_text("")
+
+        assert result == ""
+
+    def test_returns_empty_string_for_none_input(self):
+        result = normalize_transcript_text(None)
+
+        assert result == ""
+
+    def test_lowercases_text(self):
+        result = normalize_transcript_text("Hello World")
+
+        assert result == "hello world"
+
+    def test_removes_emoji(self):
+        result = normalize_transcript_text("emoji \U0001F600 test")
+
+        assert result == "emoji test"
+
+    def test_removes_punctuation_but_keeps_words(self):
+        result = normalize_transcript_text("what?! is-this_thing@#$%")
+
+        assert "?" not in result
+        assert "!" not in result
+        assert "@" not in result
+
+    def test_collapses_multiple_spaces_and_tabs(self):
+        result = normalize_transcript_text("  Multiple   Spaces\tHere  ")
+
+        assert result == "multiple spaces here"
+
+    def test_preserves_vietnamese_diacritics_unlike_standard_normalize(self):
+        result = normalize_transcript_text("Xin chào các bạn!")
+
+        assert result == "xin chào các bạn"
