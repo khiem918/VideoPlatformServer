@@ -10,7 +10,6 @@ import type { Request, Response } from 'express';
 import { AuthPayload } from './type/auth-payload.type';
 import { GqlAuthGuard } from './guard/gql-auth.guard';
 import { gqlCurrentUser } from './decorator/gql-current-user.decorator';
-import { ConfigService } from '@nestjs/config';
 import { SignInInput } from './dto/auth.dto';
 
 const REFRESH_TOKEN_EXPIRES_IN = 7 * 24 * 60 * 60;
@@ -59,7 +58,7 @@ export class AuthResolver {
       secure: true,
       sameSite: 'lax',
       signed: true,
-      maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000, 
+      maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000,
     });
 
     res.cookie('FTK', refreshToken, {

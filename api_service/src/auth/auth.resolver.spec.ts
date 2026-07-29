@@ -14,7 +14,6 @@ jest.mock('firebase-admin/auth', () => ({
 import { AuthResolver } from './auth.resolver';
 import { AuthService } from './auth.service';
 import { FirebaseService } from './firebase.service';
-import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 
 function createAuthServiceMock() {
@@ -28,12 +27,6 @@ function createAuthServiceMock() {
 function createFirebaseServiceMock() {
   return {
     verifyIdToken: jest.fn(),
-  };
-}
-
-function createConfigServiceMock() {
-  return {
-    get: jest.fn().mockReturnValue('3600'),
   };
 }
 
@@ -52,17 +45,14 @@ describe('AuthResolver', () => {
   let resolver: AuthResolver;
   let authService: ReturnType<typeof createAuthServiceMock>;
   let firebaseService: ReturnType<typeof createFirebaseServiceMock>;
-  let config: ReturnType<typeof createConfigServiceMock>;
 
   beforeEach(() => {
     authService = createAuthServiceMock();
     firebaseService = createFirebaseServiceMock();
-    config = createConfigServiceMock();
 
     resolver = new AuthResolver(
       authService as unknown as AuthService,
       firebaseService as unknown as FirebaseService,
-      config as unknown as ConfigService,
     );
   });
 
