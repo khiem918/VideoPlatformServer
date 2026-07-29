@@ -6,6 +6,11 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import Redis from 'ioredis';
+import {
+  buildRedisOptions,
+  parseRedisPort,
+  pingWithTimeout,
+} from '../common/redis/redis-connection';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -13,13 +18,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
 
   constructor() {
-    const redisPort = Number.parseInt(process.env.REDIS_PORT ?? '6379', 10);
-
-    this.redisClient = new Redis({
-      host: process.env.REDIS_HOST ?? '127.0.0.1',
-      port: Number.isNaN(redisPort) ? 6379 : redisPort,
-      db: 0,
-    });
+    this.redisClient = new Redis(
+      buildRedisOptions({
+        host: process.env.REDIS_HOST ?? '127.0.0.1',
+        port: parseRedisPort(process.env.REDIS_PORT),
+        db: 0,
+      }),
+    );
 
     this.redisClient.on('connect', () =>
       this.logger.log('Redis connecting...'),
@@ -37,7 +42,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     try {
-      await this.redisClient.ping();
+      await pingWithTimeout(this.redisClient);
       this.logger.log('Redis ping success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

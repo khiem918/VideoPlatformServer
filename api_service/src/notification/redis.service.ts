@@ -6,6 +6,11 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import Redis from 'ioredis/built/Redis';
+import {
+  buildRedisOptions,
+  parseRedisPort,
+  pingWithTimeout,
+} from '../common/redis/redis-connection';
 
 @Injectable()
 export class RedisNotifyService implements OnModuleInit, OnModuleDestroy {
@@ -14,13 +19,11 @@ export class RedisNotifyService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisNotifyService.name);
 
   constructor() {
-    const redisPort = Number.parseInt(process.env.REDIS_PORT ?? '6379', 10);
-
-    const redisConfig: import('ioredis').RedisOptions = {
+    const redisConfig = buildRedisOptions({
       host: process.env.REDIS_HOST ?? '127.0.0.1',
-      port: Number.isNaN(redisPort) ? 6379 : redisPort,
+      port: parseRedisPort(process.env.REDIS_PORT),
       db: 2,
-    };
+    });
 
     this.pub = new Redis(redisConfig);
     this.sub = new Redis(redisConfig);
@@ -44,8 +47,8 @@ export class RedisNotifyService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     try {
-      await this.pub.ping();
-      await this.sub.ping();
+      await pingWithTimeout(this.pub);
+      await pingWithTimeout(this.sub);
       this.logger.log('pub and sub ping success');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';

@@ -18,6 +18,15 @@ export class EnvironmentVariables {
   @IsString()
   REDIS_PASSWORD?: string;
 
+  /**
+   * Set to "true"/"1" when REDIS_HOST and QUEUE_HOST point at an ElastiCache
+   * node with in-transit encryption; those nodes silently stall a plaintext
+   * client instead of rejecting it. Left unset for plaintext local Redis.
+   */
+  @IsOptional()
+  @IsString()
+  REDIS_TLS?: string;
+
   @IsNotEmpty()
   @IsString()
   JWT_SECRET!: string;

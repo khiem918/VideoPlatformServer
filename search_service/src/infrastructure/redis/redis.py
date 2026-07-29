@@ -4,13 +4,28 @@ from redis.asyncio import Redis
 from typing import Optional, Any
 from src.core.config import config
 
+# An ElastiCache node created with in-transit encryption accepts TLS only, and
+# it stalls a plaintext client rather than rejecting it: the TCP handshake
+# succeeds, then the server waits for a ClientHello while the client waits for
+# a reply, and neither side ever times out. Without these bounds that turns
+# into a permanent hang inside the FastAPI lifespan, so uvicorn never starts
+# serving and every health check fails with nothing in the logs to explain it.
+# Use a rediss:// REDIS_URL against such a node; redis-py enables TLS from the
+# scheme. None of this client's commands block by design, so bounding every
+# read is safe here (the BullMQ worker connection is a separate client).
+REDIS_CONNECT_TIMEOUT_SECONDS = 10
+REDIS_COMMAND_TIMEOUT_SECONDS = 10
+
+
 class RedisService:
     def __init__(self):
         self._client: Redis = Redis.from_url(
             config.REDIS_URL,
             decode_responses=True,
+            socket_connect_timeout=REDIS_CONNECT_TIMEOUT_SECONDS,
+            socket_timeout=REDIS_COMMAND_TIMEOUT_SECONDS,
         )
-        
+
     async def connect(self):
         await self._client.ping()
         logging.info("Connected to Redis successfully")

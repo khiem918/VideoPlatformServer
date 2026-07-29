@@ -29,6 +29,13 @@ RUN python -c "from transformers import BlipProcessor, BlipForConditionalGenerat
 BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base'); \
 BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base')"
 
+# Models are pre-warmed into the image above; force offline mode so
+# from_pretrained()/hf_hub_download() never attempt a network call at
+# runtime (e.g. ECS tasks without internet egress) and always use the
+# local cache instead.
+ENV HF_HUB_OFFLINE=1 \
+  TRANSFORMERS_OFFLINE=1
+
 COPY . .
 
 # prisma-client-py generates the client straight into site-packages/prisma

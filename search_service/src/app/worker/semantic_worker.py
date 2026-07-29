@@ -10,6 +10,11 @@ QUEUE_NAME = os.getenv("SEMANTIC_QUEUE_NAME", "video-semantic-indexing")
 QUEUE_HOST = os.getenv("QUEUE_HOST", "localhost")
 QUEUE_PORT = int(os.getenv("QUEUE_PORT", "6379"))
 
+# Must match api_service's REDIS_TLS: both services share the same ElastiCache
+# queue endpoint, and one with in-transit encryption stalls a plaintext client
+# forever instead of rejecting it. Off by default for plaintext local Redis.
+QUEUE_TLS = os.getenv("REDIS_TLS", "").strip().lower() in ("true", "1")
+
 
 async def process_job(job, job_token):
     """
@@ -50,11 +55,15 @@ async def start_semantic_worker():
     Khởi động BullMQ worker lắng nghe queue 'video-processing' trên Redis db=1.
     Chú ý: db=1 khác với Redis cache của search service (db=0, port 6380).
     """
+    # No socket_timeout here: BullMQ polls the queue with blocking commands
+    # that are expected to sit idle, so a read timeout would abort them.
     redis_connection = Redis(
         host=QUEUE_HOST,
-        port=QUEUE_PORT,   
-        db=1,              
+        port=QUEUE_PORT,
+        db=1,
         decode_responses=False,
+        ssl=QUEUE_TLS,
+        socket_connect_timeout=10,
     )
 
     worker = Worker(
